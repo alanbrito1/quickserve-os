@@ -1,0 +1,27 @@
+# ── Credenciales y configuración sensible ──────────────────────────
+# NUNCA subir a GitHub — contiene usuario y contraseña de la DB
+public_html/app/config/database.php
+
+# ── Uploads (fotos de activos, pueden ser grandes) ──────────────────
+public_html/uploads/
+
+# ── Archivos de sistema ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# ── Editores y IDEs ──────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── PHP temporales ───────────────────────────────────────────────────
+*.cache
+/vendor/
+
+# ── claude.md se incluye (memoria del proyecto, sin datos sensibles) ─
+# Si quieres excluirlo descomenta la siguiente línea:
+# claude.md
