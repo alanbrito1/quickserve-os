@@ -24,8 +24,16 @@ if (!csrf_verificar()) {
     exit;
 }
 
-$mes  = (int)($_POST['mes']  ?? 0);
-$anio = (int)($_POST['anio'] ?? 0);
+$mes    = (int)($_POST['mes']    ?? 0);
+$anio   = (int)($_POST['anio']   ?? 0);
+$accion = $_POST['accion'] ?? '';
+
+// Whitelist explícita de acciones permitidas — nunca usar else implícito
+$acciones_ok = ['generar', 'eliminar_periodo'];
+if (!in_array($accion, $acciones_ok, true)) {
+    echo json_encode(['success' => false, 'error' => 'Acción inválida.']);
+    exit;
+}
 
 if ($mes < 1 || $mes > 12 || $anio < 2020 || $anio > 2100) {
     echo json_encode(['success' => false, 'error' => 'Período inválido.']);
@@ -33,11 +41,19 @@ if ($mes < 1 || $mes > 12 || $anio < 2020 || $anio > 2100) {
 }
 
 try {
-    $resultado = NominaModel::generar_periodo($mes, $anio);
-    echo json_encode(['success' => true] + $resultado);
+    if ($accion === 'eliminar_periodo') {
+        // Eliminar todas las liquidaciones del período (requiere admin_total)
+        permiso_requerir('nomina', 'admin_total');
+        $eliminados = NominaModel::eliminar_periodo($mes, $anio);
+        echo json_encode(['success' => true, 'eliminados' => $eliminados, 'accion_realizada' => 'eliminar']);
+    } elseif ($accion === 'generar') {
+        // Generar nómina para todos los empleados activos del período
+        $resultado = NominaModel::generar_periodo($mes, $anio);
+        echo json_encode(['success' => true, 'accion_realizada' => 'generar'] + $resultado);
+    }
 } catch (RuntimeException $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('[ClanDestino Nomina] ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Error interno al generar nómina.']);
+    echo json_encode(['success' => false, 'error' => 'Error interno.']);
 }

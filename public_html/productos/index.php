@@ -11,19 +11,26 @@ require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/RecetaModel.php';
 require_once __DIR__ . '/../app/models/InsumoModel.php';
 require_once __DIR__ . '/../app/models/ActivoModel.php';
+require_once __DIR__ . '/../app/models/CostoIndirectoModel.php';
+require_once __DIR__ . '/../app/helpers/ListasHelper.php';
 
 $nav_activo = 'productos';
 permiso_requerir('productos', 'solo_ver');
 
-// ── Parámetros de costo fijo/u ───────────────────────────────────────────────
+// ── Parámetros de producción ──────────────────────────────────────────────────
 $cfg = db()->query(
     "SELECT clave, valor FROM configuracion_negocio
      WHERE clave IN ('costos_fijos_mensuales','produccion_estimada_mensual')"
 )->fetchAll(PDO::FETCH_KEY_PAIR);
 
-$costos_fijos = (float)($cfg['costos_fijos_mensuales']     ?? 365185);
-$prod_mes     = (float)($cfg['produccion_estimada_mensual'] ?? 2175);
-$prod_dia     = max(1, round($prod_mes / 21.75));
+$costos_fijos_legacy = (float)($cfg['costos_fijos_mensuales']     ?? 0);
+$prod_mes            = (float)($cfg['produccion_estimada_mensual'] ?? 2175);
+$prod_dia            = max(1, round($prod_mes / 21.75));
+
+// Costos indirectos: si hay registros en el módulo Costos los usamos (más precisos).
+// Si no hay ninguno registrado, caemos al valor hardcodeado de configuracion_negocio.
+$costos_indirectos_total = CostoIndirectoModel::total_mensual_activo();
+$costos_fijos = $costos_indirectos_total > 0 ? $costos_indirectos_total : $costos_fijos_legacy;
 
 $costo_fijo_u   = $prod_mes > 0 ? round($costos_fijos / $prod_mes, 4) : 0;
 $dep_diaria     = ActivoModel::costo_diario_total();
@@ -42,8 +49,11 @@ $costo_rh_u     = $prod_mes > 0 ? round($nomina_mensual / $prod_mes, 4) : 0;
 
 // ── Productos con costos calculados ─────────────────────────────────────────
 $productos = db()->query(
-    "SELECT p.id, p.nombre, p.tamano, p.categoria, p.precio_venta, p.activo,
-            IFNULL(p.costo_calculado, 0) AS costo_ing
+    "SELECT p.id, p.nombre, p.nombre2, p.tamano, p.categoria, p.precio_venta, p.activo,
+            IFNULL(p.costo_calculado, 0) AS costo_ing,
+            IFNULL(p.unidades_por_receta, 1) AS unidades_por_receta,
+            IFNULL(p.stock_disponible, 0)    AS stock_disponible,
+            IFNULL(p.stock_minimo, 0)        AS stock_minimo
      FROM productos p
      ORDER BY p.activo DESC, p.categoria, p.nombre,
               FIELD(p.tamano,'XL','L','unico')"
@@ -51,17 +61,39 @@ $productos = db()->query(
 
 $fijos_u = $costo_fijo_u + $costo_deprec_u + $costo_rh_u;
 foreach ($productos as &$p) {
-    $p['costo_total'] = round((float)$p['costo_ing'] + $fijos_u, 2);
+    $p['costo_total']  = round((float)$p['costo_ing'] + $fijos_u, 2);
     $precio = (float)$p['precio_venta'];
     $p['margen_pesos'] = $precio > 0 ? round($precio - $p['costo_total'], 2) : 0;
     $p['margen_pct']   = $precio > 0 ? round(($precio - $p['costo_total']) / $precio * 100, 1) : 0;
+    $p['stock_bajo']   = (int)$p['stock_minimo'] > 0
+                         && (int)$p['stock_disponible'] < (int)$p['stock_minimo'];
 }
 unset($p);
 
-$insumos_todos = InsumoModel::todos();
-$total_prods   = count($productos);
-$buenos        = count(array_filter($productos, fn($p) => $p['margen_pct'] >= 40));
-$en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 && (float)$p['precio_venta'] > 0));
+$insumos_todos   = InsumoModel::todos();
+
+// Catálogos configurables desde Admin → Catálogos (migración 029b).
+// Fallback a arrays hardcodeados si la migración aún no está aplicada.
+$_cats_lista  = listas_map('categoria_producto');
+$_tams_lista  = listas_map('tamano_producto');
+
+$CATS_PRODUCTO = !empty($_cats_lista) ? $_cats_lista : [
+    'sandwich'  => 'Sándwich',
+    'combo'     => 'Combo',
+    'bebida'    => 'Bebida',
+    'adicional' => 'Adicional',
+];
+$TAMS_PRODUCTO = !empty($_tams_lista) ? $_tams_lista : [
+    'XL'    => 'XL',
+    'L'     => 'L',
+    'unico' => 'Único',
+];
+
+$total_prods     = count($productos);
+$buenos          = count(array_filter($productos, fn($p) => $p['margen_pct'] >= 40));
+$en_riesgo       = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 && (float)$p['precio_venta'] > 0));
+$stock_bajo_cnt  = count(array_filter($productos, fn($p) => $p['stock_bajo']));
+$stock_total     = array_sum(array_column($productos, 'stock_disponible'));
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -84,7 +116,7 @@ $en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 
         @media(max-width:540px){ .banner-grid { grid-template-columns:1fr 1fr; } }
         .bn-val { font-size:18px; font-weight:800; color:#fcd34d; }
         .bn-lbl { font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; margin-bottom:16px; }
         .card-title { font-size:15px; font-weight:800; padding:14px 18px; border-bottom:1px solid var(--g9); display:flex; justify-content:space-between; align-items:center; }
         .btn-add { padding:8px 16px; background:var(--brand); color:var(--white); border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; }
         table { width:100%; border-collapse:collapse; }
@@ -125,18 +157,100 @@ $en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 
         /* Modal */
         .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:60; align-items:center; justify-content:center; padding:16px; }
         .overlay.on { display:flex; }
-        .modal { background:var(--white); border-radius:16px; padding:24px; width:100%; max-width:440px; }
-        .modal-hdr { font-size:16px; font-weight:800; margin-bottom:16px; display:flex; justify-content:space-between; }
+        /* max-height + overflow-y garantizan scroll cuando el contenido supera
+           el viewport (múltiples campos en pantalla pequeña o ventana reducida).
+           El encabezado NO es sticky aquí (el modal usa padding:24px directo).
+           nav.php inyecta la regla global .modal-hdr { position:sticky; top:0 }
+           que sí funciona cuando la estructura usa padding en hijos, no en el padre. */
+        .modal { background:var(--white); border-radius:16px; padding:24px; width:100%; max-width:440px;
+                 max-height:90vh; max-height:90dvh;
+                 overflow-y:auto; -webkit-overflow-scrolling:touch; }
+        .modal-hdr { font-size:16px; font-weight:800; margin-bottom:16px;
+                     display:flex; justify-content:space-between; align-items:center; }
         .fg { display:flex; flex-direction:column; gap:4px; margin-bottom:12px; }
         .fg label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--g5); }
         .fg input, .fg select { padding:10px 12px; border:2px solid var(--g8); border-radius:10px; font-size:15px; color:var(--dark); outline:none; width:100%; }
         .btn-cls { background:var(--g9); border:none; color:var(--g5); width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:16px; }
         .btn-full { width:100%; padding:12px; background:var(--brand); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; }
+        /* Sección combo dentro del expandable */
+        .combo-sec { margin-top:14px; padding-top:14px; border-top:1px solid var(--g8); }
+        .combo-sec-title { font-size:11px; font-weight:800; text-transform:uppercase; color:#059669; letter-spacing:.4px; margin-bottom:10px; }
+        .combo-badge { display:inline-block; font-size:10px; font-weight:800; background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:20px; margin-left:8px; vertical-align:middle; }
+        .combo-form-row { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:8px; }
+        .combo-form-row label { font-size:11px; font-weight:700; color:var(--g5); display:block; margin-bottom:3px; }
+        .combo-form-row input, .combo-form-row select { padding:7px 10px; border:2px solid var(--g8); border-radius:8px; font-size:13px; outline:none; }
+        .combo-form-row input:focus, .combo-form-row select:focus { border-color:var(--green); }
+        .combo-ins-list { margin:8px 0; }
+        .combo-ins-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed var(--g8); font-size:12px; }
+        .combo-ins-row:last-child { border-bottom:none; }
+        .btn-combo-save { padding:8px 18px; background:#059669; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
+        .btn-combo-del  { padding:8px 14px; background:#fee2e2; color:#991b1b; border:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
         /* Toast */
         .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px); padding:10px 20px; border-radius:24px; font-size:14px; font-weight:600; opacity:0; transition:.25s; z-index:99; pointer-events:none; }
         .toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
         .toast-ok  { background:#065f46; color:#d1fae5; }
         .toast-err { background:#991b1b; color:#fee2e2; }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — PRODUCTOS
+           Tabla cols: 1=Producto 2=Precio(hide-m) 3=Insumos(hide-m)
+                       4=Fijos+RH(hide-m) 5=Costo Total 6=Margen 7=Acciones
+           .hide-m ya oculta 2,3,4 en ≤640px — aquí se refuerza y amplía
+           ════════════════════════════════════════════════════════════════ */
+
+        /* ── Stats (4 columnas): 2 en móvil ── */
+        @media (max-width: 479px) {
+            /* Banner con 4 métricas: 2 columnas en móvil */
+            .banner-grid { grid-template-columns: 1fr 1fr !important; }
+            /* Margen (col 6) también se oculta en móvil muy pequeño, dejando: Producto, CostoTotal, Acciones */
+            table thead tr th:nth-child(6), table tbody tr td:nth-child(6) { display: none; }
+            .main { padding: 12px 10px 40px; }
+            /* Paneles de receta/combo: inputs de ancho fijo se adaptan al contenedor */
+            .combo-form-row > div { flex: 0 0 100%; }
+            .combo-form-row input, .combo-form-row select { width: 100% !important; box-sizing: border-box; }
+            .add-row input[type="number"] { width: 100% !important; }
+            .ing-table { display: block; overflow-x: auto; }
+        }
+
+        /* ── Teléfono horizontal (480-639px): ocultar Fijos+RH ── */
+        @media (max-width: 639px) {
+            /* .hide-m ya oculta cols 2,3,4 — agregar Margen (6) en móvil pequeño */
+            /* En 480-639 el .hide-m ya hace su trabajo — no necesitamos más */
+        }
+
+        /* ── Tablet (640-1023px) ── */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            .main { max-width: 100%; padding: 16px 18px 60px; }
+            /* Stats 4 columnas — caben bien en tablet */
+            .stats { grid-template-columns: repeat(4, 1fr); }
+            /* En tablet mostrar precio y costo total pero ocultar insumos y fijos */
+            table thead tr th:nth-child(3), table tbody tr td:nth-child(3),
+            table thead tr th:nth-child(4), table tbody tr td:nth-child(4) { display: none; }
+        }
+
+        /* ── Escritorio pequeño (1024-1279px): mostrar todas las columnas ── */
+        @media (min-width: 1024px) {
+            /* Mostrar todas las columnas ocultas con .hide-m */
+            .hide-m { display: table-cell !important; }
+        }
+
+        /* ── Pantalla grande (≥1600px) ── */
+        @media (min-width: 1600px) {
+            .main  { max-width: 1440px !important; padding: 24px 32px 60px !important; }
+            .stat-n { font-size: 28px; }
+            .bn-val { font-size: 22px; }
+            table th { font-size: 11px !important; padding: 11px 16px !important; }
+            table td { font-size: 14px !important; padding: 12px 16px !important; }
+        }
+
+        /* ── TV (≥1920px) ── */
+        @media (min-width: 1920px) {
+            .main  { max-width: 1680px !important; }
+            .stat-n { font-size: 34px; }
+            .bn-val { font-size: 28px; }
+            table th { font-size: 13px !important; padding: 14px 20px !important; }
+            table td { font-size: 16px !important; padding: 14px 20px !important; }
+        }
     </style>
 </head>
 <body>
@@ -145,11 +259,46 @@ $en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 
 
 <main class="main">
 
-    <div class="stats">
+    <!-- Acceso rápido a producción -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <a href="<?= APP_BASE ?>/productos/produccion.php"
+           style="background:var(--brand);color:#fff;text-decoration:none;padding:8px 16px;
+                  border-radius:8px;font-size:13px;font-weight:700">
+            Registro de Producción
+        </a>
+    </div>
+
+    <div class="stats" style="grid-template-columns:repeat(6,1fr)">
         <div class="stat"><div class="stat-n"><?= $total_prods ?></div><div class="stat-l">Productos</div></div>
         <div class="stat"><div class="stat-n" style="color:var(--green)"><?= $buenos ?></div><div class="stat-l">Margen ≥40%</div></div>
         <div class="stat"><div class="stat-n" style="color:var(--brand)"><?= $en_riesgo ?></div><div class="stat-l">En riesgo</div></div>
+        <div class="stat"><div class="stat-n" style="color:var(--green)"><?= $stock_total ?></div><div class="stat-l">Stock disponible</div></div>
+        <div class="stat <?= $stock_bajo_cnt > 0 ? 'style="border:1px solid #fca5a5"' : '' ?>">
+            <div class="stat-n" style="color:<?= $stock_bajo_cnt > 0 ? 'var(--brand)' : 'var(--g5)' ?>">
+                <?= $stock_bajo_cnt ?>
+            </div>
+            <div class="stat-l">Stock bajo</div>
+        </div>
         <div class="stat"><div class="stat-n">$<?= number_format($dep_diaria,2,',','.') ?></div><div class="stat-l">Dep. diaria</div></div>
+    </div>
+
+    <!-- Banner de capacidad instalada — editable -->
+    <div style="background:#fff;border:1px solid var(--g8);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <strong style="font-size:13px;color:var(--dark)">Capacidad instalada:</strong>
+        <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="prod-estimada-input" value="<?= (int)$prod_mes ?>"
+                   min="1" step="100" style="width:90px;padding:5px 8px;border:1px solid var(--g8);border-radius:8px;font-size:13px">
+            <span style="font-size:13px;color:var(--g5)">sándwiches/mes</span>
+            <button onclick="actualizarCapacidad()" style="padding:6px 12px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">
+                Actualizar y recalcular
+            </button>
+        </div>
+        <span style="font-size:12px;color:var(--g5);margin-left:auto">
+            Producción diaria estimada: <strong><?= (int)$prod_dia ?> u/día</strong>
+            · <a href="<?= APP_BASE ?>/productos/analisis.php" style="color:var(--brand);text-decoration:none;font-weight:700">
+                Ver análisis y punto de equilibrio →
+            </a>
+        </span>
     </div>
 
     <div class="banner">
@@ -191,6 +340,19 @@ $en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 
                     <?php if ($p['tamano'] !== 'unico'): ?>
                     <span style="font-size:10px;background:var(--g9);padding:1px 7px;border-radius:20px;margin-left:5px;font-weight:700"><?= $p['tamano'] ?></span>
                     <?php endif; ?>
+                    <?php if (!empty($p['nombre2'])): ?>
+                    <div style="font-size:11px;color:var(--g5);margin-top:2px"><?= htmlspecialchars($p['nombre2']) ?></div>
+                    <?php endif; ?>
+                    <!-- Stock de producto terminado -->
+                    <?php if ((int)$p['stock_bajo']): ?>
+                    <span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:20px;margin-left:4px;font-weight:700">
+                        Stock bajo: <?= (int)$p['stock_disponible'] ?>
+                    </span>
+                    <?php elseif ((int)$p['stock_disponible'] > 0): ?>
+                    <span style="font-size:10px;background:#d1fae5;color:#065f46;padding:2px 7px;border-radius:20px;margin-left:4px;font-weight:700">
+                        Stock: <?= (int)$p['stock_disponible'] ?>
+                    </span>
+                    <?php endif; ?>
                 </td>
                 <td class="r hide-m"><?= (float)$p['precio_venta'] > 0 ? '$'.number_format($p['precio_venta'],0,',','.') : '<em style="color:var(--g5)">—</em>' ?></td>
                 <td class="r hide-m">$<?= number_format($p['costo_ing'],0,',','.') ?></td>
@@ -202,7 +364,37 @@ $en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 
                     <span class="mg-bar"><span class="mg-fill" style="width:<?= max(0,min(100,$mg)) ?>%;background:<?= $fc ?>"></span></span>
                     <?php else: ?><span style="color:var(--g5)">—</span><?php endif; ?>
                 </td>
-                <td><button class="exp-btn" onclick="toggleReceta(<?= $p['id'] ?>,<?= $p['precio_venta'] ?>)">▾</button></td>
+                <td style="white-space:nowrap">
+                    <?php if (permiso_tiene('productos','editar_existentes')): ?>
+                    <button class="exp-btn ic" title="Editar"
+                            onclick="abrirEditarProd(<?= htmlspecialchars(json_encode([
+                                'id'                  => $p['id'],
+                                'nombre'              => $p['nombre'],
+                                'nombre2'             => $p['nombre2'] ?? '',
+                                'categoria'           => $p['categoria'],
+                                'tamano'              => $p['tamano'],
+                                'precio_venta'        => $p['precio_venta'],
+                                'unidades_por_receta' => (int)$p['unidades_por_receta'],
+                                'stock_minimo'        => (int)$p['stock_minimo'],
+                            ])) ?>)"
+                            style="color:#3b82f6"><?= IC_EDIT ?></button>
+                    <button class="exp-btn ic" title="Duplicar"
+                            onclick="duplicarProd(<?= $p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nombre'])) ?>')"
+                            style="color:#059669"><?= IC_COPY ?></button>
+                    <?php if ((int)$p['stock_disponible'] > 0): ?>
+                    <!-- Regalar unidades de producto terminado (obsequio) -->
+                    <button class="exp-btn ic" title="Regalar / Obsequio"
+                            onclick="abrirAjuste(<?= $p['id'] ?>,'<?= htmlspecialchars(addslashes($p['nombre'])) ?>',<?= (int)$p['stock_disponible'] ?>,'obsequio')"
+                            style="color:#9d174d"><?= IC_GIFT ?></button>
+                    <!-- Desechar producto dañado o vencido -->
+                    <button class="exp-btn ic" title="Desechar / Dar de baja"
+                            onclick="abrirAjuste(<?= $p['id'] ?>,'<?= htmlspecialchars(addslashes($p['nombre'])) ?>',<?= (int)$p['stock_disponible'] ?>,'desecho')"
+                            style="color:#6b7280"><?= IC_TRASH ?></button>
+                    <?php endif; ?>
+                    <?php endif; ?>
+                    <button class="exp-btn ic" title="Ver receta"
+                            onclick="toggleReceta(<?= $p['id'] ?>,<?= $p['precio_venta'] ?>,<?= (int)$p['unidades_por_receta'] ?>)"><?= IC_CHEV ?></button>
+                </td>
             </tr>
             <tr class="recipe-row" id="rr-<?= $p['id'] ?>">
                 <td colspan="7">
@@ -215,24 +407,118 @@ $en_riesgo     = count(array_filter($productos, fn($p) => $p['margen_pct'] < 20 
     </div>
 </main>
 
-<!-- Modal nuevo producto -->
+<!-- Modal EDITAR producto -->
+<?php if (permiso_tiene('productos','editar_existentes')): ?>
+<div class="overlay" id="modal-ep" onclick="if(event.target===this)this.classList.remove('on')">
+    <div class="modal">
+        <div class="modal-hdr">
+            Editar Producto
+            <button class="btn-cls" onclick="document.getElementById('modal-ep').classList.remove('on')">✕</button>
+        </div>
+        <input type="hidden" id="ep-id">
+        <div class="fg"><label>Nombre *</label>
+            <input id="ep-nom" placeholder="Ej: Sandwich de Pollo" maxlength="150"></div>
+        <div class="fg"><label>Nombre complementario (opcional)</label>
+            <input id="ep-nom2" placeholder="Ej: con papas criollas" maxlength="120">
+            <span style="font-size:11px;color:var(--g5)">Se muestra como subtítulo en el POS, producción, stock y reportes.</span>
+        </div>
+        <div class="fg"><label>Categoría</label>
+            <select id="ep-cat">
+                <?php foreach ($CATS_PRODUCTO as $val => $lbl): ?>
+                <option value="<?= htmlspecialchars($val) ?>"><?= htmlspecialchars($lbl) ?></option>
+                <?php endforeach; ?>
+            </select></div>
+        <div class="fg"><label>Tamaño</label>
+            <select id="ep-tam">
+                <?php foreach ($TAMS_PRODUCTO as $val => $lbl): ?>
+                <option value="<?= htmlspecialchars($val) ?>"><?= htmlspecialchars($lbl) ?></option>
+                <?php endforeach; ?>
+            </select></div>
+        <div class="fg"><label>Precio de Venta ($)</label>
+            <input type="number" id="ep-precio" min="0" step="500" placeholder="18000"></div>
+        <div class="fg">
+            <label>Sándwiches por tanda de receta</label>
+            <input type="number" id="ep-rinde" min="1" step="1" value="1">
+            <span style="font-size:11px;color:var(--g5)">
+                Define cuántos sándwiches produce UNA tanda completa de la receta.<br>
+                El costo/u = costo total ingredientes &divide; este número.<br>
+                Si cambias este valor se recalcula el margen automáticamente.
+            </span>
+        </div>
+        <div class="fg">
+            <label>Stock mínimo (alerta)</label>
+            <input type="number" id="ep-stmin" min="0" step="1" value="0">
+            <span style="font-size:11px;color:var(--g5)">Badge rojo cuando stock terminado cae por debajo de este valor.</span>
+        </div>
+        <button class="btn-full" onclick="guardarEditarProd()">Guardar Cambios</button>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal NUEVO producto -->
 <div class="overlay" id="modal-np" onclick="if(event.target===this)this.classList.remove('on')">
     <div class="modal">
         <div class="modal-hdr">
             Nuevo Producto
             <button class="btn-cls" onclick="document.getElementById('modal-np').classList.remove('on')">✕</button>
         </div>
-        <div class="fg"><label>Nombre *</label><input id="np-nom" placeholder="Ej: El Desechado"></div>
+        <div class="fg"><label>Nombre *</label><input id="np-nom" placeholder="Ej: Sandwich de Pollo" maxlength="150"></div>
+        <div class="fg"><label>Nombre complementario (opcional)</label>
+            <input id="np-nom2" placeholder="Ej: con papas criollas" maxlength="120">
+            <span style="font-size:11px;color:var(--g5)">Subtítulo visible en POS, producción y reportes.</span>
+        </div>
         <div class="fg"><label>Categoría</label>
-            <select id="np-cat"><option value="sandwich">Sándwich</option><option value="combo">Combo</option><option value="bebida">Bebida</option><option value="adicional">Adicional</option></select>
+            <select id="np-cat">
+                <?php foreach ($CATS_PRODUCTO as $val => $lbl): ?>
+                <option value="<?= htmlspecialchars($val) ?>"><?= htmlspecialchars($lbl) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div class="fg"><label>Tamaño</label>
-            <select id="np-tam"><option value="unico">Único</option><option value="XL">XL</option><option value="L">L</option></select>
+            <select id="np-tam">
+                <?php foreach ($TAMS_PRODUCTO as $val => $lbl): ?>
+                <option value="<?= htmlspecialchars($val) ?>"><?= htmlspecialchars($lbl) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div class="fg"><label>Precio de Venta ($)</label><input type="number" id="np-precio" min="0" step="500" placeholder="18000"></div>
+        <div class="fg">
+            <label>Sándwiches por tanda de receta</label>
+            <input type="number" id="np-rinde" min="1" step="1" value="1" placeholder="1">
+            <span style="font-size:11px;color:var(--g5)">Cuántas unidades produce una tanda completa de la receta. Divide el costo de ingredientes entre este número para obtener el costo por sándwich.</span>
+        </div>
+        <div class="fg">
+            <label>Stock mínimo (alerta)</label>
+            <input type="number" id="np-stmin" min="0" step="1" value="0" placeholder="0">
+            <span style="font-size:11px;color:var(--g5)">Cantidad mínima de producto terminado antes de mostrar alerta de stock bajo.</span>
+        </div>
         <button class="btn-full" onclick="guardarNuevoProducto()">Guardar Producto</button>
     </div>
 </div>
+
+<!-- Modal: Regalar / Desechar producto terminado en stock -->
+<?php if (permiso_tiene('productos','editar_existentes')): ?>
+<div class="overlay" id="modal-ajuste" onclick="if(event.target===this)this.classList.remove('on')">
+    <div class="modal">
+        <div class="modal-hdr">
+            <span id="ajuste-titulo">Ajuste de Stock</span>
+            <button class="btn-cls" onclick="document.getElementById('modal-ajuste').classList.remove('on')">✕</button>
+        </div>
+        <input type="hidden" id="ajuste-pid">
+        <input type="hidden" id="ajuste-tipo">
+        <div class="fg">
+            <label id="ajuste-lbl-cantidad">Cantidad a ajustar</label>
+            <input type="number" id="ajuste-cantidad" min="1" step="1" placeholder="1">
+            <span id="ajuste-stock-disp" style="font-size:11px;color:var(--g5)"></span>
+        </div>
+        <div class="fg">
+            <label>Motivo (opcional)</label>
+            <input type="text" id="ajuste-motivo" maxlength="300" placeholder="Ej: producto vencido, muestra para cliente, etc.">
+        </div>
+        <button class="btn-full" id="ajuste-btn" onclick="guardarAjuste()">Confirmar</button>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="toast" id="toast"></div>
 <input type="hidden" id="csrf-tk" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -249,33 +535,52 @@ const cache = {};
 const csrf  = () => document.getElementById('csrf-tk').value;
 
 // ── Expandir fila de receta ─────────────────────────────────────────────────
-async function toggleReceta(id, precio) {
+async function toggleReceta(id, precio, rinde) {
     const row = document.getElementById('rr-' + id);
-    const btn = row.previousElementSibling?.querySelector('.exp-btn');
+    // El último exp-btn de la fila es el de expandir (▾/▴)
+    const btns = row.previousElementSibling?.querySelectorAll('.exp-btn');
+    const expBtn = btns ? btns[btns.length - 1] : null;
     row.classList.toggle('open');
-    if (btn) btn.textContent = row.classList.contains('open') ? '▴' : '▾';
+    if (expBtn) expBtn.textContent = row.classList.contains('open') ? '▴' : '▾';
     if (!row.classList.contains('open') || cache[id]) return;
 
-    const resp = await fetch('api/ingredientes.php?producto_id=' + id);
-    const ings = await resp.json();
+    // Carga ingredientes y combo en paralelo para no bloquear la UI
+    const [r1, r2] = await Promise.all([
+        fetch('api/ingredientes.php?producto_id=' + id),
+        fetch('api/combo_crud.php?producto_id=' + id).catch(() => null),
+    ]);
+    const ings  = await r1.json();
+    const combo = r2 ? await r2.json().catch(() => null) : null;
     cache[id] = true;
 
-    renderReceta(id, ings, precio);
+    renderReceta(id, ings, precio, rinde || 1, combo);
 }
 
-function renderReceta(id, ings, precio) {
+function renderReceta(id, ings, precio, rinde, combo) {
+    rinde = parseInt(rinde) || 1;
     let totalIng = 0;
     const puedEdt = <?= permiso_tiene('productos','editar_existentes') ? 'true' : 'false' ?>;
+
+    // Nota sobre rendimiento de tanda cuando rinde > 1
+    const notaRinde = rinde > 1
+        ? `<p style="font-size:12px;color:#3b82f6;margin-bottom:8px;font-weight:600">
+               Tanda: las cantidades abajo son para <strong>${rinde} sándwiches</strong>.
+               El costo/u ya está dividido por ${rinde}.
+           </p>`
+        : '';
 
     let tblRows = '';
     ings.forEach(i => {
         totalIng += parseFloat(i.costo_linea || 0);
         const crit = i.es_insumo_critico == 1 ? '<span class="badge-crit">⚡crítico</span>' : '';
+        const cantLabel = rinde > 1
+            ? `${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)} <span style="color:#9ca3af;font-size:10px">(tanda)</span>`
+            : `${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)}`;
         tblRows += `<tr>
             <td>${esc(i.nombre)}${crit}</td>
-            <td>${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)}</td>
+            <td>${cantLabel}</td>
             <td style="text-align:right">$${fmt(i.costo_actual)}</td>
-            <td style="text-align:right"><strong>$${fmt(i.costo_linea)}</strong></td>
+            <td style="text-align:right"><strong>$${fmt(i.costo_linea)}</strong> <span style="color:#9ca3af;font-size:10px">/u</span></td>
             ${puedEdt ? `<td><button class="btn-sm btn-red" onclick="delIng(${id},${i.insumo_id})">✕</button></td>` : ''}
         </tr>`;
     });
@@ -308,12 +613,22 @@ function renderReceta(id, ings, precio) {
             <button class="btn-sm btn-grn" onclick="savePrecio(${id})">Guardar</button>
         </div>` : '';
 
+    // Calculadora: opciones de ingredientes para el selector de referencia
+    const optCalc = ings.map(i =>
+        `<option value="${i.insumo_id}" data-cant="${i.cantidad_requerida}">${esc(i.nombre)} (${esc(i.unidad_medida)})</option>`
+    ).join('');
+
+    // ── Sección de combo ──────────────────────────────────────────────────────
+    // Construye el HTML de la sección de combo. Solo visible si el usuario tiene permiso de editar.
+    const comboSection = puedEdt ? buildComboSection(id, precio, combo) : '';
+
     document.getElementById('rc-' + id).innerHTML = `
         <div class="rcp-grid">
             <div>
                 <p class="rcp-title">Ingredientes de la receta</p>
+                ${notaRinde}
                 <table class="ing-table">
-                    <thead><tr><th>Ingrediente</th><th>Cantidad</th><th style="text-align:right">$/u</th><th style="text-align:right">Subtotal</th>${puedEdt?'<th></th>':''}</tr></thead>
+                    <thead><tr><th>Ingrediente</th><th>Cantidad</th><th style="text-align:right">$/u</th><th style="text-align:right">Subtotal /u</th>${puedEdt?'<th></th>':''}</tr></thead>
                     <tbody>${tblRows || '<tr><td colspan="5" style="text-align:center;color:var(--g5);padding:16px">Sin ingredientes configurados</td></tr>'}</tbody>
                 </table>
                 ${addForm}
@@ -322,8 +637,34 @@ function renderReceta(id, ings, precio) {
                 <p class="rcp-title">Desglose de costo</p>
                 ${costBreak}
                 ${precioForm}
+                <!-- ── Calculadora bidireccional ── -->
+                <div style="margin-top:14px;background:#f8faff;border:1px solid #dbeafe;border-radius:10px;padding:12px">
+                    <p style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Calculadora de producción</p>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+                        <label style="font-size:12px;color:var(--g5)">Quiero hacer</label>
+                        <input type="number" id="calc-u-${id}" value="1" min="1" step="1"
+                               style="width:70px;padding:4px 6px;border:1px solid var(--g8);border-radius:6px;font-size:13px"
+                               oninput="calcIngredientes(${id},${rinde})">
+                        <label style="font-size:12px;color:var(--g5)">unidades. Necesito:</label>
+                    </div>
+                    <div id="calc-ings-${id}" style="font-size:12px;color:var(--g2)"></div>
+                    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #dbeafe;display:flex;flex-wrap:wrap;align-items:center;gap:4px">
+                        <label style="font-size:12px;color:var(--g5)">Si tengo</label>
+                        <input type="number" id="calc-qty-${id}" placeholder="Cantidad" min="0" step="0.001"
+                               style="width:80px;padding:4px 6px;border:1px solid var(--g8);border-radius:6px;font-size:13px"
+                               oninput="calcPorInsumo(${id},${rinde})">
+                        <select id="calc-ing-${id}"
+                                style="padding:4px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px;flex:1;min-width:120px"
+                                onchange="calcPorInsumo(${id},${rinde})">${optCalc}</select>
+                        <span id="calc-max-${id}" style="font-size:12px;color:#059669;font-weight:700"></span>
+                    </div>
+                </div>
             </div>
-        </div>`;
+        </div>
+        ${comboSection}`;
+
+    // Inicializar calculadora con 1 unidad
+    calcIngredientes(id, rinde);
 }
 
 // ── CRUD de ingredientes ──────────────────────────────────────────────────────
@@ -365,10 +706,277 @@ async function savePrecio(prodId) {
     else toast(d.error || 'Error', 'err');
 }
 
+// ── Combo config: renderizar sección ─────────────────────────────────────────
+
+/**
+ * Construye el HTML de la sección "Opción Combo" dentro del expandable.
+ * @param {number} prodId     ID del producto
+ * @param {number} precioProd Precio de venta del sándwich solo
+ * @param {object|null} combo Objeto de combo_crud.php GET o null si no hay config
+ */
+function buildComboSection(prodId, precioProd, combo) {
+    const optIns = INSUMOS.map(i =>
+        `<option value="${i.id}" data-u="${esc(i.unidad)}">${esc(i.nombre)} (${esc(i.unidad)})</option>`
+    ).join('');
+
+    // Insumos ya configurados en el combo (si existe config)
+    let insRows = '';
+    if (combo && combo.insumos && combo.insumos.length > 0) {
+        insRows = combo.insumos.map(ci => `
+            <div class="combo-ins-row" id="combo-ir-${prodId}-${ci.insumo_id}">
+                <span style="flex:1">${esc(ci.insumo_nombre)}</span>
+                <span style="color:var(--g5);font-size:11px;margin-right:4px">
+                    <input type="number" value="${ci.cantidad}" min="0.001" step="0.001"
+                           id="combo-qty-${prodId}-${ci.insumo_id}"
+                           style="width:70px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px">
+                    ${esc(ci.unidad_medida)}
+                </span>
+                <button class="btn-sm btn-red" onclick="quitarComboIns(${prodId},${ci.insumo_id})">✕</button>
+            </div>`).join('');
+    }
+
+    // Precio combo calculado (precio solo + adicional)
+    const adicional = combo ? parseFloat(combo.precio_adicional) : 0;
+    const precioCombo = precioProd + adicional;
+
+    const badge = combo
+        ? `<span class="combo-badge">✔ Configurado — $${fmt(adicional)} adicional</span>`
+        : `<span style="font-size:10px;color:var(--g5);margin-left:8px">Sin combo</span>`;
+
+    return `
+    <div class="combo-sec" id="combo-sec-${prodId}">
+        <p class="combo-sec-title">Opción Combo ${badge}</p>
+
+        <!-- Campos: nombre del combo + precio adicional -->
+        <div class="combo-form-row">
+            <div>
+                <label>Nombre del combo</label>
+                <input type="text" id="combo-nom-${prodId}"
+                       value="${combo ? esc(combo.nombre) : 'Combo'}"
+                       placeholder="Ej: Combo XL" style="width:160px">
+            </div>
+            <div>
+                <label>Precio adicional ($)</label>
+                <input type="number" id="combo-add-precio-${prodId}"
+                       value="${adicional}" min="0" step="500"
+                       style="width:120px"
+                       oninput="actualizarPrecioCombo(${prodId},${precioProd})">
+            </div>
+            <div style="padding-bottom:2px">
+                <label>Precio total</label>
+                <strong id="combo-total-${prodId}" style="font-size:15px;color:#059669">
+                    $${fmt(precioCombo)}
+                </strong>
+            </div>
+        </div>
+
+        <!-- Lista de insumos ya configurados -->
+        <div class="combo-ins-list" id="combo-ins-list-${prodId}">
+            ${insRows || '<p style="font-size:12px;color:var(--g5);margin-bottom:6px">Sin insumos configurados aún.</p>'}
+        </div>
+
+        <!-- Formulario para agregar insumo al combo -->
+        <div class="combo-form-row" style="margin-top:6px">
+            <div>
+                <label>Agregar insumo al combo</label>
+                <select id="combo-add-ins-${prodId}">${optIns}</select>
+            </div>
+            <div>
+                <label>Cantidad</label>
+                <input type="number" id="combo-add-qty-${prodId}"
+                       placeholder="1" min="0.001" step="0.001"
+                       style="width:80px" value="1">
+            </div>
+            <button class="btn-sm btn-grn" style="margin-top:16px"
+                    onclick="agregarComboIns(${prodId})">
+                + Insumo
+            </button>
+        </div>
+
+        <!-- Botones guardar / quitar -->
+        <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn-combo-save" onclick="guardarCombo(${prodId})">
+                &#10003; Guardar combo
+            </button>
+            ${combo ? `<button class="btn-combo-del" onclick="eliminarCombo(${prodId})">
+                Quitar combo
+            </button>` : ''}
+        </div>
+    </div>`;
+}
+
+/** Actualiza el precio total mostrado al cambiar el precio adicional */
+function actualizarPrecioCombo(prodId, precioProd) {
+    const adicional = parseFloat(document.getElementById('combo-add-precio-' + prodId)?.value) || 0;
+    const el = document.getElementById('combo-total-' + prodId);
+    if (el) el.textContent = '$' + fmt(precioProd + adicional);
+}
+
+/** Agrega un insumo a la lista visual del combo (sin guardar aún) */
+function agregarComboIns(prodId) {
+    const sel = document.getElementById('combo-add-ins-' + prodId);
+    const qtyEl = document.getElementById('combo-add-qty-' + prodId);
+    const insumoId = parseInt(sel.value);
+    const cantidad = parseFloat(qtyEl.value);
+    const unidad   = sel.options[sel.selectedIndex]?.dataset.u || '';
+    const nombre   = sel.options[sel.selectedIndex]?.text.split(' (')[0] || '';
+
+    if (!insumoId || cantidad <= 0) { toast('Cantidad inválida', 'err'); return; }
+
+    // Si ya existe ese insumo en la lista, solo actualizamos la cantidad
+    const existingQty = document.getElementById('combo-qty-' + prodId + '-' + insumoId);
+    if (existingQty) {
+        existingQty.value = cantidad;
+        toast('Cantidad actualizada', 'ok');
+        return;
+    }
+
+    const list = document.getElementById('combo-ins-list-' + prodId);
+    // Remover el placeholder "Sin insumos" si estaba
+    const placeholder = list.querySelector('p');
+    if (placeholder) placeholder.remove();
+
+    const div = document.createElement('div');
+    div.className = 'combo-ins-row';
+    div.id = 'combo-ir-' + prodId + '-' + insumoId;
+    div.innerHTML = `
+        <span style="flex:1">${esc(nombre)}</span>
+        <span style="color:var(--g5);font-size:11px;margin-right:4px">
+            <input type="number" value="${cantidad}" min="0.001" step="0.001"
+                   id="combo-qty-${prodId}-${insumoId}"
+                   style="width:70px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px">
+            ${esc(unidad)}
+        </span>
+        <button class="btn-sm btn-red" onclick="quitarComboIns(${prodId},${insumoId})">✕</button>`;
+    list.appendChild(div);
+    qtyEl.value = 1;
+}
+
+/** Elimina visualmente un insumo de la lista del combo */
+function quitarComboIns(prodId, insumoId) {
+    document.getElementById('combo-ir-' + prodId + '-' + insumoId)?.remove();
+}
+
+/** Recolecta los insumos del combo desde el DOM y envía al backend */
+async function guardarCombo(prodId) {
+    const nombre           = document.getElementById('combo-nom-' + prodId)?.value.trim() || 'Combo';
+    const precio_adicional = parseFloat(document.getElementById('combo-add-precio-' + prodId)?.value) || 0;
+
+    // Serializar todos los insumos visibles en la lista del combo
+    const insumos = [];
+    document.querySelectorAll(`[id^="combo-ir-${prodId}-"]`).forEach(row => {
+        const parts    = row.id.split('-');
+        const insumoId = parseInt(parts[parts.length - 1]);
+        const qtyInput = document.getElementById('combo-qty-' + prodId + '-' + insumoId);
+        const cantidad = parseFloat(qtyInput?.value) || 0;
+        if (insumoId && cantidad > 0) insumos.push({ insumo_id: insumoId, cantidad });
+    });
+
+    const fd = new FormData();
+    fd.append('csrf_token',      csrf());
+    fd.append('accion',          'guardar');
+    fd.append('producto_id',     prodId);
+    fd.append('nombre',          nombre);
+    fd.append('precio_adicional', precio_adicional);
+    fd.append('insumos',         JSON.stringify(insumos));
+
+    const r = await fetch('api/combo_crud.php', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+        toast('Combo guardado', 'ok');
+        // Invalidar caché para que al re-expandir cargue datos frescos
+        delete cache[prodId];
+        // Actualizar el badge sin recargar la fila completa
+        const badge = document.querySelector(`#combo-sec-${prodId} .combo-sec-title`);
+        if (badge) {
+            let sp = badge.querySelector('.combo-badge');
+            if (!sp) { sp = document.createElement('span'); sp.className = 'combo-badge'; badge.appendChild(sp); }
+            sp.textContent = `✔ Configurado — $${fmt(precio_adicional)} adicional`;
+        }
+    } else {
+        toast(d.error || 'Error al guardar combo', 'err');
+    }
+}
+
+/** Desactiva el combo del producto (soft-delete) */
+async function eliminarCombo(prodId) {
+    if (!confirm('¿Quitar la configuración de combo de este producto?\n' +
+                 'Las ventas anteriores registradas como combo no se verán afectadas.')) return;
+
+    const fd = new FormData();
+    fd.append('csrf_token',  csrf());
+    fd.append('accion',      'eliminar');
+    fd.append('producto_id', prodId);
+
+    const r = await fetch('api/combo_crud.php', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+        toast('Combo eliminado', 'ok');
+        delete cache[prodId];
+        // Colapsar y limpiar la fila expandida
+        document.getElementById('rr-' + prodId)?.classList.remove('open');
+        document.getElementById('rc-' + prodId).innerHTML = '<em style="color:var(--g5);font-size:13px">Cargando…</em>';
+    } else {
+        toast(d.error || 'Error', 'err');
+    }
+}
+
 async function reloadReceta(id) {
     document.getElementById('rr-' + id).classList.remove('open');
     const btn = document.getElementById('rr-' + id).previousElementSibling?.querySelector('.exp-btn');
     if (btn) btn.textContent = '▾';
+}
+
+// ── Editar producto ───────────────────────────────────────────────────────────
+function abrirEditarProd(p) {
+    document.getElementById('ep-id').value     = p.id;
+    document.getElementById('ep-nom').value    = p.nombre;
+    document.getElementById('ep-nom2').value   = p.nombre2 || '';   // subtítulo complementario
+    document.getElementById('ep-cat').value    = p.categoria;
+    document.getElementById('ep-tam').value    = p.tamano;
+    document.getElementById('ep-precio').value = p.precio_venta || '';
+    document.getElementById('ep-rinde').value  = p.unidades_por_receta || 1;
+    document.getElementById('ep-stmin').value  = p.stock_minimo || 0;
+    document.getElementById('modal-ep').classList.add('on');
+    setTimeout(() => document.getElementById('ep-nom').focus(), 100);
+}
+
+async function guardarEditarProd() {
+    const nombre = document.getElementById('ep-nom').value.trim();
+    if (!nombre) { toast('Nombre obligatorio', 'err'); return; }
+    const fd = new FormData();
+    fd.append('csrf_token', csrf());
+    fd.append('accion',              'editar');
+    fd.append('producto_id',         document.getElementById('ep-id').value);
+    fd.append('nombre',              nombre);
+    fd.append('nombre2',             document.getElementById('ep-nom2').value.trim()); // subtítulo
+    fd.append('categoria',           document.getElementById('ep-cat').value);
+    fd.append('tamano',              document.getElementById('ep-tam').value);
+    fd.append('precio',              document.getElementById('ep-precio').value || 0);
+    fd.append('unidades_por_receta', document.getElementById('ep-rinde').value || 1);
+    fd.append('stock_minimo',        document.getElementById('ep-stmin').value || 0);
+    const r = await fetch('api/guardar_producto.php', {method:'POST',body:fd});
+    const d = await r.json();
+    if (d.success) {
+        document.getElementById('modal-ep').classList.remove('on');
+        toast('Producto actualizado', 'ok');
+        setTimeout(() => location.reload(), 1000);
+    } else toast(d.error || 'Error', 'err');
+}
+
+// ── Duplicar producto ─────────────────────────────────────────────────────────
+async function duplicarProd(id, nombre) {
+    if (!confirm(`¿Duplicar "${nombre}" con toda su receta?\n\nSe creará una copia con el nombre "${nombre} (Copia)".`)) return;
+    const fd = new FormData();
+    fd.append('csrf_token', csrf());
+    fd.append('accion',      'duplicar');
+    fd.append('producto_id', id);
+    const r = await fetch('api/guardar_producto.php', {method:'POST',body:fd});
+    const d = await r.json();
+    if (d.success) {
+        toast(`"${d.nombre}" creado correctamente`, 'ok');
+        setTimeout(() => location.reload(), 1200);
+    } else toast(d.error || 'Error al duplicar', 'err');
 }
 
 // ── Nuevo producto ────────────────────────────────────────────────────────────
@@ -378,13 +986,133 @@ async function guardarNuevoProducto() {
     const fd = new FormData();
     fd.append('csrf_token', csrf()); fd.append('accion','crear');
     fd.append('nombre',   nombre);
+    fd.append('nombre2',  document.getElementById('np-nom2').value.trim()); // subtítulo complementario
     fd.append('categoria',document.getElementById('np-cat').value);
     fd.append('tamano',   document.getElementById('np-tam').value);
-    fd.append('precio',   document.getElementById('np-precio').value || 0);
+    fd.append('precio',              document.getElementById('np-precio').value || 0);
+    fd.append('unidades_por_receta', document.getElementById('np-rinde').value  || 1);
+    fd.append('stock_minimo',        document.getElementById('np-stmin').value  || 0);
     const r = await fetch('api/guardar_producto.php', {method:'POST',body:fd});
     const d = await r.json();
     if (d.success) { toast('Producto creado', 'ok'); setTimeout(() => location.reload(), 1000); }
     else toast(d.error || 'Error', 'err');
+}
+
+/* ── Calculadora bidireccional ───────────────────────────────────────────── */
+// Cuántos ingredientes necesito para producir N sándwiches
+function calcIngredientes(prodId, rinde) {
+    const n    = parseInt(document.getElementById('calc-u-' + prodId)?.value) || 1;
+    const row  = document.getElementById('rr-' + prodId);
+    const tbl  = row?.querySelector('.ing-table tbody');
+    if (!tbl) return;
+    rinde = rinde || 1;
+    const rows = tbl.querySelectorAll('tr');
+    let html = '';
+    rows.forEach(tr => {
+        const celdas = tr.querySelectorAll('td');
+        if (celdas.length < 2) return;
+        const nombre = celdas[0]?.textContent?.replace(/⚡crítico/g,'').trim();
+        // cantidad_requerida está en la segunda celda, parseamos el número
+        const cantText = celdas[1]?.textContent?.match(/[\d.,]+/)?.[0]?.replace(',','.');
+        if (!cantText || !nombre) return;
+        const cantPorTanda = parseFloat(cantText) || 0;
+        const cantPorUnidad = cantPorTanda / rinde;
+        const total = cantPorUnidad * n;
+        const unidad = celdas[1]?.textContent?.replace(/[\d.,]+/,'').replace('(tanda)','').trim();
+        html += `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #dbeafe">
+            <span>${nombre}</span>
+            <strong style="color:#1d4ed8">${total.toFixed(4)} ${unidad}</strong>
+        </div>`;
+    });
+    const el = document.getElementById('calc-ings-' + prodId);
+    if (el) el.innerHTML = html || '<span style="color:var(--g5)">Sin ingredientes</span>';
+}
+
+// Cuántos sándwiches puedo hacer con X cantidad de un ingrediente
+function calcPorInsumo(prodId, rinde) {
+    rinde = rinde || 1;
+    const qty = parseFloat(document.getElementById('calc-qty-' + prodId)?.value) || 0;
+    const sel = document.getElementById('calc-ing-' + prodId);
+    if (!sel) return;
+    const opt = sel.options[sel.selectedIndex];
+    const cantPorTanda = parseFloat(opt?.dataset?.cant) || 0;
+    if (!cantPorTanda || !qty) {
+        const el = document.getElementById('calc-max-' + prodId);
+        if (el) el.textContent = '';
+        return;
+    }
+    const cantPorUnidad = cantPorTanda / rinde;
+    const maxUnidades   = Math.floor(qty / cantPorUnidad);
+    const el = document.getElementById('calc-max-' + prodId);
+    if (el) el.textContent = `→ puedo hacer ${maxUnidades} sándwiches`;
+}
+
+/* ── Actualizar producción estimada ──────────────────────────────────────── */
+async function actualizarCapacidad() {
+    const val = parseInt(document.getElementById('prod-estimada-input')?.value) || 0;
+    if (val <= 0) { toast('Ingresa un valor válido', 'err'); return; }
+    const fd = new FormData();
+    fd.append('csrf_token', csrf());
+    fd.append('accion', 'actualizar_capacidad');
+    fd.append('produccion_estimada', val);
+    try {
+        const r = await fetch('api/guardar_producto.php', {method:'POST',body:fd});
+        const d = await r.json();
+        if (d.success) { toast('Capacidad actualizada — recargando…', 'ok'); setTimeout(()=>location.reload(),900); }
+        else toast(d.error||'Error','err');
+    } catch(e){ toast('Error de conexión','err'); }
+}
+
+// ---- AJUSTE DE STOCK (regalar / desechar) ----
+
+function abrirAjuste(pid, nombre, stockActual, tipo) {
+    document.getElementById('ajuste-pid').value   = pid;
+    document.getElementById('ajuste-tipo').value  = tipo;
+    document.getElementById('ajuste-cantidad').value = 1;
+    document.getElementById('ajuste-motivo').value   = '';
+    document.getElementById('ajuste-stock-disp').textContent = 'Stock disponible: ' + stockActual + ' unidades';
+    if (tipo === 'obsequio') {
+        document.getElementById('ajuste-titulo').textContent     = '🎁 Regalar: ' + nombre;
+        document.getElementById('ajuste-lbl-cantidad').textContent = 'Cantidad a regalar';
+        document.getElementById('ajuste-btn').textContent        = '🎁 Confirmar Obsequio';
+        document.getElementById('ajuste-btn').style.background   = '#9d174d';
+    } else {
+        document.getElementById('ajuste-titulo').textContent     = '🗑 Desechar: ' + nombre;
+        document.getElementById('ajuste-lbl-cantidad').textContent = 'Cantidad a desechar';
+        document.getElementById('ajuste-btn').textContent        = '🗑 Confirmar Desecho';
+        document.getElementById('ajuste-btn').style.background   = '#374151';
+    }
+    document.getElementById('modal-ajuste').classList.add('on');
+    setTimeout(() => document.getElementById('ajuste-cantidad').focus(), 100);
+}
+
+async function guardarAjuste() {
+    const pid      = document.getElementById('ajuste-pid').value;
+    const tipo     = document.getElementById('ajuste-tipo').value;
+    const cantidad = parseInt(document.getElementById('ajuste-cantidad').value);
+    const motivo   = document.getElementById('ajuste-motivo').value.trim();
+    if (!pid || isNaN(cantidad) || cantidad < 1) { toast('Cantidad inválida', 'err'); return; }
+    const btn = document.getElementById('ajuste-btn');
+    btn.disabled = true;
+    const fd = new FormData();
+    fd.append('csrf_token',   csrf());
+    fd.append('producto_id',  pid);
+    fd.append('cantidad',     cantidad);
+    fd.append('tipo',         tipo);
+    fd.append('motivo',       motivo);
+    try {
+        const r = await fetch('api/ajuste_stock.php', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (d.success) {
+            document.getElementById('modal-ajuste').classList.remove('on');
+            const etq = tipo === 'obsequio' ? 'Obsequio registrado' : 'Desecho registrado';
+            toast(etq + ' — ' + cantidad + ' unid.', 'ok');
+            setTimeout(() => location.reload(), 900);
+        } else {
+            toast(d.error || 'Error al registrar ajuste', 'err');
+        }
+    } catch(e) { toast('Error de conexión', 'err'); }
+    finally { btn.disabled = false; }
 }
 
 function fmt(n) { return Math.round(parseFloat(n)||0).toLocaleString('es-CO'); }

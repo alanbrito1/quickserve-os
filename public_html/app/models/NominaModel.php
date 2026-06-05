@@ -246,9 +246,22 @@ class NominaModel
             default        => $salario_base,
         };
 
-        // Auxilio de transporte: aplica si salario_efectivo <= tope × SMLMV
+        // Auxilio de transporte — Colombia (proporcionalidad según Min. Trabajo Circ. 0058/2015)
+        // Aplica solo si salario_efectivo ≤ 2 SMLMV; el monto es proporcional al tiempo trabajado.
         $aplica_aux_real = $aplica_aux && ($salario_efectivo <= $tope_aux * $smlmv);
-        $aux = $aplica_aux_real ? $aux_valor : 0;
+        if (!$aplica_aux_real) {
+            // Salario > tope o empleado sin derecho a aux → no aplica
+            $aux = 0;
+        } elseif ($tipo_contrato === 'por_horas' && $horas_mes > 0 && $horas_trabajadas > 0) {
+            // Por horas: proporcional a las horas trabajadas vs. jornada mensual legal
+            $aux = round($aux_valor * ($horas_trabajadas / $horas_mes), 2);
+        } elseif ($tipo_contrato === 'medio_tiempo') {
+            // Medio tiempo: 50% del auxilio mensual (trabaja media jornada)
+            $aux = round($aux_valor * 0.5, 2);
+        } else {
+            // Tiempo completo / por_dias: auxilio completo
+            $aux = $aux_valor;
+        }
 
         // ── Para por_horas: calcular recargos si hay desglose ────────────────
         $valor_hora_base    = $horas_mes > 0 ? round($salario_base / $horas_mes, 4) : 0;
@@ -261,8 +274,10 @@ class NominaModel
             $valor_extras    = $extra_result['total_pago'];
             $horas_extras_total = $extra_result['horas_extras'];
             $detalle_extras_json = json_encode($extra_result['detalle']);
-            // Suma los recargos al salario efectivo
-            $salario_efectivo = round($salario_efectivo + $valor_extras, 2);
+            // REEMPLAZAR (no sumar): calcular_desglose_horas ya incluye el pago de TODAS
+            // las horas (ordinarias × 1.00 + recargos × multiplicador).
+            // Sumarlo generaría un doble pago de las horas ordinarias.
+            $salario_efectivo = round($valor_extras, 2);
         }
 
         // ── Función helper: calcular % sobre salario_efectivo ─────────────────
@@ -406,7 +421,11 @@ class NominaModel
         $salario_base   = (float)$e['salario_base'];
         $valor_proyecto = (float)($e['valor_proyecto'] ?? 0);
 
-        // ── BUG FIX #3: Construir desglose de horas por tipo para calcular recargos ──
+        // ── Construir desglose de horas por tipo (para calcular recargos Art. 168-172 CST) ──
+        // Agrupa las horas del mes por tipo (ordinaria, recargo_nocturno, extra_diurna, etc.)
+        // Este desglose se pasa a calcular() que multiplica cada tipo por su multiplicador legal.
+        // Ejemplo: ['ordinaria' => 150, 'recargo_nocturno' => 10, 'extra_diurna' => 5]
+        // Si no hay desglose disponible, calcular() usa la fórmula simple (salario_base/horas_mes × horas)
         $horas_desglose = [];
         if ($tipo === 'por_horas' && $horas_trabajadas > 0) {
             $horas_reg = self::horas_periodo($emp_id, $mes, $anio);
@@ -426,45 +445,91 @@ class NominaModel
             $horas_desglose  // ← desglose para calcular recargos correctamente
         );
 
-        // ── Detectar columnas disponibles según migración aplicada ────────────
+        // ── Detectar columnas disponibles según migraciones aplicadas ─────────
+        // Razón: en hosting compartido puede que no todas las migraciones se hayan ejecutado.
+        // El INSERT se adapta dinámicamente para no fallar si faltan columnas de migraciones
+        // tardías (007 → tipo_contrato/horas_trabajadas; 008 → horas_extras/detalle_recargos;
+        //          033 → valor_hora_snap/valor_proyecto_snap).
+        // NOTA: este SHOW COLUMNS se ejecuta una vez por request (ver columnas_liquidacion_existen())
         $tiene007 = self::columnas_liquidacion_existen(); // tipo_contrato, horas_trabajadas
         $tiene008 = false;
+        $tiene033 = false;
         try {
             $col = db()->query("SHOW COLUMNS FROM nomina_liquidaciones LIKE 'horas_extras'")->fetch();
             $tiene008 = (bool)$col;
         } catch (\Exception $ex) { $tiene008 = false; }
+        try {
+            $col033 = db()->query("SHOW COLUMNS FROM nomina_liquidaciones LIKE 'valor_hora_snap'")->fetch();
+            $tiene033 = (bool)$col033;
+        } catch (\Exception $ex) { $tiene033 = false; }
 
         // Construir query según columnas disponibles
         if ($tiene008) {
             // Migración 008 aplicada — guardar desglose completo de horas
             $horas_ord  = $horas_trabajadas - ($c['horas_extras'] ?? 0);
-            $stmt = db()->prepare(
-                'INSERT INTO nomina_liquidaciones
-                    (empleado_id, periodo_mes, periodo_anio,
-                     horas_trabajadas, tipo_contrato, descripcion_pago,
-                     horas_ordinarias, horas_extras, valor_horas_extras, detalle_recargos,
-                     salario_base, aux_transporte,
-                     salud_empleador, pension_empleador, arl, caja_compensacion, icbf, sena,
-                     salud_empleado, pension_empleado, neto_pagado,
-                     prima, cesantias, intereses_cesantias, vacaciones,
-                     total_cargas, total_provisiones, costo_total_empleador,
-                     created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-            );
-            $stmt->execute([
-                $emp_id, $mes, $anio,
-                $horas_trabajadas, $tipo, $descripcion_pago ?: null,
-                max(0, $horas_ord), $c['horas_extras'] ?? 0,
-                $c['valor_horas_extras'] ?? 0, $c['detalle_recargos'],
-                $salario_base,           $c['aux_transporte'],
-                $c['salud_empleador'],   $c['pension_empleador'], $c['arl'],
-                $c['caja_compensacion'], $c['icbf'],              $c['sena'],
-                $c['salud_empleado'],    $c['pension_empleado'],  $c['neto_pagado'],
-                $c['prima'],             $c['cesantias'],
-                $c['intereses_cesantias'], $c['vacaciones'],
-                $c['total_cargas'],      $c['total_provisiones'],
-                $c['costo_total_empleador'], $uid,
-            ]);
+
+            if ($tiene033) {
+                // Migración 033: también guardar snapshots de valor_hora y valor_proyecto
+                $stmt = db()->prepare(
+                    'INSERT INTO nomina_liquidaciones
+                        (empleado_id, periodo_mes, periodo_anio,
+                         horas_trabajadas, tipo_contrato, descripcion_pago,
+                         horas_ordinarias, horas_extras, valor_horas_extras, detalle_recargos,
+                         salario_base, aux_transporte,
+                         salud_empleador, pension_empleador, arl, caja_compensacion, icbf, sena,
+                         salud_empleado, pension_empleado, neto_pagado,
+                         prima, cesantias, intereses_cesantias, vacaciones,
+                         total_cargas, total_provisiones, costo_total_empleador,
+                         valor_hora_snap, valor_proyecto_snap,
+                         created_by)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                );
+                $stmt->execute([
+                    $emp_id, $mes, $anio,
+                    $horas_trabajadas, $tipo, $descripcion_pago ?: null,
+                    max(0, $horas_ord), $c['horas_extras'] ?? 0,
+                    $c['valor_horas_extras'] ?? 0, $c['detalle_recargos'],
+                    $salario_base,           $c['aux_transporte'],
+                    $c['salud_empleador'],   $c['pension_empleador'], $c['arl'],
+                    $c['caja_compensacion'], $c['icbf'],              $c['sena'],
+                    $c['salud_empleado'],    $c['pension_empleado'],  $c['neto_pagado'],
+                    $c['prima'],             $c['cesantias'],
+                    $c['intereses_cesantias'], $c['vacaciones'],
+                    $c['total_cargas'],      $c['total_provisiones'],
+                    $c['costo_total_empleador'],
+                    $valor_hora > 0    ? $valor_hora    : null,  // snapshot tarifa/hora
+                    $valor_proyecto > 0 ? $valor_proyecto : null, // snapshot valor proyecto
+                    $uid,
+                ]);
+            } else {
+                $stmt = db()->prepare(
+                    'INSERT INTO nomina_liquidaciones
+                        (empleado_id, periodo_mes, periodo_anio,
+                         horas_trabajadas, tipo_contrato, descripcion_pago,
+                         horas_ordinarias, horas_extras, valor_horas_extras, detalle_recargos,
+                         salario_base, aux_transporte,
+                         salud_empleador, pension_empleador, arl, caja_compensacion, icbf, sena,
+                         salud_empleado, pension_empleado, neto_pagado,
+                         prima, cesantias, intereses_cesantias, vacaciones,
+                         total_cargas, total_provisiones, costo_total_empleador,
+                         created_by)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                );
+                $stmt->execute([
+                    $emp_id, $mes, $anio,
+                    $horas_trabajadas, $tipo, $descripcion_pago ?: null,
+                    max(0, $horas_ord), $c['horas_extras'] ?? 0,
+                    $c['valor_horas_extras'] ?? 0, $c['detalle_recargos'],
+                    $salario_base,           $c['aux_transporte'],
+                    $c['salud_empleador'],   $c['pension_empleador'], $c['arl'],
+                    $c['caja_compensacion'], $c['icbf'],              $c['sena'],
+                    $c['salud_empleado'],    $c['pension_empleado'],  $c['neto_pagado'],
+                    $c['prima'],             $c['cesantias'],
+                    $c['intereses_cesantias'], $c['vacaciones'],
+                    $c['total_cargas'],      $c['total_provisiones'],
+                    $c['costo_total_empleador'], $uid,
+                ]);
+            }
         } elseif ($tiene007) {
             // Solo migración 007 — sin columnas de desglose de horas
             $stmt = db()->prepare(
@@ -676,15 +741,41 @@ class NominaModel
     }
 
     /**
-     * Empleados con contrato por_horas con su resumen de horas del período.
+     * Empleados con contrato por_horas con resumen de horas y pago estimado del período.
+     *
+     * @param float $horas_mes  Jornada legal mensual (191.18 para Colombia 2026).
+     *                          Se usa como divisor si el empleado no tiene valor_hora manual.
+     *
+     * Retorna:
+     *   valor_hora       → tarifa real (manual) o calculada (salario_base ÷ horas_mes_legal)
+     *   horas_total      → horas brutas registradas en el período
+     *   horas_ponderadas → horas × multiplicador por tipo (ordinaria=1.00, nocturno=1.35, etc.)
+     *   pago_estimado    → horas_ponderadas × valor_hora (estimación correcta con recargos)
+     *   dias_trabajados  → días con al menos un registro
      */
-    public static function empleados_por_horas_periodo(int $mes, int $anio): array
+    public static function empleados_por_horas_periodo(int $mes, int $anio, float $horas_mes = 191.18): array
     {
         $stmt = db()->prepare(
             "SELECT e.id, e.nombre_completo, e.cargo,
-                    IFNULL(e.valor_hora, e.salario_base / 240) AS valor_hora,
-                    IFNULL(SUM(rh.horas), 0)  AS horas_total,
-                    COUNT(rh.fecha)            AS dias_trabajados
+                    -- Valor/hora: manual si está configurado, si no: salario_base ÷ jornada legal
+                    IFNULL(e.valor_hora, e.salario_base / :horas_mes) AS valor_hora,
+
+                    -- Horas brutas registradas
+                    IFNULL(SUM(rh.horas), 0) AS horas_total,
+
+                    -- Horas ponderadas con multiplicador legal (Art. 168-172 CST Colombia)
+                    IFNULL(SUM(rh.horas * CASE IFNULL(rh.tipo_hora, 'ordinaria')
+                        WHEN 'ordinaria'             THEN 1.00000
+                        WHEN 'recargo_nocturno'      THEN 1.35000
+                        WHEN 'extra_diurna'          THEN 1.25000
+                        WHEN 'extra_nocturna'        THEN 1.75000
+                        WHEN 'festiva_ordinaria'     THEN 1.75000
+                        WHEN 'extra_festiva_diurna'  THEN 2.00000
+                        WHEN 'extra_festiva_nocturna'THEN 2.50000
+                        ELSE 1.00000 END
+                    ), 0) AS horas_ponderadas,
+
+                    COUNT(rh.fecha) AS dias_trabajados
              FROM empleados e
              LEFT JOIN registro_horas rh
                 ON rh.empleado_id = e.id
@@ -694,7 +785,7 @@ class NominaModel
              GROUP BY e.id
              ORDER BY e.nombre_completo"
         );
-        $stmt->execute([':mes' => $mes, ':anio' => $anio]);
+        $stmt->execute([':horas_mes' => $horas_mes, ':mes' => $mes, ':anio' => $anio]);
         return $stmt->fetchAll();
     }
 
@@ -791,11 +882,12 @@ class NominaModel
     {
         $stmt = db()->prepare(
             'SELECT nl.*, e.nombre_completo, e.cargo,
-                    IFNULL(nl.tipo_contrato, e.tipo_contrato) AS contrato_usado
+                    IFNULL(nl.tipo_contrato, e.tipo_contrato) AS contrato_usado,
+                    COALESCE(e.tipo_costo, \'indirecto\')      AS tipo_costo
              FROM nomina_liquidaciones nl
              JOIN empleados e ON e.id = nl.empleado_id
              WHERE nl.periodo_mes = ? AND nl.periodo_anio = ?
-             ORDER BY e.nombre_completo'
+             ORDER BY e.tipo_costo, e.nombre_completo'
         );
         $stmt->execute([$mes, $anio]);
         return $stmt->fetchAll();
@@ -864,8 +956,15 @@ class NominaModel
     {
         $nombre = trim($datos['nombre_completo'] ?? '');
         if (empty($nombre)) throw new \RuntimeException('El nombre es obligatorio.');
+        $tipo    = $datos['tipo_contrato'] ?? 'tiempo_completo';
         $salario = (float)($datos['salario_base'] ?? 0);
-        if ($salario <= 0) throw new \RuntimeException('El salario debe ser mayor a cero.');
+        // por_servicio no requiere salario_base — usa valor_proyecto
+        if ($tipo !== 'por_servicio' && $salario <= 0) {
+            throw new \RuntimeException('El salario base es obligatorio para este tipo de contrato.');
+        }
+        if ($tipo === 'por_servicio' && (float)($datos['valor_proyecto'] ?? 0) <= 0) {
+            throw new \RuntimeException('El valor del proyecto es obligatorio para contratos por servicio.');
+        }
 
         $uid = (int)($_SESSION['usuario_id'] ?? 0);
 
@@ -873,8 +972,8 @@ class NominaModel
             'INSERT INTO empleados
                 (nombre_completo, documento_identidad, cargo, tipo_contrato, pais_laboral,
                  fecha_ingreso, salario_base, valor_hora, valor_proyecto,
-                 horas_semana, aplica_aux_transporte, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+                 horas_semana, aplica_aux_transporte, tipo_costo, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
         $stmt->execute([
             $nombre,
@@ -888,6 +987,8 @@ class NominaModel
             (float)($datos['valor_proyecto']        ?? 0) ?: null,
             (int)($datos['horas_semana']            ?? 0) ?: null,
             isset($datos['aplica_aux_transporte'])  ? 1 : 0,
+            in_array($datos['tipo_costo'] ?? '', ['directo','indirecto'])
+                ? $datos['tipo_costo'] : 'indirecto',
             $uid,
         ]);
 
@@ -900,9 +1001,16 @@ class NominaModel
     {
         $uid     = (int)($_SESSION['usuario_id'] ?? 0);
         $nombre  = trim($datos['nombre_completo'] ?? '');
+        $tipo    = $datos['tipo_contrato'] ?? 'tiempo_completo';
         $salario = (float)($datos['salario_base'] ?? 0);
-        if (empty($nombre) || $salario <= 0) {
-            throw new \RuntimeException('Nombre y salario son obligatorios.');
+        if (empty($nombre)) {
+            throw new \RuntimeException('El nombre es obligatorio.');
+        }
+        if ($tipo !== 'por_servicio' && $salario <= 0) {
+            throw new \RuntimeException('El salario base es obligatorio para este tipo de contrato.');
+        }
+        if ($tipo === 'por_servicio' && (float)($datos['valor_proyecto'] ?? 0) <= 0) {
+            throw new \RuntimeException('El valor del proyecto es obligatorio para contratos por servicio.');
         }
 
         $prev = db()->prepare('SELECT salario_base FROM empleados WHERE id = ?');
@@ -922,6 +1030,7 @@ class NominaModel
                  valor_proyecto        = ?,
                  horas_semana          = ?,
                  aplica_aux_transporte = ?,
+                 tipo_costo            = ?,
                  updated_by            = ?
              WHERE id = ?'
         )->execute([
@@ -936,6 +1045,8 @@ class NominaModel
             (float)($datos['valor_proyecto']       ?? 0) ?: null,
             (int)($datos['horas_semana']           ?? 0) ?: null,
             isset($datos['aplica_aux_transporte']) ? 1 : 0,
+            in_array($datos['tipo_costo'] ?? '', ['directo','indirecto'])
+                ? $datos['tipo_costo'] : 'indirecto',
             $uid, $id,
         ]);
 

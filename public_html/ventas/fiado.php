@@ -156,7 +156,14 @@ $total_fiado = array_sum(array_column($clientes_fiado, 'saldo_fiado'));
                     </div>
                     <div style="text-align:right">
                         <div class="cliente-saldo">$<?= number_format($c['saldo_fiado'], 0, ',', '.') ?></div>
-                        <button class="btn-open" onclick="toggleAbono(<?= $c['id'] ?>)">Registrar abono</button>
+                        <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
+                            <button class="btn-open" onclick="toggleAbono(<?= $c['id'] ?>)">Registrar abono</button>
+                            <!-- Estado de cuenta: ver historial completo de cargos y abonos -->
+                            <a href="<?= APP_BASE ?>/clientes/estado_cuenta.php?id=<?= (int)$c['id'] ?>"
+                               style="padding:6px 12px;background:#1e3a5f;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">
+                                📋 Extracto
+                            </a>
+                        </div>
                     </div>
                 </div>
 

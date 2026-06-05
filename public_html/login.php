@@ -8,6 +8,21 @@
 require_once __DIR__ . '/app/config/app.php';
 require_once __DIR__ . '/app/helpers/AuthHelper.php';
 
+// ── Cargar branding personalizado (logo y nombre) desde configuracion_app ────
+// logo_url_login  → logo vertical para la página de acceso
+// logo_url        → logo horizontal (fallback si no hay logo de login)
+$_login_brand = ['nombre' => APP_NAME, 'logo_login' => '', 'logo_nav' => '', 'color' => '#e94f37'];
+try {
+    $_br = db()->query(
+        "SELECT clave, valor FROM configuracion_app
+         WHERE clave IN ('nombre_negocio','logo_url_login','logo_url','theme_brand')"
+    )->fetchAll(PDO::FETCH_KEY_PAIR);
+    if (!empty($_br['nombre_negocio'])) $_login_brand['nombre']     = $_br['nombre_negocio'];
+    if (!empty($_br['logo_url_login'])) $_login_brand['logo_login'] = $_br['logo_url_login'];
+    if (!empty($_br['logo_url']))       $_login_brand['logo_nav']   = $_br['logo_url'];
+    if (!empty($_br['theme_brand']))    $_login_brand['color']      = $_br['theme_brand'];
+} catch (Exception $_e) { /* tabla puede no existir aún — usa defaults */ }
+
 auth_session_init();
 
 // Si ya hay sesión activa, no mostrar el login
@@ -84,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .card {
             background: #fff;
             border-radius: 20px;
-            padding: 40px 28px 32px;
+            padding: 16px 28px 32px;
             width: 100%;
             max-width: 400px;
             box-shadow: 0 24px 64px rgba(0, 0, 0, .5);
@@ -93,21 +108,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /* ---- Marca ---- */
         .brand {
             text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 20px;
         }
         .brand-icon {
-            width: 56px;
-            height: 56px;
-            background: #e94f37;
-            border-radius: 16px;
+            width: 112px;
+            height: 112px;
+            background: <?= htmlspecialchars($_login_brand['color']) ?>;
+            border-radius: 28px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 14px;
         }
         .brand-icon svg {
-            width: 30px;
-            height: 30px;
+            width: 60px;
+            height: 60px;
             fill: #fff;
         }
         .brand h1 {
@@ -196,22 +211,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /* ---- Responsive Desktop ---- */
         @media (min-width: 480px) {
-            .card { padding: 48px 40px 40px; }
+            .card { padding: 16px 40px 40px; }
         }
     </style>
 </head>
 <body>
     <div class="card">
 
-        <!-- Marca -->
+        <!-- Marca — logo personalizado o ícono por defecto -->
         <div class="brand">
-            <div class="brand-icon" aria-hidden="true">
-                <!-- Ícono: tenedor y cuchillo (negocio de comida) -->
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/>
-                </svg>
-            </div>
-            <h1>Clan<span>Destino</span></h1>
+            <?php
+            // Prioridad: logo_url_login > logo_url > SVG por defecto
+            $_logo_mostrar = $_login_brand['logo_login'] ?: $_login_brand['logo_nav'];
+            ?>
+            <?php if ($_logo_mostrar): ?>
+                <!-- Logo cargado desde Admin → Apariencia -->
+                <img src="<?= APP_BASE . '/' . htmlspecialchars($_logo_mostrar) ?>"
+                     alt="<?= htmlspecialchars($_login_brand['nombre']) ?>"
+                     style="max-width:320px;max-height:240px;object-fit:contain;margin-bottom:14px;display:block;margin-left:auto;margin-right:auto">
+            <?php else: ?>
+                <!-- Ícono por defecto: tenedor y cuchillo -->
+                <div class="brand-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/>
+                    </svg>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!$_logo_mostrar): ?>
+            <!-- Nombre del negocio solo cuando no hay logo (el logo ya identifica el negocio) -->
+            <?php
+            $_partes = preg_split('/\s+/', trim($_login_brand['nombre']), 2);
+            $_p1     = htmlspecialchars($_partes[0] ?? '');
+            $_p2     = htmlspecialchars($_partes[1] ?? '');
+            ?>
+            <h1><?= $_p1 ?><?php if ($_p2): ?><span><?= $_p2 ?></span><?php endif; ?></h1>
+            <?php endif; ?>
             <p>Sistema de Gestión ERP v<?= APP_VERSION ?></p>
         </div>
 

@@ -1,0 +1,384 @@
+<?php
+/**
+ * ventas/api/editar_venta.php — Cargar y guardar edición de una venta existente.
+ *
+ * GET  ?id=X  → Devuelve cabecera + ítems de la venta, más catálogos (clientes, productos).
+ * POST        → Aplica la edición dentro de una transacción PDO:
+ *               revierte stock anterior → aplica nuevo stock → actualiza cabecera + detalles.
+ */
+require_once __DIR__ . '/../../app/middleware/auth_check.php';
+require_once __DIR__ . '/../../app/helpers/AuditoriaHelper.php';
+
+header('Content-Type: application/json; charset=utf-8');
+permiso_requerir('ventas', 'editar_existentes');
+
+// ── GET: cargar datos para el modal ─────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $id = (int)($_GET['id'] ?? 0);
+    if (!$id) {
+        echo json_encode(['success' => false, 'error' => 'ID inválido.']);
+        exit;
+    }
+
+    $pdo = db();
+
+    $stmt = $pdo->prepare(
+        'SELECT v.id, v.cliente_id, v.metodo_pago, v.notas, v.estado,
+                v.fecha_venta, v.fecha_pago, v.total
+         FROM ventas v WHERE v.id = ?'
+    );
+    $stmt->execute([$id]);
+    $venta = $stmt->fetch();
+
+    if (!$venta) {
+        echo json_encode(['success' => false, 'error' => 'Venta no encontrada.']);
+        exit;
+    }
+    if ($venta['estado'] === 'anulada') {
+        echo json_encode(['success' => false, 'error' => 'No se puede editar una venta anulada.']);
+        exit;
+    }
+
+    $items = $pdo->prepare(
+        'SELECT vd.id, vd.producto_id, p.nombre AS producto_nombre,
+                vd.cantidad, vd.precio_unitario, vd.es_combo
+         FROM venta_detalles vd
+         JOIN productos p ON p.id = vd.producto_id
+         WHERE vd.venta_id = ?
+         ORDER BY p.nombre'
+    );
+    $items->execute([$id]);
+
+    $clientes = $pdo->query(
+        "SELECT id, nombre FROM clientes WHERE activo = 1 ORDER BY nombre"
+    )->fetchAll();
+
+    // nombre2 incluido para mostrarlo en el selector de productos del modal de edición
+    $productos = $pdo->query(
+        "SELECT id, nombre, nombre2, tamano, precio_venta FROM productos WHERE activo = 1 ORDER BY nombre"
+    )->fetchAll();
+
+    echo json_encode([
+        'success'   => true,
+        'venta'     => $venta,
+        'items'     => $items->fetchAll(),
+        'clientes'  => $clientes,
+        'productos' => $productos,
+    ]);
+    exit;
+}
+
+// ── POST: guardar edición ────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Método no permitido.']);
+    exit;
+}
+
+if (!csrf_verificar()) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Token CSRF inválido.']);
+    exit;
+}
+
+$id = (int)($_POST['id'] ?? 0);
+if (!$id) {
+    echo json_encode(['success' => false, 'error' => 'ID de venta inválido.']);
+    exit;
+}
+
+$metodos_ok  = ['efectivo', 'nequi', 'daviplata', 'bancolombia', 'fiado', 'obsequio'];
+$metodo_pago = $_POST['metodo_pago'] ?? '';
+if (!in_array($metodo_pago, $metodos_ok, true)) {
+    echo json_encode(['success' => false, 'error' => 'Método de pago inválido.']);
+    exit;
+}
+
+$cliente_id = (int)($_POST['cliente_id'] ?? 0) ?: null;
+$notas      = substr(trim($_POST['notas'] ?? ''), 0, 500);
+
+// fecha_venta: acepta "YYYY-MM-DD HH:MM" o "YYYY-MM-DDTHH:MM".
+// Vacío = conservar la fecha original (COALESCE en el UPDATE).
+// Se rechaza cualquier datetime futuro para evitar registros antedatados hacia adelante.
+$fecha_venta = null;
+$fv_raw = trim($_POST['fecha_venta'] ?? '');
+if ($fv_raw && preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/', $fv_raw)) {
+    $fecha_venta = str_replace('T', ' ', substr($fv_raw, 0, 16)) . ':00';
+    if ($fecha_venta > date('Y-m-d H:i:s')) {
+        echo json_encode(['success' => false, 'error' => 'La fecha de la venta no puede ser futura.']);
+        exit;
+    }
+}
+
+// fecha_pago solo aplica a fiado; para los demás se descarta
+$fecha_pago = null;
+if ($metodo_pago === 'fiado') {
+    $fp = trim($_POST['fecha_pago'] ?? '');
+    if ($fp && preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/', $fp)) {
+        $fecha_pago = str_replace('T', ' ', substr($fp, 0, 16)) . ':00';
+    }
+}
+
+if ($metodo_pago === 'fiado' && !$cliente_id) {
+    echo json_encode(['success' => false, 'error' => 'Para ventas a fiado debes seleccionar un cliente.']);
+    exit;
+}
+
+// Validar y sanitizar ítems del carrito
+$items_raw = json_decode($_POST['items_json'] ?? '[]', true);
+if (!is_array($items_raw)) {
+    echo json_encode(['success' => false, 'error' => 'Formato de ítems inválido.']);
+    exit;
+}
+
+$carrito = [];
+foreach ($items_raw as $item) {
+    $pid      = (int)($item['producto_id']    ?? 0);
+    $cantidad = (int)($item['cantidad']        ?? 0);
+    $precio   = (float)($item['precio_unitario'] ?? 0);
+    $esCombo  = !empty($item['es_combo']) ? 1 : 0;
+    if (!$pid || $cantidad < 1 || $precio < 0) continue;
+    $carrito[] = ['producto_id' => $pid, 'cantidad' => $cantidad, 'precio' => $precio, 'es_combo' => $esCombo];
+}
+if (empty($carrito)) {
+    echo json_encode(['success' => false, 'error' => 'La venta debe tener al menos un producto válido.']);
+    exit;
+}
+
+$uid = (int)($_SESSION['usuario_id'] ?? 0);
+$pdo = db();
+
+try {
+    $pdo->beginTransaction();
+
+    // ── 1. Leer y bloquear venta original ──────────────────────────────────────
+    $vStmt = $pdo->prepare(
+        'SELECT id, estado, metodo_pago, total, cliente_id FROM ventas WHERE id = ? FOR UPDATE'
+    );
+    $vStmt->execute([$id]);
+    $ventaOld = $vStmt->fetch();
+
+    if (!$ventaOld)                           throw new RuntimeException('Venta no encontrada.');
+    if ($ventaOld['estado'] === 'anulada')    throw new RuntimeException('No se puede editar una venta anulada.');
+
+    // ── 2. Revertir stock de los detalles anteriores ───────────────────────────
+
+    // 2a. Líneas from_stock=1 → restaurar stock de producto terminado
+    $oldStock = $pdo->prepare(
+        'SELECT producto_id, SUM(cantidad) AS total
+         FROM venta_detalles WHERE venta_id = ? AND from_stock = 1 GROUP BY producto_id'
+    );
+    $oldStock->execute([$id]);
+    foreach ($oldStock->fetchAll() as $row) {
+        $pdo->prepare(
+            'UPDATE productos SET stock_disponible = stock_disponible + ?, updated_by = ? WHERE id = ?'
+        )->execute([(int)$row['total'], $uid, (int)$row['producto_id']]);
+    }
+
+    // 2b. Líneas from_stock=0 → restaurar insumos vía receta
+    $oldIng = $pdo->prepare(
+        'SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
+                GREATEST(p.unidades_por_receta, 1) AS rinde
+         FROM venta_detalles vd
+         JOIN recetas r ON r.producto_id = vd.producto_id
+         JOIN productos p ON p.id = vd.producto_id
+         WHERE vd.venta_id = ? AND vd.from_stock = 0'
+    );
+    $oldIng->execute([$id]);
+    foreach ($oldIng->fetchAll() as $row) {
+        $devolucion = ((float)$row['cantidad_requerida'] / (int)$row['rinde']) * (int)$row['cantidad'];
+        $pdo->prepare(
+            'UPDATE insumos SET stock_actual = stock_actual + ?, updated_by = ? WHERE id = ?'
+        )->execute([$devolucion, $uid, (int)$row['insumo_id']]);
+    }
+
+    // 2c. Líneas combo con combo_id → restaurar insumos extra del combo
+    $oldCombo = $pdo->prepare(
+        'SELECT vd.cantidad, vd.combo_id
+         FROM venta_detalles vd
+         WHERE vd.venta_id = ? AND vd.es_combo = 1 AND vd.combo_id IS NOT NULL'
+    );
+    $oldCombo->execute([$id]);
+    foreach ($oldCombo->fetchAll() as $cl) {
+        $extras = $pdo->prepare('SELECT insumo_id, cantidad FROM combo_insumos WHERE combo_id = ?');
+        $extras->execute([(int)$cl['combo_id']]);
+        foreach ($extras->fetchAll() as $ex) {
+            $pdo->prepare(
+                'UPDATE insumos SET stock_actual = stock_actual + ?, updated_by = ? WHERE id = ?'
+            )->execute([(float)$ex['cantidad'] * (int)$cl['cantidad'], $uid, (int)$ex['insumo_id']]);
+        }
+    }
+
+    // 2d. Revertir fiado del cliente anterior
+    if ($ventaOld['metodo_pago'] === 'fiado' && $ventaOld['cliente_id']) {
+        $pdo->prepare(
+            'UPDATE clientes SET saldo_fiado = GREATEST(0, saldo_fiado - ?), updated_by = ? WHERE id = ?'
+        )->execute([(float)$ventaOld['total'], $uid, (int)$ventaOld['cliente_id']]);
+    }
+
+    // ── 3. Eliminar detalles anteriores ────────────────────────────────────────
+    // INMUTABILIDAD: los precios históricos se preservan mediante el flujo
+    // DELETE + re-INSERT (no UPDATE). Esta es la única vía de corrección
+    // por mala digitación. Los reportes históricos NO se ven afectados
+    // porque operan sobre ventas completadas en sus propias fechas.
+    $pdo->prepare('DELETE FROM venta_detalles WHERE venta_id = ?')->execute([$id]);
+
+    // ── 4. Insertar nuevos detalles + descontar stock nuevo ────────────────────
+    // Detectar migración 034 (nombre_snap, nombre2_snap en venta_detalles)
+    static $tiene034ev = null;
+    if ($tiene034ev === null) {
+        try {
+            $tiene034ev = (int)$pdo->query(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='venta_detalles'
+                   AND COLUMN_NAME='nombre_snap'"
+            )->fetchColumn() > 0;
+        } catch (\Exception $e) { $tiene034ev = false; }
+    }
+
+    // Al re-insertar, incluir nombre_snap para preservar el nombre histórico
+    // aunque el producto sea renombrado en el futuro (política de inmutabilidad)
+    if ($tiene034ev) {
+        $stmtDetalle = $pdo->prepare(
+            'INSERT INTO venta_detalles
+                (venta_id, producto_id, cantidad, precio_unitario, subtotal,
+                 from_stock, es_combo, combo_id,
+                 nombre_snap, nombre2_snap,
+                 created_by)
+             VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid,
+                     :nsnap, :n2snap, :uid)'
+        );
+    } else {
+        $stmtDetalle = $pdo->prepare(
+            'INSERT INTO venta_detalles
+                (venta_id, producto_id, cantidad, precio_unitario, subtotal,
+                 from_stock, es_combo, combo_id, created_by)
+             VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid, :uid)'
+        );
+    }
+
+    // También trae nombre y nombre2 para el snapshot (migración 034)
+    $stmtProdInfo  = $pdo->prepare('SELECT stock_disponible, unidades_por_receta, nombre, nombre2 FROM productos WHERE id = ? FOR UPDATE');
+    $stmtStockProd = $pdo->prepare('UPDATE productos SET stock_disponible = stock_disponible - ?, updated_by = ? WHERE id = ? AND stock_disponible >= ?');
+    $stmtReceta    = $pdo->prepare('SELECT insumo_id, cantidad_requerida FROM recetas WHERE producto_id = :pid');
+    $stmtDescuento = $pdo->prepare('UPDATE insumos SET stock_actual = stock_actual - :desc, updated_by = :uid WHERE id = :id AND stock_actual >= :desc2');
+    $stmtComboIns  = $pdo->prepare('SELECT ci.insumo_id, ci.cantidad, i.nombre AS insumo_nombre FROM combo_insumos ci JOIN insumos i ON i.id = ci.insumo_id WHERE ci.combo_id = ?');
+    $stmtComboId   = $pdo->prepare('SELECT id FROM combo_configs WHERE producto_id = ? AND activo = 1 LIMIT 1');
+
+    $total          = 0.0;
+    $venta_es_combo = 0;
+    $comboCache     = [];
+
+    foreach ($carrito as $item) {
+        $pid      = $item['producto_id'];
+        $cantidad = $item['cantidad'];
+        $precio   = $item['precio'];
+        $esCombo  = $item['es_combo'];
+
+        $stmtProdInfo->execute([$pid]);
+        $prodInfo = $stmtProdInfo->fetch();
+        if (!$prodInfo) throw new RuntimeException("Producto #{$pid} no encontrado.");
+
+        $rinde      = max(1, (int)($prodInfo['unidades_por_receta'] ?? 1));
+        $fromStock  = ((int)($prodInfo['stock_disponible'] ?? 0) >= $cantidad) ? 1 : 0;
+        // Snapshot del nombre del producto al momento de la (re)edición
+        $nombreSnap  = $prodInfo['nombre']  ?? null;
+        $nombre2Snap = $prodInfo['nombre2'] ?? null;
+
+        $comboId = null;
+        if ($esCombo) {
+            if (!array_key_exists($pid, $comboCache)) {
+                $stmtComboId->execute([$pid]);
+                $comboCache[$pid] = $stmtComboId->fetchColumn() ?: null;
+            }
+            $comboId        = $comboCache[$pid];
+            $venta_es_combo = 1;
+        }
+
+        $subtotal = $precio * $cantidad;
+        $total   += $subtotal;
+
+        $detalleParams = [
+            ':vid' => $id, ':pid' => $pid, ':cant' => $cantidad,
+            ':precio' => $precio, ':sub' => $subtotal,
+            ':fs' => $fromStock, ':ec' => $esCombo, ':cid' => $comboId, ':uid' => $uid,
+        ];
+        if ($tiene034ev) {
+            $detalleParams[':nsnap']  = $nombreSnap;
+            $detalleParams[':n2snap'] = $nombre2Snap;
+        }
+        $stmtDetalle->execute($detalleParams);
+
+        if ($fromStock) {
+            $stmtStockProd->execute([$cantidad, $uid, $pid, $cantidad]);
+            if ($stmtStockProd->rowCount() === 0) {
+                throw new RuntimeException("Stock insuficiente de producto terminado para el producto #{$pid}.");
+            }
+        } else {
+            $stmtReceta->execute([':pid' => $pid]);
+            foreach ($stmtReceta->fetchAll() as $ing) {
+                $desc = ((float)$ing['cantidad_requerida'] / $rinde) * $cantidad;
+                $stmtDescuento->execute([':desc' => $desc, ':uid' => $uid, ':id' => (int)$ing['insumo_id'], ':desc2' => $desc]);
+                if ($stmtDescuento->rowCount() === 0) {
+                    $nom = $pdo->prepare('SELECT nombre FROM insumos WHERE id = ?');
+                    $nom->execute([(int)$ing['insumo_id']]);
+                    throw new RuntimeException('Stock insuficiente de "' . ($nom->fetchColumn() ?: 'insumo') . '".');
+                }
+            }
+        }
+
+        if ($esCombo && $comboId) {
+            $stmtComboIns->execute([$comboId]);
+            foreach ($stmtComboIns->fetchAll() as $extra) {
+                $descExtra = (float)$extra['cantidad'] * $cantidad;
+                $stmtDescuento->execute([':desc' => $descExtra, ':uid' => $uid, ':id' => (int)$extra['insumo_id'], ':desc2' => $descExtra]);
+                if ($stmtDescuento->rowCount() === 0) {
+                    throw new RuntimeException('Stock insuficiente de "' . $extra['insumo_nombre'] . '" para el combo.');
+                }
+            }
+        }
+    }
+
+    // ── 5. Calcular nuevo estado ────────────────────────────────────────────────
+    $estadoNuevo = ($metodo_pago === 'fiado' && !$fecha_pago) ? 'pendiente_pago' : 'completada';
+
+    // ── 6. Actualizar cabecera ──────────────────────────────────────────────────
+    $pdo->prepare(
+        'UPDATE ventas
+         SET cliente_id = :cid, metodo_pago = :metodo, total = :total, notas = :notas,
+             estado = :estado, fecha_pago = :fpago, es_combo = :combo,
+             fecha_venta = COALESCE(:fventa, fecha_venta), updated_by = :uid
+         WHERE id = :id'
+    )->execute([
+        ':cid'    => $cliente_id,
+        ':metodo' => $metodo_pago,
+        ':total'  => $total,
+        ':notas'  => $notas ?: null,
+        ':estado' => $estadoNuevo,
+        ':fpago'  => $fecha_pago,
+        ':combo'  => $venta_es_combo,
+        ':fventa' => $fecha_venta,
+        ':uid'    => $uid,
+        ':id'     => $id,
+    ]);
+
+    // ── 7. Ajustar fiado del nuevo cliente ──────────────────────────────────────
+    if ($metodo_pago === 'fiado' && $cliente_id) {
+        $pdo->prepare(
+            'UPDATE clientes SET saldo_fiado = saldo_fiado + ?, updated_by = ? WHERE id = ?'
+        )->execute([$total, $uid, $cliente_id]);
+    }
+
+    $pdo->commit();
+    log_registrar('ventas', $id, 'edicion', null, "total={$total},metodo={$metodo_pago}", 'UPDATE');
+
+    echo json_encode(['success' => true, 'nuevo_total' => $total]);
+
+} catch (RuntimeException $e) {
+    $pdo->rollBack();
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+} catch (Exception $e) {
+    $pdo->rollBack();
+    error_log('[ClanDestino EditarVenta] ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
+}

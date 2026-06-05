@@ -33,13 +33,6 @@ $fecha_generada = date('d/m/Y H:i');
         :root { --brand:#e94f37; --dark:#111827; --g2:#374151; --g5:#6b7280; --g8:#d1d5db; --g9:#f3f4f6; --white:#fff; --yellow:#d97706; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--g9); min-height:100vh; color:var(--dark); }
 
-        /* Header (oculto al imprimir) */
-        .hdr { background:var(--dark); color:var(--white); height:54px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; }
-        .brand { font-size:17px; font-weight:800; } .brand span{color:var(--brand);}
-        .nav { display:flex; gap:6px; }
-        .nl { color:var(--g8); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:8px; }
-        .nl:hover { background:var(--g2); color:var(--white); }
-
         .main { padding:16px 14px; max-width:800px; margin:0 auto; }
 
         /* Encabezado del listado */
@@ -48,6 +41,10 @@ $fecha_generada = date('d/m/Y H:i');
         .list-meta  { font-size:12px; color:var(--g5); margin-top:4px; }
         .btn-print { padding:9px 16px; background:var(--white); border:1px solid var(--g8); border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; color:var(--g2); }
         .btn-print:hover { border-color:var(--brand); color:var(--brand); }
+        .act-bar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+        .btn-primary { padding:9px 18px; background:var(--brand); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; }
+        .btn-sec { padding:9px 16px; background:var(--white); color:var(--dark); border:1px solid var(--g8); border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; cursor:pointer; }
+        .btn-sec:hover { border-color:var(--brand); color:var(--brand); }
 
         /* Total estimado */
         .total-banner { background:var(--dark); color:var(--white); border-radius:14px; padding:16px 20px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; }
@@ -55,7 +52,7 @@ $fecha_generada = date('d/m/Y H:i');
         .total-val   { font-size:26px; font-weight:800; }
 
         /* Por proveedor */
-        .proveedor-card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); margin-bottom:14px; overflow:hidden; }
+        .proveedor-card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); margin-bottom:14px; overflow:hidden; overflow-x:auto; }
         .proveedor-hdr { background:var(--g9); padding:12px 16px; border-bottom:1px solid var(--g8); }
         .proveedor-nombre { font-size:14px; font-weight:800; }
         .proveedor-total  { font-size:12px; color:var(--g5); margin-top:2px; }
@@ -89,19 +86,28 @@ $fecha_generada = date('d/m/Y H:i');
     </style>
 </head>
 <body>
-<?php $nav_activo = 'inventario'; include __DIR__ . '/../app/views/nav.php'; ?>
+<?php $nav_activo = 'compras'; include __DIR__ . '/../app/views/nav.php'; ?>
 
-<header class="hdr no-print">
-    <div class="brand">Clan<span>Destino</span></div>
-    <nav class="nav">
-        <a href="<?= APP_BASE ?>/inventario/"                  class="nl">Stock</a>
-        <a href="<?= APP_BASE ?>/inventario/compras.php"        class="nl">Compras</a>
-        <a href="<?= APP_BASE ?>/inventario/lista_compras.php"  class="nl" style="color:var(--brand)">Lista Compras</a>
-        <a href="<?= APP_BASE ?>/dashboard.php"                 class="nl">Dashboard</a>
-    </nav>
-</header>
 
 <main class="main">
+
+    <!-- Barra de acciones consistente con el resto del módulo inventario -->
+    <div class="act-bar no-print">
+        <?php if (permiso_tiene('inventario','editar_existentes')): ?>
+        <button class="btn-primary" onclick="document.dispatchEvent(new CustomEvent('abrirNuevoInsumo'))">
+            + Agregar Insumo
+        </button>
+        <button class="btn-primary" style="background:#374151"
+                onclick="document.dispatchEvent(new CustomEvent('abrirNuevoProveedor'))">
+            + Proveedor
+        </button>
+        <?php endif; ?>
+        <a href="<?= APP_BASE ?>/inventario/" class="btn-sec">&#128230; Inventario</a>
+        <?php if (permiso_tiene('compras','solo_propios')): ?>
+        <a href="<?= APP_BASE ?>/inventario/compras.php" class="btn-sec">Registrar Compra</a>
+        <?php endif; ?>
+        <button class="btn-sec no-print" onclick="window.print()">&#128424; Imprimir</button>
+    </div>
 
     <?php if (empty($faltantes)): ?>
     <div class="empty">

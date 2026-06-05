@@ -29,26 +29,43 @@ if (!csrf_verificar()) {
 }
 
 // ---- Validar y sanitizar inputs ----
-$metodo_pago = $_POST['metodo_pago'] ?? '';
-$metodos_validos = ['efectivo', 'nequi', 'daviplata', 'bancolombia', 'fiado'];
+
+// Whitelist de métodos de pago válidos
+$metodo_pago     = $_POST['metodo_pago'] ?? '';
+$metodos_validos = ['efectivo', 'nequi', 'daviplata', 'bancolombia', 'fiado', 'obsequio'];
 if (!in_array($metodo_pago, $metodos_validos, true)) {
     echo json_encode(['success' => false, 'error' => 'Método de pago inválido.']);
     exit;
 }
 
-$cliente_id     = !empty($_POST['cliente_id']) ? (int)$_POST['cliente_id'] : null;
-$notas          = trim($_POST['notas']          ?? '');
-$fecha_pago     = trim($_POST['fecha_pago']     ?? '') ?: null;
-$es_combo       = !empty($_POST['es_combo']);
-$tipo_sandwich  = trim($_POST['tipo_sandwich']  ?? '');
-$carrito_raw    = $_POST['carrito'] ?? '[]';
+$cliente_id    = !empty($_POST['cliente_id']) ? (int)$_POST['cliente_id'] : null;
+$notas         = substr(trim($_POST['notas'] ?? ''), 0, 500); // limitar largo para evitar abuso
+$fecha_pago    = trim($_POST['fecha_pago']    ?? '') ?: null;
 
-// Validar fecha_pago si se proporcionó
-if ($fecha_pago && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_pago)) {
-    echo json_encode(['success' => false, 'error' => 'Formato de fecha de pago inválido (YYYY-MM-DD).']);
-    exit;
+// Fecha de la venta: acepta YYYY-MM-DD; convierte a YYYY-MM-DD HH:MM:SS con hora actual.
+// Se rechaza cualquier fecha futura para evitar registros antedatados hacia adelante.
+$fecha_venta_raw = trim($_POST['fecha_venta'] ?? '');
+$fecha_venta = null;
+if ($fecha_venta_raw && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_venta_raw)) {
+    if ($fecha_venta_raw > date('Y-m-d')) {
+        echo json_encode(['success' => false, 'error' => 'La fecha de la venta no puede ser futura.']);
+        exit;
+    }
+    $fecha_venta = $fecha_venta_raw . ' ' . date('H:i:s');
+}
+// es_combo global eliminado: ahora es por ítem dentro del carrito (migración 025)
+$tipo_sandwich = substr(trim($_POST['tipo_sandwich'] ?? ''), 0, 100);
+$carrito_raw   = $_POST['carrito'] ?? '[]';
+
+// Validar fecha_pago: formato correcto y no en el futuro
+if ($fecha_pago) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_pago)) {
+        echo json_encode(['success' => false, 'error' => 'Formato de fecha de pago inválido (YYYY-MM-DD).']);
+        exit;
+    }
 }
 
+// Deserializar carrito (enviado como JSON desde el POS)
 $carrito = json_decode($carrito_raw, true);
 if (!is_array($carrito) || empty($carrito)) {
     echo json_encode(['success' => false, 'error' => 'El carrito está vacío o tiene formato inválido.']);
@@ -56,7 +73,12 @@ if (!is_array($carrito) || empty($carrito)) {
 }
 
 foreach ($carrito as $item) {
-    if (empty($item['producto_id']) || (int)$item['cantidad'] <= 0 || (float)$item['precio'] <= 0) {
+    $qty      = (int)($item['cantidad']  ?? 0);
+    $price    = (float)($item['precio'] ?? 0);
+    $es_combo = (int)($item['es_combo'] ?? 0);
+    // Validar: producto_id presente, cantidad 1-9999, precio no negativo, es_combo 0 ó 1
+    if (empty($item['producto_id']) || $qty <= 0 || $qty > 9999
+        || $price < 0 || !in_array($es_combo, [0, 1], true)) {
         echo json_encode(['success' => false, 'error' => 'Uno o más ítems del carrito son inválidos.']);
         exit;
     }
@@ -64,9 +86,10 @@ foreach ($carrito as $item) {
 
 // ---- Procesar la venta ----
 try {
+    // es_combo ya no es parámetro global: viene dentro de cada ítem del carrito
     $venta_id = VentaModel::crear(
         $carrito, $metodo_pago, $cliente_id,
-        $notas, $fecha_pago, $es_combo, $tipo_sandwich
+        $notas, $fecha_pago, $tipo_sandwich, $fecha_venta
     );
     echo json_encode(['success' => true, 'venta_id' => $venta_id]);
 

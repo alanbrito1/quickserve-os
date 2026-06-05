@@ -1,8 +1,9 @@
 <?php
 /**
  * public_html/reportes/operativo.php
- * Reporte Operativo: Inventario + Activos.
- * Exporta a .xlsx con hojas "Inventario" y "Activos".
+ * Reporte Operativo: Inventario + Producción + Stock Terminado + Activos + Obsequios/Desechos.
+ * Exporta a .xlsx con hojas: "Inventario", "Activos", "Stock Terminado", "Producción",
+ * y opcionalmente "Obsequios y Desechos" (requiere migración 026).
  */
 
 require_once __DIR__ . '/../app/middleware/auth_check.php';
@@ -12,9 +13,93 @@ require_once __DIR__ . '/../app/helpers/XlsxWriter.php';
 
 permiso_requerir('reportes', 'solo_ver');
 
+// ── Período para producción ───────────────────────────────────────────────────
+$hoy         = date('Y-m-d');
+$mes         = max(1, min(12, (int)($_GET['mes'] ?? date('n'))));
+$anio        = (int)($_GET['anio'] ?? date('Y'));
+$mes_inicio  = sprintf('%04d-%02d-01', $anio, $mes);
+$mes_fin     = date('Y-m-t', strtotime($mes_inicio));
+$meses_es    = [1=>'Ene',2=>'Feb',3=>'Mar',4=>'Abr',5=>'May',6=>'Jun',
+               7=>'Jul',8=>'Ago',9=>'Sep',10=>'Oct',11=>'Nov',12=>'Dic'];
+
 $insumos = InsumoModel::todos_con_estado();
 $activos = ActivoModel::todos();
 $dep_dia = ActivoModel::costo_diario_total();
+
+// ── Stock de producto terminado ───────────────────────────────────────────────
+// nombre2 incluido para el Excel y la vista HTML del stock de producto terminado
+$productos_stock = db()->query(
+    "SELECT nombre, nombre2, categoria, stock_disponible, stock_minimo, precio_venta,
+            IFNULL(costo_calculado, 0) AS costo_calculado
+     FROM productos WHERE activo = 1
+     ORDER BY nombre"
+)->fetchAll();
+
+// ── Producción del período (lotes activos) ────────────────────────────────────
+// nombre2 incluido para mostrarlo junto al nombre del producto en el reporte
+$stmt_lotes = db()->prepare(
+    "SELECT pl.fecha_produccion, p.nombre AS producto, p.nombre2 AS producto_nombre2,
+            pl.cantidad, pl.costo_unitario, pl.estado,
+            u.nombre AS usuario_nombre
+     FROM produccion_lotes pl
+     JOIN productos p ON p.id = pl.producto_id
+     LEFT JOIN usuarios u ON u.id = pl.created_by
+     WHERE pl.fecha_produccion BETWEEN :ini AND :fin
+     ORDER BY pl.fecha_produccion DESC, p.nombre"
+);
+$stmt_lotes->execute([':ini' => $mes_inicio, ':fin' => $mes_fin]);
+$lotes_periodo = $stmt_lotes->fetchAll();
+
+$total_producido   = array_sum(array_map(fn($l) => $l['estado']==='activo' ? (int)$l['cantidad'] : 0, $lotes_periodo));
+$costo_produccion  = 0;
+foreach ($lotes_periodo as $l) {
+    if ($l['estado']==='activo' && $l['costo_unitario'])
+        $costo_produccion += (float)$l['costo_unitario'] * (int)$l['cantidad'];
+}
+
+// ── Ajustes de stock y ventas obsequio del período ────────────────────────────
+// Consultados aquí (antes del bloque export) para que estén disponibles tanto
+// en el Excel como en la vista HTML.
+// Envueltos en try-catch: si migración 026 no está aplicada el reporte sigue
+// funcionando sin la sección de obsequios/desechos.
+$ajustes_periodo = [];
+$obsequios_venta = [];
+try {
+    $stmt_aj = db()->prepare(
+        "SELECT aj.fecha_ajuste, aj.tipo, aj.cantidad, aj.motivo,
+                p.nombre AS producto, p.precio_venta,
+                u.nombre AS usuario
+         FROM ajustes_stock aj
+         JOIN productos p ON p.id = aj.producto_id
+         LEFT JOIN usuarios u ON u.id = aj.created_by
+         WHERE DATE(aj.fecha_ajuste) BETWEEN :ini AND :fin
+         ORDER BY aj.fecha_ajuste DESC"
+    );
+    $stmt_aj->execute([':ini' => $mes_inicio, ':fin' => $mes_fin]);
+    $ajustes_periodo = $stmt_aj->fetchAll();
+
+    $stmt_obs = db()->prepare(
+        "SELECT v.fecha_venta, v.total, v.notas,
+                IFNULL(c.nombre, 'Sin especificar') AS cliente,
+                GROUP_CONCAT(p.nombre ORDER BY p.nombre SEPARATOR ', ') AS productos,
+                SUM(vd.cantidad) AS total_unidades,
+                u.nombre AS cajero
+         FROM ventas v
+         LEFT JOIN clientes c ON c.id = v.cliente_id
+         LEFT JOIN venta_detalles vd ON vd.venta_id = v.id
+         LEFT JOIN productos p ON p.id = vd.producto_id
+         LEFT JOIN usuarios u ON u.id = v.created_by
+         WHERE v.metodo_pago = 'obsequio'
+           AND DATE(v.fecha_venta) BETWEEN :ini AND :fin
+           AND v.estado != 'anulada'
+         GROUP BY v.id
+         ORDER BY v.fecha_venta DESC"
+    );
+    $stmt_obs->execute([':ini' => $mes_inicio, ':fin' => $mes_fin]);
+    $obsequios_venta = $stmt_obs->fetchAll();
+} catch (\Exception $e) {
+    // Migración 026 pendiente — la sección se omite silenciosamente
+}
 
 // ── EXPORTAR EXCEL ──────────────────────────────────────────────────────────
 if (isset($_GET['export'])) {
@@ -71,7 +156,90 @@ if (isset($_GET['export'])) {
     $w->addEmptyRow();
     $w->addRow(['', '', '', '', '', $total_dep_mens, $dep_dia, '', ''], false, true);
 
-    $w->download('ClanDestino_Operativo_' . date('Y-m-d') . '.xlsx');
+    // Hoja 3: Stock de producto terminado
+    $w->setSheet('Stock Terminado');
+    $w->addRow(['ClanDestino ERP — Stock de Producto Terminado'], true);
+    $w->addRow(['Generado: ' . date('d/m/Y H:i')]);
+    $w->addEmptyRow();
+    $w->addRow(['Producto', 'Nombre complementario', 'Categoría', 'Stock Disponible', 'Stock Mínimo', 'Estado', 'Precio Venta', 'Costo Calculado', 'Margen Est.'], true);
+    foreach ($productos_stock as $p) {
+        $estado_st = (int)$p['stock_minimo'] > 0 && (int)$p['stock_disponible'] < (int)$p['stock_minimo'] ? 'Bajo' : ((int)$p['stock_disponible'] > 0 ? 'OK' : 'Sin stock');
+        $margen    = (float)$p['precio_venta'] > 0 ? round(((float)$p['precio_venta'] - (float)$p['costo_calculado']) / (float)$p['precio_venta'] * 100, 1) . '%' : '—';
+        $w->addRow([
+            $p['nombre'], $p['nombre2'] ?? '', ucfirst($p['categoria']),
+            (int)$p['stock_disponible'], (int)$p['stock_minimo'],
+            $estado_st, (float)$p['precio_venta'], round((float)$p['costo_calculado']), $margen,
+        ]);
+    }
+
+    // Hoja 4: Producción del período
+    $w->setSheet('Producción ' . $meses_es[$mes] . ' ' . $anio);
+    $w->addRow(['ClanDestino ERP — Producción ' . $meses_es[$mes] . ' ' . $anio], true);
+    $w->addRow(['Total producido: ' . $total_producido . ' unidades']);
+    $w->addEmptyRow();
+    $w->addRow(['Fecha', 'Producto', 'Nombre complementario', 'Cantidad', 'Costo/u', 'Costo total', 'Estado', 'Registrado por'], true);
+    foreach ($lotes_periodo as $l) {
+        $ct = $l['costo_unitario'] ? round((float)$l['costo_unitario'] * (int)$l['cantidad']) : '—';
+        $w->addRow([
+            date('d/m/Y', strtotime($l['fecha_produccion'])),
+            $l['producto'], $l['producto_nombre2'] ?? '', (int)$l['cantidad'],
+            $l['costo_unitario'] ? round((float)$l['costo_unitario']) : '—',
+            $ct, ucfirst($l['estado']), $l['usuario_nombre'] ?? '',
+        ]);
+    }
+    $w->addRow(['', 'TOTAL', $total_producido, '', round($costo_produccion), '', ''], false, true);
+
+    // Hoja 5: Obsequios y Desechos (solo si la migración 026 está aplicada)
+    if (!empty($ajustes_periodo) || !empty($obsequios_venta)) {
+    $w->setSheet('Obsequios y Desechos');
+    $w->addRow(['ClanDestino ERP — Obsequios y Desechos ' . $meses_es[$mes] . ' ' . $anio], true);
+    $w->addEmptyRow();
+
+    // Sección A: ajustes de stock (de productos ya en inventario)
+    $w->addRow(['A. Ajustes de Stock (Regalar / Desechar desde inventario)'], true);
+    $w->addRow(['Fecha', 'Tipo', 'Producto', 'Cantidad', 'Valor estimado', 'Motivo', 'Registrado por'], true);
+    $total_aj_val = 0;
+    foreach ($ajustes_periodo as $aj) {
+        // Precio venta como valor de referencia (costo real no disponible aquí)
+        $val_ref = (float)$aj['precio_venta'] * (int)$aj['cantidad'];
+        $total_aj_val += $val_ref;
+        $w->addRow([
+            date('d/m/Y H:i', strtotime($aj['fecha_ajuste'])),
+            ucfirst($aj['tipo']),
+            $aj['producto'],
+            (int)$aj['cantidad'],
+            $val_ref,
+            $aj['motivo'] ?? '',
+            $aj['usuario'] ?? '',
+        ]);
+    }
+    if (!empty($ajustes_periodo)) {
+        $w->addRow(['', 'TOTAL', '', array_sum(array_column($ajustes_periodo, 'cantidad')), $total_aj_val, '', ''], false, true);
+    }
+    $w->addEmptyRow();
+
+    // Sección B: ventas obsequio (pasaron por el POS)
+    $w->addRow(['B. Ventas Obsequio (registradas en el POS)'], true);
+    $w->addRow(['Fecha', 'Cliente', 'Productos', 'Unidades', 'Valor', 'Notas', 'Cajero'], true);
+    $total_obs_val = 0;
+    foreach ($obsequios_venta as $ob) {
+        $total_obs_val += (float)$ob['total'];
+        $w->addRow([
+            date('d/m/Y H:i', strtotime($ob['fecha_venta'])),
+            $ob['cliente'],
+            $ob['productos'] ?? '',
+            (int)$ob['total_unidades'],
+            (float)$ob['total'],
+            $ob['notas'] ?? '',
+            $ob['cajero'] ?? '',
+        ]);
+    }
+    if (!empty($obsequios_venta)) {
+        $w->addRow(['', 'TOTAL', '', array_sum(array_column($obsequios_venta, 'total_unidades')), $total_obs_val, '', ''], false, true);
+    }
+    } // fin if datos obsequio
+
+    $w->download('ClanDestino_Operativo_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
 }
 
 // Cálculos para la vista HTML
@@ -89,10 +257,6 @@ $agotados = count(array_filter($insumos, fn($i) => $i['estado'] === 'agotado'));
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root { --brand:#e94f37; --dark:#111827; --g2:#374151; --g5:#6b7280; --g8:#d1d5db; --g9:#f3f4f6; --white:#fff; --green:#059669; --yellow:#d97706; }
         body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--g9); min-height:100vh; color:var(--dark); }
-        .hdr { background:var(--dark); color:var(--white); height:54px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; box-shadow:0 2px 8px rgba(0,0,0,.3); }
-        .brand { font-size:17px; font-weight:800; } .brand span{color:var(--brand);}
-        .nl { color:var(--g8); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:8px; }
-        .nl:hover { background:var(--g2); color:var(--white); }
         .main { padding:16px 14px; max-width:960px; margin:0 auto; }
         .top-actions { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
         .page-title { font-size:20px; font-weight:800; }
@@ -103,7 +267,7 @@ $agotados = count(array_filter($insumos, fn($i) => $i['estado'] === 'agotado'));
         .stat-n { font-size:20px; font-weight:800; }
         .stat-l { font-size:11px; color:var(--g5); text-transform:uppercase; letter-spacing:.4px; }
         .section-title { font-size:16px; font-weight:800; margin:20px 0 10px; }
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; margin-bottom:16px; }
         table { width:100%; border-collapse:collapse; }
         th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--g5); padding:10px 14px; background:var(--g9); border-bottom:1px solid var(--g8); text-align:left; }
         th.r, td.r { text-align:right; }
@@ -118,6 +282,37 @@ $agotados = count(array_filter($insumos, fn($i) => $i['estado'] === 'agotado'));
         .b-med { background:#fef3c7; color:#92400e; }
         .b-cri { background:#fed7aa; color:#9a3412; }
         .b-dep { background:#f3f4f6; color:#6b7280; }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — REPORTE OPERATIVO
+           ════════════════════════════════════════════════════════════════ */
+        /* Tablas con scroll horizontal por defecto */
+        .card { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+        /* xs: < 480px */
+        @media (max-width:479px) {
+            .main { padding:12px 10px 40px; }
+            .top-actions { flex-direction:column; align-items:stretch; gap:8px; }
+            .btn-xl { width:100%; min-height:44px; text-align:center; }
+            .stats { grid-template-columns:1fr 1fr !important; gap:8px; }
+            .stat-n { font-size:16px !important; }
+            table { min-width:400px; }
+        }
+        /* sm: 480-639px */
+        @media (min-width:480px) and (max-width:639px) {
+            .stats { grid-template-columns:repeat(2,1fr) !important; }
+            table { min-width:480px; }
+        }
+        /* ≥1600px */
+        @media (min-width:1600px) {
+            .main { max-width:1300px; }
+            .stat-n { font-size:24px !important; }
+            th, td { padding:12px 16px !important; font-size:14px !important; }
+        }
+        /* TV ≥1920px */
+        @media (min-width:1920px) {
+            .main { max-width:1600px; }
+        }
     </style>
 </head>
 <body>
@@ -128,7 +323,7 @@ $agotados = count(array_filter($insumos, fn($i) => $i['estado'] === 'agotado'));
 
     <div class="top-actions">
         <h1 class="page-title">Reporte Operativo</h1>
-        <a href="?export=1" class="btn-xl">⬇ Exportar Excel</a>
+        <a href="?mes=<?= $mes ?>&anio=<?= $anio ?>&export=1" class="btn-xl">⬇ Exportar Excel</a>
     </div>
 
     <!-- Stats -->
@@ -207,6 +402,92 @@ $agotados = count(array_filter($insumos, fn($i) => $i['estado'] === 'agotado'));
             </tbody>
         </table>
     </div>
+
+    <!-- Obsequios y Desechos -->
+    <h2 class="section-title">🎁 Obsequios y Desechos — <?= $meses_es[$mes] . ' ' . $anio ?></h2>
+
+    <?php if (empty($obsequios_venta) && empty($ajustes_periodo)): ?>
+    <div class="card" style="padding:20px;color:var(--g5);font-size:14px">Sin registros de obsequios o desechos en este período.</div>
+    <?php else: ?>
+
+    <?php if (!empty($obsequios_venta)): ?>
+    <p style="font-size:13px;font-weight:700;color:var(--g2);margin-bottom:6px">A. Ventas obsequio (POS)</p>
+    <div class="card">
+        <table>
+            <thead><tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th class="hide-m">Productos</th>
+                <th class="r">Unid.</th>
+                <th class="r">Valor ref.</th>
+                <th class="hide-m">Cajero</th>
+            </tr></thead>
+            <tbody>
+            <?php
+            $obs_total_u = 0; $obs_total_v = 0;
+            foreach ($obsequios_venta as $ob):
+                $obs_total_u += (int)$ob['total_unidades'];
+                $obs_total_v += (float)$ob['total'];
+            ?>
+            <tr>
+                <td><?= date('d/m H:i', strtotime($ob['fecha_venta'])) ?></td>
+                <td><?= htmlspecialchars($ob['cliente']) ?></td>
+                <td class="hide-m" style="font-size:12px;color:var(--g2)"><?= htmlspecialchars($ob['productos'] ?? '—') ?></td>
+                <td class="r"><?= (int)$ob['total_unidades'] ?></td>
+                <td class="r">$<?= number_format((float)$ob['total'],0,',','.') ?></td>
+                <td class="hide-m" style="font-size:12px"><?= htmlspecialchars($ob['cajero'] ?? '') ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <tr style="background:var(--g9);font-weight:800">
+                <td colspan="3">TOTAL OBSEQUIOS POS</td>
+                <td class="r"><?= $obs_total_u ?></td>
+                <td class="r">$<?= number_format($obs_total_v,0,',','.') ?></td>
+                <td class="hide-m"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!empty($ajustes_periodo)): ?>
+    <p style="font-size:13px;font-weight:700;color:var(--g2);margin-bottom:6px">B. Ajustes de stock (desde inventario)</p>
+    <div class="card">
+        <table>
+            <thead><tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Producto</th>
+                <th class="r">Cant.</th>
+                <th class="hide-m">Motivo</th>
+                <th class="hide-m">Registrado por</th>
+            </tr></thead>
+            <tbody>
+            <?php
+            $aj_total = 0;
+            foreach ($ajustes_periodo as $aj):
+                $aj_total += (int)$aj['cantidad'];
+                $badge_color = $aj['tipo'] === 'obsequio' ? '#fce7f3;color:#9d174d' : '#f3f4f6;color:#374151';
+            ?>
+            <tr>
+                <td><?= date('d/m H:i', strtotime($aj['fecha_ajuste'])) ?></td>
+                <td><span class="badge" style="background:<?= $badge_color ?>"><?= ucfirst($aj['tipo']) ?></span></td>
+                <td><?= htmlspecialchars($aj['producto']) ?></td>
+                <td class="r"><?= (int)$aj['cantidad'] ?></td>
+                <td class="hide-m" style="font-size:12px;color:var(--g2)"><?= htmlspecialchars($aj['motivo'] ?? '—') ?></td>
+                <td class="hide-m" style="font-size:12px"><?= htmlspecialchars($aj['usuario'] ?? '') ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <tr style="background:var(--g9);font-weight:800">
+                <td colspan="3">TOTAL AJUSTADO</td>
+                <td class="r"><?= $aj_total ?></td>
+                <td colspan="2" class="hide-m"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+
+    <?php endif; ?>
 
 </main>
 </body>

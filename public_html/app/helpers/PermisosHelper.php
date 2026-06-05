@@ -114,7 +114,7 @@ function permiso_es_solo_propios(string $modulo): bool
  */
 function permiso_modulos_accesibles(): array
 {
-    $todos       = ['ventas', 'compras', 'inventario', 'nomina', 'productos', 'activos', 'reportes'];
+    $todos       = ['ventas','compras','inventario','nomina','productos','activos','reportes','proveedores','costos'];
     $accesibles  = [];
 
     foreach ($todos as $modulo) {
@@ -133,7 +133,7 @@ function permiso_modulos_accesibles(): array
  */
 function permiso_limpiar_cache(): void
 {
-    $modulos = ['ventas', 'compras', 'inventario', 'nomina', 'productos', 'activos', 'reportes'];
+    $modulos = ['ventas','compras','inventario','nomina','productos','activos','reportes','proveedores','costos'];
     foreach ($modulos as $m) {
         unset($_SESSION["perm_{$m}"]);
     }

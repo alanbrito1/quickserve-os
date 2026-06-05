@@ -31,7 +31,7 @@ if (isset($_GET['export'])) {
     $w->addEmptyRow();
 
     $headers = [
-        'Empleado', 'Cargo', 'Tipo Contrato',
+        'Empleado', 'Cargo', 'Tipo Contrato', 'Tipo Costo',
         'Salario Base', 'Aux. Transporte',
         'Salud (8.5%)', 'Pensión (12%)', 'ARL (0.522%)', 'Caja (4%)', 'ICBF (3%)', 'SENA (2%)',
         'Total Cargas',
@@ -45,6 +45,8 @@ if (isset($_GET['export'])) {
         $w->addRow([
             $liq['nombre_completo'],
             $liq['cargo'] ?? '',
+            ucfirst(str_replace('_', ' ', $liq['tipo_contrato'] ?? '')),
+            ucfirst($liq['tipo_costo'] ?? 'indirecto'),
             (float)$liq['salario_base'],
             (float)$liq['aux_transporte'],
             (float)$liq['salud_empleador'],
@@ -112,10 +114,6 @@ $fmt = fn(float $n) => '$' . number_format($n, 0, ',', '.');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root { --brand:#e94f37; --dark:#111827; --g2:#374151; --g5:#6b7280; --g8:#d1d5db; --g9:#f3f4f6; --white:#fff; }
         body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--g9); min-height:100vh; color:var(--dark); }
-        .hdr { background:var(--dark); color:var(--white); height:54px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; box-shadow:0 2px 8px rgba(0,0,0,.3); }
-        .brand { font-size:17px; font-weight:800; } .brand span{color:var(--brand);}
-        .nl { color:var(--g8); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:8px; }
-        .nl:hover { background:var(--g2); color:var(--white); }
         .main { padding:16px 14px; max-width:1100px; margin:0 auto; }
         .filter-row { background:var(--white); border-radius:14px; padding:14px 18px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
         .fg { display:flex; flex-direction:column; gap:4px; }
@@ -130,7 +128,7 @@ $fmt = fn(float $n) => '$' . number_format($n, 0, ',', '.');
         .stat-l { font-size:11px; color:var(--g5); text-transform:uppercase; letter-spacing:.4px; }
         /* Tabla horizontal scroll en mobile */
         .table-wrap { overflow-x:auto; }
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; margin-bottom:16px; }
         table { width:100%; border-collapse:collapse; min-width:900px; }
         th { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--g5); padding:9px 10px; background:var(--g9); border-bottom:1px solid var(--g8); text-align:right; white-space:nowrap; }
         th:first-child, th:nth-child(2) { text-align:left; }
@@ -140,6 +138,38 @@ $fmt = fn(float $n) => '$' . number_format($n, 0, ',', '.');
         tr.total-row { background:var(--g9); font-weight:800; }
         tr.total-row td { font-size:12px; }
         .empty { text-align:center; padding:40px; color:var(--g5); }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — REPORTE NÓMINA
+           ════════════════════════════════════════════════════════════════ */
+        /* xs: < 480px */
+        @media (max-width:479px) {
+            .main { padding:12px 10px 40px; }
+            /* Filtros en columna */
+            .filter-row { flex-direction:column; align-items:stretch; padding:12px; }
+            .fg { width:100%; }
+            .fg select { width:100%; }
+            .btn-ver, .btn-xl { width:100%; min-height:44px; }
+            /* Stats 2 cols */
+            .stats { grid-template-columns:1fr 1fr !important; gap:8px; }
+            .stat-n { font-size:14px !important; }
+        }
+        /* sm: 480-639px */
+        @media (min-width:480px) and (max-width:639px) {
+            .stats { grid-template-columns:repeat(2,1fr) !important; }
+        }
+        /* ≥1600px */
+        @media (min-width:1600px) {
+            .main { max-width:1400px; }
+            .stat-n { font-size:22px !important; }
+            table { min-width:1000px; }
+            th, td { padding:12px 14px !important; font-size:13px !important; }
+        }
+        /* TV ≥1920px */
+        @media (min-width:1920px) {
+            .main { max-width:1680px; }
+            .stat-n { font-size:26px !important; }
+        }
     </style>
 </head>
 <body>

@@ -8,11 +8,12 @@
 require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/VentaModel.php';
 require_once __DIR__ . '/../app/models/RecetaModel.php';
+require_once __DIR__ . '/../app/models/CostoIndirectoModel.php';
 require_once __DIR__ . '/../app/helpers/XlsxWriter.php';
 
 permiso_requerir('reportes', 'solo_ver');
 
-// Filtros
+// Filtros de período
 $desde = $_GET['desde'] ?? date('Y-m-d', strtotime('-30 days'));
 $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
@@ -20,14 +21,38 @@ $hasta = $_GET['hasta'] ?? date('Y-m-d');
 $solo_uid = permiso_es_solo_propios('ventas') ? (int)$usuario_activo['id'] : null;
 $ventas   = VentaModel::historial($desde, $hasta, $solo_uid);
 
-// Costo fijo unitario
+// Costo fijo unitario: usa costos_indirectos si hay datos, si no configuracion_negocio
 $cfg = db()->query(
     "SELECT clave, valor FROM configuracion_negocio
      WHERE clave IN ('costos_fijos_mensuales','produccion_estimada_mensual')"
 )->fetchAll(PDO::FETCH_KEY_PAIR);
-$costo_fijo_u = (float)$cfg['costos_fijos_mensuales'] / max(1, (float)$cfg['produccion_estimada_mensual']);
+$costos_indirectos_total = CostoIndirectoModel::total_mensual_activo();
+$costos_fijos_legacy     = (float)($cfg['costos_fijos_mensuales'] ?? 0);
+$costos_fijos_mensual    = $costos_indirectos_total > 0 ? $costos_indirectos_total : $costos_fijos_legacy;
+$prod_mes                = max(1, (float)($cfg['produccion_estimada_mensual'] ?? 2175));
+$costo_fijo_u            = $costos_fijos_mensual / $prod_mes;
 
 $rentabilidad = RecetaModel::productos_con_margen($costo_fijo_u);
+
+// Análisis from_stock vs on-demand
+$from_stock_stats = db()->prepare(
+    "SELECT
+        SUM(CASE WHEN vd.from_stock = 1 THEN vd.subtotal ELSE 0 END) AS total_desde_stock,
+        SUM(CASE WHEN vd.from_stock = 0 THEN vd.subtotal ELSE 0 END) AS total_demanda,
+        SUM(CASE WHEN vd.from_stock = 1 THEN vd.cantidad ELSE 0 END) AS unid_desde_stock,
+        SUM(CASE WHEN vd.from_stock = 0 THEN vd.cantidad ELSE 0 END) AS unid_demanda
+     FROM venta_detalles vd
+     JOIN ventas v ON v.id = vd.venta_id
+     WHERE DATE(v.fecha_venta) BETWEEN :desde AND :hasta
+       AND v.estado != 'anulada'"
+);
+$from_stock_stats->execute([':desde' => $desde, ':hasta' => $hasta]);
+$fs_row = $from_stock_stats->fetch();
+
+// Etiquetas de método de pago — definidas aquí para que estén disponibles tanto en
+// el bloque Excel como en la vista HTML (el bloque Excel se ejecuta y hace exit primero).
+$metodo_label = ['efectivo'=>'Efectivo','nequi'=>'Nequi','daviplata'=>'Daviplata',
+                 'bancolombia'=>'Bancolombia','fiado'=>'Fiado','obsequio'=>'Obsequio'];
 
 // ── EXPORTAR EXCEL ──────────────────────────────────────────────────────────
 if (isset($_GET['export'])) {
@@ -40,24 +65,25 @@ if (isset($_GET['export'])) {
     $w->addEmptyRow();
     $w->addRow(['#', 'Fecha', 'Hora', 'Cliente', 'Items', 'Método Pago', 'Total', 'Estado', 'Cajero'], true);
 
-    $total_pesos = 0;
+    $total_pesos = 0; // solo ingresos reales (excluye obsequio)
     foreach ($ventas as $v) {
         if ($v['estado'] === 'anulada') continue;
+        $es_obsequio = $v['metodo_pago'] === 'obsequio';
         $w->addRow([
             $v['id'],
             date('d/m/Y', strtotime($v['fecha_venta'])),
             date('H:i',   strtotime($v['fecha_venta'])),
             $v['cliente'],
             (int)$v['num_items'],
-            $v['metodo_pago'],
+            $metodo_label[$v['metodo_pago']] ?? $v['metodo_pago'],
             (float)$v['total'],
             $v['estado'],
             $v['cajero'] ?? '',
         ]);
-        $total_pesos += (float)$v['total'];
+        if (!$es_obsequio) $total_pesos += (float)$v['total'];
     }
     $w->addEmptyRow();
-    $w->addRow(['', '', '', '', '', 'TOTAL', $total_pesos, '', ''], false, true);
+    $w->addRow(['', '', '', '', '', 'TOTAL INGRESOS (sin obsequios)', $total_pesos, '', ''], false, true);
 
     // Resumen por método de pago
     $w->addEmptyRow();
@@ -71,7 +97,9 @@ if (isset($_GET['export'])) {
         $por_metodo[$m]['total'] = ($por_metodo[$m]['total'] ?? 0) + (float)$v['total'];
     }
     foreach ($por_metodo as $metodo => $datos) {
-        $w->addRow([$metodo, $datos['count'], $datos['total']]);
+        $label = $metodo_label[$metodo] ?? $metodo;
+        $nota  = $metodo === 'obsequio' ? ' (no es ingreso)' : '';
+        $w->addRow([$label . $nota, $datos['count'], $datos['total']]);
     }
 
     // ── Hoja 2: Rentabilidad ────────────────────────────────────────────────
@@ -79,10 +107,11 @@ if (isset($_GET['export'])) {
     $w->addRow(['ClanDestino ERP — Rentabilidad por Producto'], true);
     $w->addRow(["Costo fijo/u: $" . number_format($costo_fijo_u, 2) . "  |  Generado: " . date('d/m/Y H:i')]);
     $w->addEmptyRow();
-    $w->addRow(['Producto', 'Tamaño', 'Precio Venta', 'Costo Ing.', 'Costo Fijo', 'Costo Total', 'Margen $', 'Margen %'], true);
+    $w->addRow(['Producto', 'Nombre complementario', 'Tamaño', 'Precio Venta', 'Costo Ing.', 'Costo Fijo', 'Costo Total', 'Margen $', 'Margen %'], true);
     foreach ($rentabilidad as $p) {
         $w->addRow([
             $p['nombre'],
+            $p['nombre2'] ?? '',   // subtítulo complementario (vacío si no tiene)
             $p['tamano'],
             (float)$p['precio_venta'],
             (float)$p['costo_ing'],
@@ -97,17 +126,22 @@ if (isset($_GET['export'])) {
 }
 
 // ── RESÚMENES para la vista HTML ────────────────────────────────────────────
-$stats = ['total' => 0, 'pesos' => 0, 'efectivo' => 0, 'digital' => 0, 'fiado' => 0, 'anuladas' => 0];
+// obsequio se cuenta aparte; su valor NO suma al total de ingresos
+$stats = ['total'=>0,'pesos'=>0,'efectivo'=>0,'digital'=>0,'fiado'=>0,'anuladas'=>0,'obsequio_n'=>0,'obsequio_val'=>0.0];
 foreach ($ventas as $v) {
     if ($v['estado'] === 'anulada') { $stats['anuladas']++; continue; }
+    if ($v['metodo_pago'] === 'obsequio') {
+        $stats['obsequio_n']++;
+        $stats['obsequio_val'] += (float)$v['total'];
+        continue;
+    }
     $stats['total']++;
     $stats['pesos'] += (float)$v['total'];
-    if ($v['metodo_pago'] === 'efectivo') $stats['efectivo'] += (float)$v['total'];
-    elseif ($v['metodo_pago'] === 'fiado') $stats['fiado']   += (float)$v['total'];
-    else $stats['digital'] += (float)$v['total'];
+    if ($v['metodo_pago'] === 'efectivo')                                          $stats['efectivo'] += (float)$v['total'];
+    elseif ($v['metodo_pago'] === 'fiado')                                         $stats['fiado']    += (float)$v['total'];
+    elseif (in_array($v['metodo_pago'], ['nequi','daviplata','bancolombia'], true)) $stats['digital']  += (float)$v['total'];
 }
-$metodo_label = ['efectivo'=>'Efectivo','nequi'=>'Nequi','daviplata'=>'Daviplata','bancolombia'=>'Bancolombia','fiado'=>'Fiado'];
-$estado_c     = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend'];
+$estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend'];
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -119,13 +153,8 @@ $estado_c     = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pe
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root { --brand:#e94f37; --dark:#111827; --g2:#374151; --g5:#6b7280; --g8:#d1d5db; --g9:#f3f4f6; --white:#fff; --green:#059669; --yellow:#d97706; }
         body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--g9); min-height:100vh; color:var(--dark); }
-        .hdr { background:var(--dark); color:var(--white); height:54px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; box-shadow:0 2px 8px rgba(0,0,0,.3); }
-        .brand { font-size:17px; font-weight:800; } .brand span{color:var(--brand);}
-        .nav { display:flex; gap:6px; }
-        .nl { color:var(--g8); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:8px; }
-        .nl:hover { background:var(--g2); color:var(--white); }
         .main { padding:16px 14px; max-width:1000px; margin:0 auto; }
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; margin-bottom:16px; }
         .card-title { font-size:15px; font-weight:800; padding:14px 18px; border-bottom:1px solid var(--g9); }
         .filter-row { background:var(--white); border-radius:14px; padding:14px 18px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
         .fg { display:flex; flex-direction:column; gap:4px; }
@@ -149,10 +178,56 @@ $estado_c     = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pe
         .b-ok  { background:#d1fae5; color:#065f46; }
         .b-ano { background:#fee2e2; color:#991b1b; }
         .b-pend{ background:#fef3c7; color:#92400e; }
+        .b-obs { background:#fce7f3; color:#9d174d; }
         /* Margen en tabla rentabilidad */
         .m-ok  { color:var(--green); font-weight:800; }
         .m-mid { color:var(--yellow); font-weight:800; }
         .m-bad { color:var(--brand); font-weight:800; }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — REPORTE VENTAS
+           ════════════════════════════════════════════════════════════════ */
+        /* Tabla con scroll horizontal global */
+        .card { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+        /* xs: < 480px */
+        @media (max-width:479px) {
+            .main { padding:12px 10px 40px; }
+            /* Filtros en columna */
+            .filter-row { flex-direction:column; align-items:stretch; padding:12px; }
+            .fg { width:100%; }
+            .fg input { width:100%; }
+            .btn-ver, .btn-xl { width:100%; min-height:44px; padding:11px 16px; }
+            /* Stats 2 cols */
+            .stats { grid-template-columns:1fr 1fr !important; gap:8px; }
+            .stat-n { font-size:15px !important; }
+            /* Tabla scroll */
+            .card { overflow-x:auto; }
+            table { min-width:480px; }
+        }
+        /* sm: 480-639px */
+        @media (min-width:480px) and (max-width:639px) {
+            .filter-row { flex-wrap:wrap; }
+            .stats { grid-template-columns:repeat(3,1fr) !important; }
+            .card { overflow-x:auto; }
+            table { min-width:520px; }
+        }
+        /* md: 640-1023px */
+        @media (min-width:640px) and (max-width:1023px) {
+            .card { overflow-x:auto; }
+        }
+        /* ≥1600px */
+        @media (min-width:1600px) {
+            .main { max-width:1300px; }
+            .stats { grid-template-columns:repeat(5,1fr) !important; }
+            .stat-n { font-size:22px !important; }
+            th, td { padding:12px 16px !important; font-size:14px !important; }
+        }
+        /* TV ≥1920px */
+        @media (min-width:1920px) {
+            .main { max-width:1600px; }
+            .stat-n { font-size:26px !important; }
+        }
     </style>
 </head>
 <body>
@@ -174,11 +249,21 @@ $estado_c     = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pe
     <!-- Stats -->
     <div class="stats">
         <div class="stat"><div class="stat-n"><?= $stats['total'] ?></div><div class="stat-l">Ventas</div></div>
-        <div class="stat"><div class="stat-n" style="color:var(--brand)">$<?= number_format($stats['pesos'],0,',','.') ?></div><div class="stat-l">Total</div></div>
+        <div class="stat"><div class="stat-n" style="color:var(--brand)">$<?= number_format($stats['pesos'],0,',','.') ?></div><div class="stat-l">Total ingresos</div></div>
         <div class="stat"><div class="stat-n">$<?= number_format($stats['efectivo'],0,',','.') ?></div><div class="stat-l">Efectivo</div></div>
         <div class="stat"><div class="stat-n">$<?= number_format($stats['digital'],0,',','.') ?></div><div class="stat-l">Digital</div></div>
         <div class="stat"><div class="stat-n" style="color:var(--yellow)">$<?= number_format($stats['fiado'],0,',','.') ?></div><div class="stat-l">Fiado</div></div>
     </div>
+    <?php if ($stats['obsequio_n'] > 0): ?>
+    <div style="background:#fdf4ff;border:1px solid #fbcfe8;border-radius:12px;padding:12px 16px;
+                margin-bottom:16px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:18px">🎁</span>
+        <span><strong><?= $stats['obsequio_n'] ?> obsequio<?= $stats['obsequio_n']>1?'s':'' ?></strong>
+        registrado<?= $stats['obsequio_n']>1?'s':'' ?> en este período
+        — valor ref: <strong>$<?= number_format($stats['obsequio_val'],0,',','.') ?></strong>
+        <span style="color:var(--g5)">(no incluido en total de ingresos)</span></span>
+    </div>
+    <?php endif; ?>
 
     <!-- Tabla de ventas -->
     <div class="card">

@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../../app/middleware/auth_check.php';
 require_once __DIR__ . '/../../app/helpers/AuditoriaHelper.php';
+require_once __DIR__ . '/../../app/helpers/ListasHelper.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -30,10 +31,11 @@ if (!csrf_verificar()) {
 $accion = $_POST['accion'] ?? '';
 $uid    = (int)($_SESSION['usuario_id'] ?? 0);
 
-// Listas de valores válidos
-$PRESENTACIONES = ['frasco','tarro','caja','paca','bolsa','atado','lata','bloque','galon','unidad','otra'];
-$UNIDADES       = ['kg','g','lb','litro','ml','unidad','loncha','lata','paquete'];
-$CATEGORIAS     = ['proteína','lácteo','vegetal','condimento','empaque','grasa','combo','otro'];
+// Validación de valores de presentacion, unidad_medida y categoria_insumo
+// contra la tabla listas_sistema (Admin → Catálogos).
+// Si la migración 029 aún no está aplicada, listas_valor_valido() retorna
+// true para valores vacíos/null (campo opcional), por lo que el módulo
+// sigue funcionando durante la transición.
 
 try {
     switch ($accion) {
@@ -43,19 +45,33 @@ try {
             $nombre = trim($_POST['nombre'] ?? '');
             if (empty($nombre)) throw new \RuntimeException('El nombre del insumo es obligatorio.');
 
-            $presentacion        = in_array($_POST['presentacion']  ?? '', $PRESENTACIONES, true) ? $_POST['presentacion']  : null;
-            $unidad_medida       = in_array($_POST['unidad_medida'] ?? '', $UNIDADES, true)        ? $_POST['unidad_medida'] : 'unidad';
-            $cantidad_pres       = (float)str_replace(',', '.', $_POST['cantidad_presentacion'] ?? '0');
-            $precio_pres         = (float)str_replace(',', '.', $_POST['precio_presentacion']   ?? '0');
-            $costo_actual        = (float)str_replace(',', '.', $_POST['costo_actual']          ?? '0');
-            $stock_actual        = (float)str_replace(',', '.', $_POST['stock_actual']          ?? '0');
-            $stock_seguridad     = (float)str_replace(',', '.', $_POST['stock_seguridad']       ?? '0');
-            $proveedor_id        = !empty($_POST['proveedor_id']) ? (int)$_POST['proveedor_id'] : null;
-            $categoria           = in_array($_POST['categoria'] ?? '', $CATEGORIAS, true) ? $_POST['categoria'] : 'otro';
-            $notas               = trim($_POST['notas'] ?? '');
+            // Validar contra listas_sistema; si el valor no existe o la tabla no está,
+            // listas_valor_valido() retorna true para vacíos y false para valores inválidos
+            $pres_raw      = $_POST['presentacion']  ?? '';
+            $unidad_raw    = $_POST['unidad_medida'] ?? 'unidad';
+            $cat_raw       = $_POST['categoria']     ?? 'otro';
+            $presentacion  = listas_valor_valido('presentacion',    $pres_raw)   ? ($pres_raw   ?: null) : null;
+            $unidad_medida = listas_valor_valido('unidad_medida',   $unidad_raw) ? $unidad_raw  : 'unidad';
+            $categoria     = listas_valor_valido('categoria_insumo',$cat_raw)    ? $cat_raw     : 'otro';
+            $cantidad_pres = (float)str_replace(',', '.', $_POST['cantidad_presentacion'] ?? '0');
+            $precio_pres   = (float)str_replace(',', '.', $_POST['precio_presentacion']   ?? '0');
+            $costo_actual  = (float)str_replace(',', '.', $_POST['costo_actual']          ?? '0');
+            $stock_actual  = (float)str_replace(',', '.', $_POST['stock_actual']          ?? '0');
+            $stock_seguridad = (float)str_replace(',', '.', $_POST['stock_seguridad']     ?? '0');
+            $proveedor_id  = !empty($_POST['proveedor_id']) ? (int)$_POST['proveedor_id'] : null;
+            $notas         = trim($_POST['notas'] ?? '');
+            // Equivalencia física: cuánto pesa/contiene una unidad no-física (loncha, lata, etc.)
+            $equiv_cantidad = !empty($_POST['equiv_cantidad'])
+                ? (float)str_replace(',', '.', $_POST['equiv_cantidad']) : null;
+            $equiv_unidad   = in_array($_POST['equiv_unidad'] ?? '', ['g','kg','ml','litro'], true)
+                ? $_POST['equiv_unidad'] : null;
+            // Si la unidad ya es física, limpiar equivalencia (no tiene sentido)
+            if (in_array($unidad_medida, ['kg','g','lb','litro','ml'], true)) {
+                $equiv_cantidad = null;
+                $equiv_unidad   = null;
+            }
 
-            // Si se dan precio + cantidad de presentación, el costo se calcula automáticamente (trigger)
-            // Pero si el usuario lo editó manualmente, usamos el manual
+            // Si se dan precio + cantidad de presentación, el costo se calcula automáticamente
             if ($precio_pres > 0 && $cantidad_pres > 0) {
                 $costo_actual = round($precio_pres / $cantidad_pres, 4);
             }
@@ -63,13 +79,15 @@ try {
             db()->prepare(
                 'INSERT INTO insumos
                     (nombre, categoria, presentacion, cantidad_presentacion, precio_presentacion,
-                     unidad_medida, costo_actual, stock_actual, stock_seguridad,
+                     unidad_medida, equiv_cantidad, equiv_unidad,
+                     costo_actual, stock_actual, stock_seguridad,
                      proveedor_id, notas, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $nombre, $categoria,
                 $presentacion, $cantidad_pres ?: null, $precio_pres ?: null,
-                $unidad_medida, $costo_actual, $stock_actual, $stock_seguridad,
+                $unidad_medida, $equiv_cantidad, $equiv_unidad,
+                $costo_actual, $stock_actual, $stock_seguridad,
                 $proveedor_id, $notas ?: null, $uid,
             ]);
 
@@ -83,16 +101,29 @@ try {
             $id = (int)($_POST['id'] ?? 0);
             if (!$id) throw new \RuntimeException('ID inválido.');
 
-            $nombre              = trim($_POST['nombre'] ?? '');
-            $presentacion        = in_array($_POST['presentacion']  ?? '', $PRESENTACIONES, true) ? $_POST['presentacion']  : null;
-            $unidad_medida       = in_array($_POST['unidad_medida'] ?? '', $UNIDADES, true)        ? $_POST['unidad_medida'] : 'unidad';
-            $cantidad_pres       = (float)str_replace(',', '.', $_POST['cantidad_presentacion'] ?? '0');
-            $precio_pres         = (float)str_replace(',', '.', $_POST['precio_presentacion']   ?? '0');
-            $costo_actual        = (float)str_replace(',', '.', $_POST['costo_actual']          ?? '0');
-            $stock_seguridad     = (float)str_replace(',', '.', $_POST['stock_seguridad']       ?? '0');
-            $proveedor_id        = !empty($_POST['proveedor_id']) ? (int)$_POST['proveedor_id'] : null;
-            $categoria           = in_array($_POST['categoria'] ?? '', $CATEGORIAS, true) ? $_POST['categoria'] : 'otro';
-            $notas               = trim($_POST['notas'] ?? '');
+            $nombre = trim($_POST['nombre'] ?? '');
+            if (empty($nombre)) throw new \RuntimeException('El nombre del insumo es obligatorio.');
+            $pres_raw      = $_POST['presentacion']  ?? '';
+            $unidad_raw    = $_POST['unidad_medida'] ?? 'unidad';
+            $cat_raw       = $_POST['categoria']     ?? 'otro';
+            $presentacion  = listas_valor_valido('presentacion',    $pres_raw)   ? ($pres_raw   ?: null) : null;
+            $unidad_medida = listas_valor_valido('unidad_medida',   $unidad_raw) ? $unidad_raw  : 'unidad';
+            $categoria     = listas_valor_valido('categoria_insumo',$cat_raw)    ? $cat_raw     : 'otro';
+            $cantidad_pres = (float)str_replace(',', '.', $_POST['cantidad_presentacion'] ?? '0');
+            $precio_pres   = (float)str_replace(',', '.', $_POST['precio_presentacion']   ?? '0');
+            $costo_actual  = (float)str_replace(',', '.', $_POST['costo_actual']          ?? '0');
+            $stock_seguridad = (float)str_replace(',', '.', $_POST['stock_seguridad']     ?? '0');
+            $proveedor_id  = !empty($_POST['proveedor_id']) ? (int)$_POST['proveedor_id'] : null;
+            $notas         = trim($_POST['notas'] ?? '');
+            // Equivalencia física (igual que en crear)
+            $equiv_cantidad = !empty($_POST['equiv_cantidad'])
+                ? (float)str_replace(',', '.', $_POST['equiv_cantidad']) : null;
+            $equiv_unidad   = in_array($_POST['equiv_unidad'] ?? '', ['g','kg','ml','litro'], true)
+                ? $_POST['equiv_unidad'] : null;
+            if (in_array($unidad_medida, ['kg','g','lb','litro','ml'], true)) {
+                $equiv_cantidad = null;
+                $equiv_unidad   = null;
+            }
 
             if ($precio_pres > 0 && $cantidad_pres > 0) {
                 $costo_actual = round($precio_pres / $cantidad_pres, 4);
@@ -107,14 +138,16 @@ try {
                 'UPDATE insumos
                  SET nombre = ?, categoria = ?, presentacion = ?,
                      cantidad_presentacion = ?, precio_presentacion = ?,
-                     unidad_medida = ?, costo_actual = ?,
+                     unidad_medida = ?, equiv_cantidad = ?, equiv_unidad = ?,
+                     costo_actual = ?,
                      stock_seguridad = ?, proveedor_id = ?,
                      notas = ?, updated_by = ?
                  WHERE id = ?'
             )->execute([
                 $nombre, $categoria,
                 $presentacion, $cantidad_pres ?: null, $precio_pres ?: null,
-                $unidad_medida, $costo_actual,
+                $unidad_medida, $equiv_cantidad, $equiv_unidad,
+                $costo_actual,
                 $stock_seguridad, $proveedor_id,
                 $notas ?: null, $uid, $id,
             ]);
@@ -137,6 +170,41 @@ try {
             }
 
             echo json_encode(['success' => true]);
+            break;
+
+        // ── DUPLICAR insumo ──────────────────────────────────────────────────
+        case 'duplicar':
+            $id = (int)($_POST['id'] ?? 0);
+            if (!$id) throw new \RuntimeException('ID inválido.');
+
+            $orig = db()->prepare('SELECT * FROM insumos WHERE id = ? AND activo = 1');
+            $orig->execute([$id]);
+            $ins = $orig->fetch();
+            if (!$ins) throw new \RuntimeException('Insumo no encontrado.');
+
+            $nuevo_nombre = 'Copia de ' . $ins['nombre'];
+
+            // Incluye equiv_cantidad y equiv_unidad (migración 030) en la copia.
+            // stock_actual se pone en 0: la copia empieza sin stock físico.
+            db()->prepare(
+                'INSERT INTO insumos
+                    (nombre, categoria, presentacion, cantidad_presentacion, precio_presentacion,
+                     unidad_medida, equiv_cantidad, equiv_unidad,
+                     costo_actual, stock_actual, stock_seguridad,
+                     proveedor_id, notas, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?)'
+            )->execute([
+                $nuevo_nombre, $ins['categoria'],
+                $ins['presentacion'], $ins['cantidad_presentacion'], $ins['precio_presentacion'],
+                $ins['unidad_medida'], $ins['equiv_cantidad'] ?? null, $ins['equiv_unidad'] ?? null,
+                $ins['costo_actual'],
+                $ins['stock_seguridad'], $ins['proveedor_id'],
+                $ins['notas'], $uid,
+            ]);
+
+            $new_id = (int)db()->lastInsertId();
+            log_registrar('insumos', $new_id, 'nombre', null, $nuevo_nombre, 'INSERT');
+            echo json_encode(['success' => true, 'id' => $new_id, 'nombre' => $nuevo_nombre]);
             break;
 
         // ── ELIMINAR insumo (soft-delete) ────────────────────────────────────

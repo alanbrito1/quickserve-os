@@ -52,7 +52,7 @@ $CAT_DESC = [
         .btn-nuevo { padding:9px 16px; background:var(--brand); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; }
         .aviso { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:12px; padding:12px 16px; font-size:13px; margin-bottom:16px; }
         /* Sección por categoría */
-        .cat-block { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); margin-bottom:14px; overflow:hidden; }
+        .cat-block { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); margin-bottom:14px; overflow:hidden; overflow-x:auto; }
         .cat-hdr { padding:12px 18px; border-bottom:1px solid var(--g9); }
         .cat-title { font-size:14px; font-weight:800; }
         .cat-sub   { font-size:12px; color:var(--g5); margin-top:2px; }
@@ -87,11 +87,49 @@ $CAT_DESC = [
         .toast-ok  { background:#065f46; color:#d1fae5; }
         .toast-err { background:#991b1b; color:#fee2e2; }
 
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — PARÁMETROS LABORALES
+           Tabla cols: 1=Nombre 2=Valor 3=Contratos aplicables 4=Estado 5=Acciones
+           Diseño simple de tarjetas — solo necesita ajuste para TV.
+           ════════════════════════════════════════════════════════════════ */
 
+        /* ── Teléfono vertical (< 480px) ── */
+        @media (max-width: 479px) {
+            /* Ocultar Contratos aplicables (col 3) — ocupa mucho espacio */
+            table thead tr th:nth-child(3), table tbody tr td:nth-child(3) { display: none; }
+            /* Barra superior: encabezado y selector de país apilados */
+            .top-bar { flex-direction: column !important; align-items: stretch !important; gap: 10px; }
+            .pais-row { flex-wrap: wrap; }
+            .btn-nuevo { width: 100%; min-height: 44px; }
+            /* Input de valor: más ancho en móvil */
+            .val-inp { width: 80px !important; }
+        }
+
+        /* ── Tablet (640-1023px) ── */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            .main { max-width: 100%; padding: 16px 18px 60px; }
+        }
+
+        /* ── Pantalla grande (≥1600px) ── */
+        @media (min-width: 1600px) {
+            .main { max-width: 1440px !important; padding: 24px 32px 60px !important; }
+            table thead tr th { font-size: 12px !important; padding: 10px 18px !important; }
+            table tbody tr td { font-size: 15px !important; padding: 12px 18px !important; }
+            .cat-title { font-size: 16px; }
+        }
+
+        /* ── TV (≥1920px) ── */
+        @media (min-width: 1920px) {
+            .main { max-width: 1680px !important; }
+            table thead tr th { font-size: 14px !important; padding: 14px 22px !important; }
+            table tbody tr td { font-size: 17px !important; padding: 14px 22px !important; }
+            .cat-title { font-size: 18px; }
+            .val-inp   { width: 140px !important; font-size: 16px !important; }
+        }
     </style>
 </head>
 <body>
-<?php $nav_sub = 'parametros'; include __DIR__ . '/../app/views/nav.php'; ?>
+<?php $nav_activo = 'nomina'; $nav_sub = 'parametros'; include __DIR__ . '/../app/views/nav.php'; ?>
 <main class="main">
 
 

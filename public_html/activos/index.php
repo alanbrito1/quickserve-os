@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/ActivoModel.php';
+require_once __DIR__ . '/../app/helpers/ListasHelper.php';
 
 $nav_activo = 'activos';
 permiso_requerir('activos', 'solo_ver');
@@ -58,6 +59,7 @@ if (($orden === 'lugar' || $orden === 'categoria') && !$v5) $orden = 'fecha';
 
 // ── Datos ─────────────────────────────────────────────────────────────────────
 $activos = ActivoModel::todos($orden);
+$proveedores_list = db()->query('SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre')->fetchAll();
 $resumen = $v5 ? ActivoModel::resumen_ampliado() : ActivoModel::resumen();
 
 $dep_dia   = (float)($resumen['dep_diaria_total']  ?? 0);
@@ -68,7 +70,10 @@ $mal_estado= (int)  ($resumen['en_mal_estado']     ?? 0);
 $garan_venc= (int)  ($resumen['garantia_vencida']  ?? 0);
 
 // Categorías para select
-$CATEGORIAS = [
+// Categorías de activos desde la tabla listas_sistema (Admin → Catálogos).
+// Fallback hardcodeado si la migración 029 aún no está aplicada.
+$_cats_lista = listas_map('categoria_activo');
+$CATEGORIAS  = !empty($_cats_lista) ? $_cats_lista : [
     'equipo_cocina'   => 'Equipo de cocina',
     'electrodomestico'=> 'Electrodoméstico',
     'herramienta'     => 'Herramienta',
@@ -143,9 +148,29 @@ $VIDA_ESTADO = [
         .vida-bar  { width:50px; height:5px; background:var(--g8); border-radius:3px; overflow:hidden; flex-shrink:0; }
         .vida-fill { height:100%; border-radius:3px; }
         .badge { font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px; white-space:nowrap; display:inline-block; }
-        /* Botones acción */
-        .act-btns { display:flex; gap:4px; flex-wrap:nowrap; align-items:center; }
+        /* Botones acción — dentro de la celda Activo */
+        .act-btns { display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin-top:6px; }
         .btn-ic { padding:5px 8px; border:none; border-radius:7px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; }
+
+        /* ── Ordenamiento de columnas ─────────────────────────────────── */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        th.sortable:hover { background: #e9ecf0; }
+        th.sortable .sort-icon {
+            display: inline-block;
+            margin-left: 4px;
+            color: #9ca3af;
+            font-size: 10px;
+            font-style: normal;
+        }
+        th.sort-asc  .sort-icon { color: var(--brand, #e94f37); }
+        th.sort-desc .sort-icon { color: var(--brand, #e94f37); }
+        th.sort-asc  .sort-icon::after { content: '↑'; }
+        th.sort-desc .sort-icon::after { content: '↓'; }
+        th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
         .btn-edit  { background:var(--g9); color:var(--g2); border:1px solid var(--g8); }
         .btn-dup   { background:#e0f2fe; color:#0369a1; }
         .btn-photo { background:#f0fdf4; color:#16a34a; }
@@ -181,6 +206,106 @@ $VIDA_ESTADO = [
         .toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
         .toast-ok  { background:#065f46; color:#d1fae5; }
         .toast-err { background:#991b1b; color:#fee2e2; }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — ACTIVOS
+           Breakpoints: xs<480 | sm480-639 | md640-1023 | lg1024-1279 |
+                        xl1280-1599 | 2xl≥1600 | tv≥1920
+           Columnas tabla (cuando $v5 activo, hasta 10):
+             1=Foto  2=Activo  3=Categoría  4=Serial  5=Unidades
+             6=Precio/u  7=Total  8=Dep/día  9=Vida útil  10=Estado
+           ════════════════════════════════════════════════════════════════ */
+
+        /* — xs: móvil vertical < 480px ─────────────────────────────────
+           Ocultar: Foto(1), Categoría(3), Serial(4), Precio/u(6), Dep/día(8)
+           Mantener: Activo(2), Unidades(5), Total(7), Vida útil(9), Estado(10)
+           Stats: 2 columnas; act-bar apilada; modal bottom-sheet             */
+        @media (max-width:479px) {
+            /* Stats grid 2 columnas */
+            .stats { grid-template-columns: repeat(2,1fr) !important; gap:8px !important; }
+            .stats .card { padding:10px 12px !important; }
+            .stats .kpi-val { font-size:clamp(16px,5vw,20px) !important; }
+
+            /* Ocultar columnas no esenciales */
+            .tbl-activos th:nth-child(1), .tbl-activos td:nth-child(1), /* Foto */
+            .tbl-activos th:nth-child(3), .tbl-activos td:nth-child(3), /* Categoría */
+            .tbl-activos th:nth-child(4), .tbl-activos td:nth-child(4), /* Serial */
+            .tbl-activos th:nth-child(6), .tbl-activos td:nth-child(6), /* Precio/u */
+            .tbl-activos th:nth-child(8), .tbl-activos td:nth-child(8)  /* Dep/día */
+            { display:none !important; }
+
+            /* Tabla con scroll horizontal mínimo */
+            .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+            .tbl-activos { min-width:320px; }
+
+            /* Botones de acción apilados verticalmente */
+            .act-bar { flex-direction:column; align-items:stretch; }
+            .act-bar .btn-primary, .act-bar .btn-sec {
+                width:100% !important; min-height:44px; justify-content:center;
+            }
+
+            /* Formulario 1 columna */
+            .form-grid, .form-grid-3 { grid-template-columns:1fr !important; }
+
+            /* Modal bottom-sheet */
+            .overlay { align-items:flex-end !important; }
+            .modal {
+                border-radius:16px 16px 0 0 !important;
+                max-height:90vh !important;
+                width:100% !important;
+                max-width:100% !important;
+            }
+        }
+
+        /* — sm: móvil landscape 480-639px ──────────────────────────────
+           Ocultar: Foto(1), Serial(4), Dep/día(8)                          */
+        @media (min-width:480px) and (max-width:639px) {
+            .tbl-activos th:nth-child(1), .tbl-activos td:nth-child(1), /* Foto */
+            .tbl-activos th:nth-child(4), .tbl-activos td:nth-child(4), /* Serial */
+            .tbl-activos th:nth-child(8), .tbl-activos td:nth-child(8)  /* Dep/día */
+            { display:none !important; }
+
+            .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+            .tbl-activos { min-width:480px; }
+            .stats { grid-template-columns: repeat(3,1fr) !important; }
+        }
+
+        /* — md: tablet 640-1023px ───────────────────────────────────────
+           Ocultar solo: Foto(1), Dep/día(8)                                */
+        @media (min-width:640px) and (max-width:1023px) {
+            .tbl-activos th:nth-child(1), .tbl-activos td:nth-child(1), /* Foto */
+            .tbl-activos th:nth-child(8), .tbl-activos td:nth-child(8)  /* Dep/día */
+            { display:none !important; }
+
+            .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+            .tbl-activos { min-width:640px; }
+
+            /* Modal centrado en tablet */
+            .overlay { align-items:center !important; }
+            .modal { border-radius:16px !important; max-width:560px !important; }
+        }
+
+        /* — lg+: escritorio ≥1024px — mostrar todas las columnas ─────── */
+        @media (min-width:1024px) {
+            .tbl-activos th, .tbl-activos td { display:table-cell !important; }
+        }
+
+        /* — 2xl: pantalla grande ≥1600px ───────────────────────────────── */
+        @media (min-width:1600px) {
+            .stats { gap:16px !important; }
+            .stats .card { padding:20px 24px !important; }
+            .stats .kpi-val { font-size:clamp(22px,2vw,28px) !important; }
+            .tbl-activos th, .tbl-activos td { padding:12px 14px !important; font-size:14px !important; }
+            .modal { max-width:720px !important; padding:30px !important; }
+        }
+
+        /* — tv: televisor ≥1920px ────────────────────────────────────── */
+        @media (min-width:1920px) {
+            .stats { grid-template-columns:repeat(6,1fr) !important; gap:20px !important; }
+            .stats .kpi-val { font-size:clamp(26px,2vw,34px) !important; }
+            .tbl-activos th, .tbl-activos td { padding:14px 18px !important; font-size:15px !important; }
+            .modal { max-width:860px !important; }
+        }
     </style>
 </head>
 <body>
@@ -227,7 +352,7 @@ $VIDA_ESTADO = [
         <div><strong style="font-size:13px">Costo operativo por depreciación</strong><br>
         <span style="font-size:11px;color:#9ca3af">Impacta el costo de cada producto</span></div>
         <div class="dep-item"><div class="dep-val">$<?= number_format($dep_dia,2,',','.') ?></div><div class="dep-lbl">/ día</div></div>
-        <div class="dep-item"><div class="dep-val">$<?= number_format($dep_dia*30.4,0,',','.') ?></div><div class="dep-lbl">/ mes</div></div>
+        <div class="dep-item"><div class="dep-val">$<?= number_format($dep_dia*30.41666,0,',','.') ?></div><div class="dep-lbl">/ mes</div></div>
         <div class="dep-item"><div class="dep-val">$<?= number_format($dep_dia*365,0,',','.') ?></div><div class="dep-lbl">/ año</div></div>
     </div>
 
@@ -247,22 +372,23 @@ $VIDA_ESTADO = [
 
     <!-- Tabla de activos -->
     <div class="card">
-        <table>
+        <table class="activos-table">
             <thead>
                 <tr>
                     <?php if ($v5): ?><th style="width:54px">Foto</th><?php endif; ?>
-                    <th>Activo</th>
+                    <th class="sortable" data-col="nombre" onclick="sortActivos('nombre')" style="min-width:186px">
+                        Activo <i class="sort-icon"></i>
+                    </th>
                     <?php if ($v5): ?>
-                    <th>Categoría</th>
-                    <th>Serial</th>
-                    <th>Unidades</th>
-                    <th>Precio/u</th>
+                    <th class="sortable" data-col="cat" onclick="sortActivos('cat')">Categoría <i class="sort-icon"></i></th>
+                    <th class="sortable" data-col="serial" onclick="sortActivos('serial')">Serial <i class="sort-icon"></i></th>
+                    <th class="sortable" data-col="uni" onclick="sortActivos('uni')" style="text-align:center">Unidades <i class="sort-icon"></i></th>
+                    <th class="sortable" data-col="precio" onclick="sortActivos('precio')" style="text-align:right">Precio/u <i class="sort-icon"></i></th>
                     <?php endif; ?>
-                    <th style="text-align:right">Total</th>
+                    <th class="sortable" data-col="total" onclick="sortActivos('total')" style="text-align:right">Total <i class="sort-icon"></i></th>
                     <th style="text-align:right">Dep/día</th>
                     <th>Vida útil</th>
-                    <th>Estado</th>
-                    <?php if (permiso_tiene('activos','editar_existentes')): ?><th>Acciones</th><?php endif; ?>
+                    <th class="sortable" data-col="estado" onclick="sortActivos('estado')">Estado <i class="sort-icon"></i></th>
                 </tr>
             </thead>
             <tbody>
@@ -280,7 +406,15 @@ $VIDA_ESTADO = [
                     $eLabel = ($ESTADOS_FISICO[$efis] ?? $ESTADOS_FISICO['bueno'])['label'];
                     $enGar  = $v5 && !empty($a['garantia_hasta']) && $a['garantia_hasta'] < date('Y-m-d');
                 ?>
-                <tr <?= !$a['activo'] ? 'style="opacity:.45"' : '' ?>>
+                <tr class="activo-row"
+                    data-nombre="<?= htmlspecialchars(strtolower($a['nombre'])) ?>"
+                    data-cat="<?= htmlspecialchars(strtolower($CATEGORIAS[$a['categoria_activo'] ?? 'otro'] ?? '')) ?>"
+                    data-serial="<?= htmlspecialchars(strtolower($a['serial'] ?? '')) ?>"
+                    data-uni="<?= (int)($a['numero_unidades'] ?? 1) ?>"
+                    data-precio="<?= (float)($a['precio_unitario'] ?? 0) ?>"
+                    data-total="<?= (float)$a['costo_inicial'] ?>"
+                    data-estado="<?= htmlspecialchars($est) ?>"
+                    <?= !$a['activo'] ? 'style="opacity:.45"' : '' ?>>
                     <?php if ($v5): ?>
                     <td>
                         <?php if (!empty($a['foto_url'])): ?>
@@ -294,7 +428,7 @@ $VIDA_ESTADO = [
                         <?php endif; ?>
                     </td>
                     <?php endif; ?>
-                    <td style="min-width:200px;max-width:280px">
+                    <td style="min-width:186px">
                         <strong><?= htmlspecialchars($a['nombre']) ?></strong>
                         <?php if (!empty($a['descripcion'])): ?>
                         <br><small style="color:var(--g5)"><?= htmlspecialchars($a['descripcion']) ?></small>
@@ -330,9 +464,40 @@ $VIDA_ESTADO = [
                         <?php else: ?>
                         <br><small style="color:var(--g8)">Sin fecha de garantía</small>
                         <?php endif; ?>
-                        <!-- Lugar de compra -->
-                        <?php if (!empty($a['lugar_compra'])): ?>
+                        <!-- Lugar de compra / proveedor -->
+                        <?php if (!empty($a['proveedor_nombre'] ?? '')): ?>
+                        <br><small style="color:#0369a1">&#127968; <?= htmlspecialchars($a['proveedor_nombre']) ?></small>
+                        <?php elseif (!empty($a['lugar_compra'])): ?>
                         <br><small style="color:var(--g5)">&#128205; <?= htmlspecialchars($a['lugar_compra']) ?></small>
+                        <?php endif; ?>
+                        <!-- ── Acciones dentro de la celda Activo ──────────── -->
+                        <?php if (permiso_tiene('activos','editar_existentes')): ?>
+                        <div class="act-btns">
+                            <button class="btn-ic ic btn-edit" title="Editar"
+                                onclick="abrirEditar(<?= htmlspecialchars(json_encode($a)) ?>)">
+                                <?= IC_EDIT ?>
+                            </button>
+                            <button class="btn-ic ic btn-dup" title="Duplicar"
+                                onclick="duplicar(<?= $a['id'] ?>, <?= htmlspecialchars(json_encode($a['nombre'])) ?>)">
+                                <?= IC_COPY ?>
+                            </button>
+                            <?php if ($v5): ?>
+                            <button class="btn-ic ic btn-photo" title="Subir foto" onclick="subirFoto(<?= $a['id'] ?>)">
+                                <?= IC_CAMERA ?>
+                            </button>
+                            <?php endif; ?>
+                            <?php if (permiso_tiene('activos','admin_total')): ?>
+                            <form method="POST" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                <input type="hidden" name="accion" value="toggle">
+                                <input type="hidden" name="id" value="<?= $a['id'] ?>">
+                                <button type="submit" class="btn-ic ic <?= $a['activo'] ? 'btn-baja' : 'btn-act' ?>"
+                                        title="<?= $a['activo'] ? 'Dar de baja' : 'Activar' ?>">
+                                    <?= $a['activo'] ? IC_PAUSE : IC_PLAY ?>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
                         <?php endif; ?>
                     </td>
                     <?php if ($v5): ?>
@@ -363,41 +528,13 @@ $VIDA_ESTADO = [
                             </span>
                         </div>
                     </td>
+                    <!-- Estado: columna independiente restaurada -->
                     <td>
                         <span class="badge" style="<?= $eStyle ?>"><?= $eLabel ?></span>
                         <?php if ($est === 'depreciado'): ?>
                         <br><span class="badge" style="background:#fef3c7;color:#92400e;margin-top:3px">Dep. total</span>
                         <?php endif; ?>
                     </td>
-                    <?php if (permiso_tiene('activos','editar_existentes')): ?>
-                    <td>
-                        <div class="act-btns">
-                            <button class="btn-ic btn-edit"
-                                onclick="abrirEditar(<?= htmlspecialchars(json_encode($a)) ?>)">
-                                Editar
-                            </button>
-                            <button class="btn-ic btn-dup"
-                                onclick="duplicar(<?= $a['id'] ?>, <?= htmlspecialchars(json_encode($a['nombre'])) ?>)">
-                                Duplicar
-                            </button>
-                            <?php if ($v5): ?>
-                            <button class="btn-ic btn-photo" onclick="subirFoto(<?= $a['id'] ?>)">
-                                Foto
-                            </button>
-                            <?php endif; ?>
-                            <?php if (permiso_tiene('activos','admin_total')): ?>
-                            <form method="POST" style="display:inline">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                                <input type="hidden" name="accion" value="toggle">
-                                <input type="hidden" name="id" value="<?= $a['id'] ?>">
-                                <button type="submit" class="btn-ic <?= $a['activo'] ? 'btn-baja' : 'btn-act' ?>">
-                                    <?= $a['activo'] ? 'Baja' : 'Activar' ?>
-                                </button>
-                            </form>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                    <?php endif; ?>
                 </tr>
                 <?php endforeach; ?>
                 <?php if (!empty($activos)): ?>
@@ -405,8 +542,7 @@ $VIDA_ESTADO = [
                     <td <?= $v5 ? 'colspan="6"' : 'colspan="1"' ?>>TOTALES (solo activos en depreciación)</td>
                     <td style="text-align:right">$<?= number_format($inv_total,0,',','.') ?></td>
                     <td style="text-align:right;color:var(--brand)">$<?= number_format($dep_dia,2,',','.') ?>/día</td>
-                    <td colspan="<?= $v5 ? 3 : 2 ?>"></td>
-                    <?php if (permiso_tiene('activos','editar_existentes')): ?><td></td><?php endif; ?>
+                    <td colspan="2"></td><!-- Vida útil + Estado -->
                 </tr>
                 <?php endif; ?>
             </tbody>
@@ -469,6 +605,13 @@ $VIDA_ESTADO = [
           <input type="date" name="garantia_hasta"></div>
         <div class="fg"><label>Lugar de Compra</label>
           <input type="text" name="lugar_compra" placeholder="Alkosto, MercadoLibre, Plaza..."></div>
+        <div class="fg"><label>Proveedor</label>
+          <select name="proveedor_id">
+            <option value="">— Sin vincular —</option>
+            <?php foreach ($proveedores_list as $pv): ?>
+            <option value="<?= $pv['id'] ?>"><?= htmlspecialchars($pv['nombre']) ?></option>
+            <?php endforeach; ?>
+          </select></div>
       </div>
       <p class="form-section">Depreciación y estado</p>
       <div class="form-grid">
@@ -575,6 +718,13 @@ $VIDA_ESTADO = [
           <input type="date" name="garantia_hasta" id="e-garantia"></div>
         <div class="fg"><label>Lugar de Compra</label>
           <input name="lugar_compra" id="e-lugar"></div>
+        <div class="fg"><label>Proveedor</label>
+          <select name="proveedor_id" id="e-proveedor">
+            <option value="">— Sin vincular —</option>
+            <?php foreach ($proveedores_list as $pv): ?>
+            <option value="<?= $pv['id'] ?>"><?= htmlspecialchars($pv['nombre']) ?></option>
+            <?php endforeach; ?>
+          </select></div>
       </div>
 
       <p class="form-section">Depreciación y estado</p>
@@ -650,6 +800,7 @@ function abrirEditar(a) {
     s('e-inicio').value = a.fecha_inicio_uso  || '';
     s('e-garantia').value=a.garantia_hasta    || '';
     s('e-lugar').value  = a.lugar_compra      || '';
+    if(s('e-proveedor')) s('e-proveedor').value = a.proveedor_id ? String(a.proveedor_id) : '';
     s('e-vida').value   = a.vida_util_meses   || 12;
     s('e-resp').value   = a.responsable       || '';
     s('e-notas').value  = a.notas             || '';
@@ -729,6 +880,50 @@ function toast(msg,tipo){
     var el=document.getElementById('toast');
     el.textContent=msg; el.className='toast toast-'+tipo+' on';
     clearTimeout(_tt); _tt=setTimeout(function(){el.classList.remove('on');},3500);
+}
+
+/* ── Ordenamiento de la tabla de activos ─────────────────────────────────── */
+var _sortCol = null;
+var _sortDir = 1; // 1 = ascendente, -1 = descendente
+
+function sortActivos(col) {
+    // Alternar dirección si es la misma columna, reset a asc si es nueva
+    if (_sortCol === col) {
+        _sortDir *= -1;
+    } else {
+        _sortCol = col;
+        _sortDir = 1;
+    }
+
+    // Actualizar indicadores visuales en los headers
+    document.querySelectorAll('.activos-table th.sortable').forEach(function(th) {
+        th.classList.remove('sort-asc', 'sort-desc');
+    });
+    var activeTh = document.querySelector('.activos-table th[data-col="' + col + '"]');
+    if (activeTh) activeTh.classList.add(_sortDir === 1 ? 'sort-asc' : 'sort-desc');
+
+    // Obtener filas de datos (clase activo-row, excluye totales y vacíos)
+    var tbody  = document.querySelector('.activos-table tbody');
+    var rows   = Array.from(tbody.querySelectorAll('tr.activo-row'));
+    var totals = Array.from(tbody.querySelectorAll('tr:not(.activo-row)'));
+
+    rows.sort(function(a, b) {
+        var va = (a.dataset[col] || '').trim();
+        var vb = (b.dataset[col] || '').trim();
+
+        // Comparación numérica para columnas de cantidad/precio
+        var na = parseFloat(va);
+        var nb = parseFloat(vb);
+        if (!isNaN(na) && !isNaN(nb)) {
+            return (na - nb) * _sortDir;
+        }
+        // Comparación textual con localización para tildes y ñ
+        return va.localeCompare(vb, 'es') * _sortDir;
+    });
+
+    // Reinsertar filas ordenadas; los totales van siempre al final
+    rows.forEach(function(row) { tbody.appendChild(row); });
+    totals.forEach(function(row) { tbody.appendChild(row); });
 }
 </script>
 </body>

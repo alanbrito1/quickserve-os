@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/NominaModel.php';
 
+$nav_activo = 'nomina';
+$nav_sub    = 'empleados';
 permiso_requerir('nomina', 'solo_ver');
 
 $msg_ok  = '';
@@ -63,14 +65,8 @@ try {
         :root { --brand:#e94f37; --dark:#111827; --g2:#374151; --g5:#6b7280; --g8:#d1d5db; --g9:#f3f4f6; --white:#fff; --green:#059669; }
         body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--g9); min-height:100vh; color:var(--dark); }
 
-        .hdr { background:var(--dark); color:var(--white); height:54px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; box-shadow:0 2px 8px rgba(0,0,0,.3); }
-        .brand { font-size:17px; font-weight:800; } .brand span{color:var(--brand);}
-        .nav { display:flex; gap:6px; }
-        .nl { color:var(--g8); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:8px; }
-        .nl:hover { background:var(--g2); color:var(--white); } .nl.act { background:var(--brand); color:var(--white); }
-
         .main { padding:16px 14px; max-width:900px; margin:0 auto; }
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; margin-bottom:16px; }
         .card-title { font-size:15px; font-weight:800; padding:14px 18px; border-bottom:1px solid var(--g9); }
 
         .alert { padding:12px 14px; border-radius:10px; font-size:14px; margin-bottom:14px; }
@@ -87,6 +83,8 @@ try {
         .badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; }
         .b-act { background:#d1fae5; color:#065f46; }
         .b-ina { background:var(--g9); color:var(--g5); }
+        .b-directo   { background:#fef9c3; color:#713f12; }
+        .b-indirecto { background:#dbeafe; color:#1d4ed8; }
 
         /* Formulario */
         .form-card { background:var(--white); border-radius:14px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,.06); margin-bottom:16px; }
@@ -115,7 +113,48 @@ try {
         /* Nota SMLMV */
         .smlmv-note { font-size:12px; color:var(--g5); margin-top:4px; }
 
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — EMPLEADOS
+           Tabla cols: 1=Nombre 2=Cargo(hm) 3=Contrato(hm) 4=Costo(hm)
+                       5=Ingreso(hm) 6=Salario/Pago 7=Estado 8=Acc.
+           ════════════════════════════════════════════════════════════════ */
 
+        /* ── Teléfono vertical (< 480px) ── */
+        @media (max-width: 479px) {
+            /* Estado (col 7) también oculto → Nombre, Salario, Acciones */
+            table thead tr th:nth-child(7), table tbody tr td:nth-child(7) { display: none; }
+            /* Encabezado de página apilado */
+            .act-bar { flex-direction: column; align-items: stretch; }
+            .act-bar .btn-primary { width: 100%; text-align: center; }
+        }
+
+        /* ── Tablet (640-1023px): mostrar columnas útiles ── */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            .main { max-width: 100%; padding: 16px 18px 60px; }
+            /* Mostrar Cargo y Contrato, ocultar Costo e Ingreso */
+            .hide-m { display: table-cell !important; }
+            table thead tr th:nth-child(4), table tbody tr td:nth-child(4),
+            table thead tr th:nth-child(5), table tbody tr td:nth-child(5) { display: none; }
+        }
+
+        /* ── Escritorio (≥1024px): mostrar todo ── */
+        @media (min-width: 1024px) {
+            .hide-m { display: table-cell !important; }
+        }
+
+        /* ── Pantalla grande (≥1600px) ── */
+        @media (min-width: 1600px) {
+            .main { max-width: 1440px !important; padding: 24px 32px 60px !important; }
+            table thead tr th { font-size: 12px !important; padding: 11px 16px !important; }
+            table tbody tr td { font-size: 15px !important; padding: 12px 16px !important; }
+        }
+
+        /* ── TV (≥1920px) ── */
+        @media (min-width: 1920px) {
+            .main { max-width: 1680px !important; }
+            table thead tr th { font-size: 14px !important; padding: 14px 20px !important; }
+            table tbody tr td { font-size: 16px !important; padding: 14px 20px !important; }
+        }
     </style>
 </head>
 <body>
@@ -137,8 +176,9 @@ try {
                     <th>Nombre</th>
                     <th class="hide-m">Cargo</th>
                     <th class="hide-m">Contrato</th>
+                    <th class="hide-m">Costo</th>
                     <th class="hide-m">Ingreso</th>
-                    <th>Salario Base</th>
+                    <th>Salario / Pago</th>
                     <th>Estado</th>
                     <?php if (permiso_tiene('nomina','editar_existentes')): ?>
                     <th></th>
@@ -175,27 +215,58 @@ try {
                         <br><small style="color:var(--g5)">$<?= number_format($e['valor_proyecto'],0,',','.') ?>/proy</small>
                         <?php endif; ?>
                     </td>
+                    <td class="hide-m">
+                        <?php $tc_costo = $e['tipo_costo'] ?? 'indirecto'; ?>
+                        <span class="badge b-<?= $tc_costo ?>">
+                            <?= $tc_costo === 'directo' ? 'Directo' : 'Indirecto' ?>
+                        </span>
+                    </td>
                     <td class="hide-m"><?= date('d/m/Y', strtotime($e['fecha_ingreso'])) ?></td>
                     <td>
-                        $<?= number_format($e['salario_base'], 0, ',', '.') ?>
-                        <?php if ($e['aplica_aux_transporte']): ?>
-                        <small style="color:var(--g5)"> + aux</small>
+                        <?php
+                        $tc = $e['tipo_contrato'] ?? 'tiempo_completo';
+                        if ($tc === 'por_servicio'):
+                            // Contratista: muestra valor del proyecto
+                        ?>
+                            <?php if (!empty($e['valor_proyecto'])): ?>
+                            <span style="font-size:11px;color:var(--g5)">Proyecto:</span><br>
+                            <strong>$<?= number_format($e['valor_proyecto'], 0, ',', '.') ?></strong>
+                            <?php else: ?>
+                            <span style="color:var(--g5)">Sin valor proyecto</span>
+                            <?php endif; ?>
+                        <?php elseif ($tc === 'por_horas'):
+                            // Por horas: muestra valor/hora (calculado o manual)
+                            $vh = !empty($e['valor_hora'])
+                                ? $e['valor_hora']
+                                : ($e['salario_base'] / $horas_mes_std);
+                        ?>
+                            <span style="font-size:11px;color:var(--g5)">Valor/hora:</span><br>
+                            <strong>$<?= number_format($vh, 0, ',', '.') ?>/h</strong>
+                            <br><small style="color:var(--g5)">Base: $<?= number_format($e['salario_base'], 0, ',', '.') ?></small>
+                        <?php else:
+                            // Tiempo completo / medio tiempo
+                        ?>
+                            $<?= number_format($e['salario_base'], 0, ',', '.') ?>
+                            <?php if ($e['aplica_aux_transporte']): ?>
+                            <small style="color:var(--g5)"> + aux</small>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </td>
                     <td><span class="badge <?= $e['activo'] ? 'b-act' : 'b-ina' ?>"><?= $e['activo'] ? 'Activo' : 'Inactivo' ?></span></td>
                     <?php if (permiso_tiene('nomina','editar_existentes')): ?>
                     <td style="display:flex; gap:6px; flex-wrap:wrap">
-                        <button class="btn-edit" onclick="abrirEditar(<?= htmlspecialchars(json_encode($e)) ?>)">
-                            Editar
+                        <button class="btn-edit ic" title="Editar" onclick="abrirEditar(<?= htmlspecialchars(json_encode($e)) ?>)">
+                            <?= IC_EDIT ?>
                         </button>
                         <?php if (permiso_tiene('nomina','admin_total')): ?>
                         <form method="POST" style="display:inline">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="accion" value="toggle">
                             <input type="hidden" name="id" value="<?= $e['id'] ?>">
-                            <button type="submit" class="btn-toggle <?= $e['activo'] ? 'btn-deact' : 'btn-act' ?>"
+                            <button type="submit" class="btn-toggle ic <?= $e['activo'] ? 'btn-deact' : 'btn-act' ?>"
+                                    title="<?= $e['activo'] ? 'Desactivar' : 'Activar' ?>"
                                     onclick="return confirm('¿Cambiar estado del empleado?')">
-                                <?= $e['activo'] ? 'Desactivar' : 'Activar' ?>
+                                <?= $e['activo'] ? IC_PAUSE : IC_PLAY ?>
                             </button>
                         </form>
                         <?php endif; ?>
@@ -231,7 +302,14 @@ try {
                     <label>Fecha de Ingreso *</label>
                     <input type="date" name="fecha_ingreso" value="<?= date('Y-m-d') ?>" required>
                 </div>
-                <!-- Tipo de contrato -->
+                <!-- Clasificación del costo y tipo de contrato -->
+                <div class="fg" style="grid-column:1/-1">
+                    <label>Clasificación del Costo *</label>
+                    <select name="tipo_costo">
+                        <option value="indirecto">Indirecto — administración, soporte, ventas</option>
+                        <option value="directo">Directo — produce el producto (cocina)</option>
+                    </select>
+                </div>
                 <div class="fg" style="grid-column:1/-1">
                     <label>Tipo de Contrato *</label>
                     <select name="tipo_contrato" id="tc-nuevo" onchange="toggleCamposContrato('nuevo')">
@@ -245,8 +323,10 @@ try {
                 <div class="fg" id="nuevo-campo-salario">
                     <label>Salario Base (COP) *</label>
                     <input type="number" name="salario_base" id="nuevo-salario" placeholder="<?= number_format($smlmv, 0) ?>"
-                           min="0" step="1000">
-                    <span class="smlmv-note">SMLMV 2026: $<?= number_format($smlmv, 0, ',', '.') ?></span>
+                           min="0" step="1">
+                    <span class="smlmv-note">SMLMV 2026: $<?= number_format($smlmv, 0, ',', '.') ?>
+                        · Para <strong>por horas</strong>: se usa como base para calcular valor/hora ÷ jornada legal (<?= number_format($horas_mes_std, 2, '.', '') ?>h/mes)
+                    </span>
                 </div>
                 <!-- Horas contratadas por este empleado (anula el parámetro global) -->
                 <div class="fg" id="nuevo-campo-hora" style="display:none">
@@ -405,6 +485,13 @@ try {
                     <input type="date" name="fecha_ingreso" id="edit-fecha" required>
                 </div>
                 <div class="fg" style="grid-column:1/-1">
+                    <label>Clasificación del Costo</label>
+                    <select name="tipo_costo" id="edit-tipo-costo">
+                        <option value="indirecto">Indirecto — administración, soporte, ventas</option>
+                        <option value="directo">Directo — produce el producto (cocina)</option>
+                    </select>
+                </div>
+                <div class="fg" style="grid-column:1/-1">
                     <label>Tipo de Contrato</label>
                     <select name="tipo_contrato" id="tc-edit" onchange="toggleCamposContrato('edit')">
                         <option value="tiempo_completo">Tiempo completo</option>
@@ -415,7 +502,7 @@ try {
                 </div>
                 <div class="fg" style="grid-column:1/-1" id="e-campo-salario">
                     <label>Salario Base (COP)</label>
-                    <input type="number" name="salario_base" id="edit-salario" min="0" step="1000">
+                    <input type="number" name="salario_base" id="edit-salario" min="0" step="1">
                 </div>
                 <!-- Horas contratadas por este empleado (modal editar) -->
                 <div class="fg" style="grid-column:1/-1;display:none" id="e-campo-hora">
@@ -482,6 +569,8 @@ function abrirEditar(emp) {
     // Recalcular hint
     calcHorasMes('e');
     document.getElementById('edit-aux').checked    = !!parseInt(emp.aplica_aux_transporte);
+    var tcCostoSel = document.getElementById('edit-tipo-costo');
+    if (tcCostoSel) tcCostoSel.value = emp.tipo_costo || 'indirecto';
     document.getElementById('modal-edit').classList.add('on');
 }
 function cerrarModal() {

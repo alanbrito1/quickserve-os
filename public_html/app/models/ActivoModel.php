@@ -5,7 +5,7 @@
  *
  * FÓRMULAS (spec §5.2):
  *   Depreciación Mensual = Costo Inicial / vida_util_meses
- *   Depreciación Diaria  = Depreciación Mensual / 30.4
+ *   Depreciación Diaria  = Depreciación Mensual / 30.41666  (= 365 / 12)
  *
  * NOTA: El trigger trg_activos_deprec_insert/update calcula automáticamente
  * depreciacion_mensual y depreciacion_diaria en cada INSERT/UPDATE.
@@ -53,11 +53,14 @@ class ActivoModel
         // Detectar si la columna fecha_inicio_uso ya existe (migración 006)
         $tieneInicioUso = self::columnas_existen(['fecha_inicio_uso']);
 
+        // Solo fecha_inicio_uso determina el inicio de depreciación.
+        // Sin ella el activo está en estado "en_espera" y NO se deprecia.
         $campoFecha = $tieneInicioUso
-            ? 'COALESCE(a.fecha_inicio_uso, a.fecha_adquisicion)'
-            : 'a.fecha_adquisicion';
+            ? 'a.fecha_inicio_uso'
+            : 'a.fecha_adquisicion'; // fallback solo si migración 006 no está aplicada
 
         $stmtSql = "SELECT a.*,
+                    prov.nombre AS proveedor_nombre,
                     -- Fecha de fin de vida útil (referencia visual)
                     DATE_ADD($campoFecha, INTERVAL CAST(a.vida_util_meses AS SIGNED) MONTH)
                         AS fecha_fin_util,
@@ -106,6 +109,7 @@ class ActivoModel
                     END AS estado_vida
 
              FROM activos a
+             LEFT JOIN proveedores prov ON prov.id = a.proveedor_id
              ORDER BY $orderBy";
 
         $stmt = db()->prepare($stmtSql);
@@ -124,21 +128,35 @@ class ActivoModel
     public static function costo_diario_total(): float
     {
         $tieneInicio = self::columnas_existen(['fecha_inicio_uso']);
-        $campo = $tieneInicio
-            ? 'COALESCE(CASE WHEN fecha_inicio_uso <= CURDATE() THEN fecha_inicio_uso ELSE NULL END, fecha_adquisicion)'
-            : 'fecha_adquisicion';
 
-        $row = db()->query(
-            "SELECT IFNULL(SUM(
-                CASE
-                    WHEN TIMESTAMPDIFF(MONTH, $campo, CURDATE())
-                         < CAST(vida_util_meses AS SIGNED)
-                    THEN depreciacion_diaria
-                    ELSE 0
-                END
-             ), 0) AS total
-             FROM activos WHERE activo = 1"
-        )->fetch();
+        // Solo suma activos que YA tienen fecha_inicio_uso asignada y en uso.
+        // Sin fecha_inicio_uso → depreciacion_diaria = 0 (regla de negocio).
+        if ($tieneInicio) {
+            $row = db()->query(
+                "SELECT IFNULL(SUM(
+                    CASE
+                        WHEN fecha_inicio_uso IS NOT NULL
+                          AND fecha_inicio_uso <= CURDATE()
+                          AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE())
+                              < CAST(vida_util_meses AS SIGNED)
+                        THEN depreciacion_diaria
+                        ELSE 0
+                    END
+                 ), 0) AS total
+                 FROM activos WHERE activo = 1"
+            )->fetch();
+        } else {
+            // Fallback: migración 006 no aplicada
+            $row = db()->query(
+                "SELECT IFNULL(SUM(
+                    CASE
+                        WHEN TIMESTAMPDIFF(MONTH, fecha_adquisicion, CURDATE())
+                             < CAST(vida_util_meses AS SIGNED)
+                        THEN depreciacion_diaria ELSE 0
+                    END
+                 ), 0) AS total FROM activos WHERE activo = 1"
+            )->fetch();
+        }
         return round((float)$row['total'], 4);
     }
 
@@ -146,24 +164,37 @@ class ActivoModel
     public static function resumen(): array
     {
         $tieneInicio = self::columnas_existen(['fecha_inicio_uso']);
-        $campo = $tieneInicio
-            ? 'COALESCE(CASE WHEN fecha_inicio_uso <= CURDATE() THEN fecha_inicio_uso ELSE NULL END, fecha_adquisicion)'
-            : 'fecha_adquisicion';
 
-        $row = db()->query(
-            "SELECT COUNT(*)                              AS total,
-                    IFNULL(SUM(costo_inicial), 0)         AS inversion_total,
-                    -- Solo activos aún en depreciación
-                    IFNULL(SUM(CASE
-                        WHEN TIMESTAMPDIFF(MONTH, $campo, CURDATE())
-                             < CAST(vida_util_meses AS SIGNED)
-                        THEN depreciacion_mensual ELSE 0 END), 0) AS dep_mensual_total,
-                    IFNULL(SUM(CASE
-                        WHEN TIMESTAMPDIFF(MONTH, $campo, CURDATE())
-                             < CAST(vida_util_meses AS SIGNED)
-                        THEN depreciacion_diaria ELSE 0 END), 0) AS dep_diaria_total
-             FROM activos WHERE activo = 1"
-        )->fetch();
+        if ($tieneInicio) {
+            // Solo cuenta depreciación para activos con fecha_inicio_uso asignada y en curso
+            $row = db()->query(
+                "SELECT COUNT(*)                       AS total,
+                        IFNULL(SUM(costo_inicial), 0)  AS inversion_total,
+                        IFNULL(SUM(CASE
+                            WHEN fecha_inicio_uso IS NOT NULL
+                              AND fecha_inicio_uso <= CURDATE()
+                              AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE())
+                                  < CAST(vida_util_meses AS SIGNED)
+                            THEN depreciacion_mensual ELSE 0 END), 0) AS dep_mensual_total,
+                        IFNULL(SUM(CASE
+                            WHEN fecha_inicio_uso IS NOT NULL
+                              AND fecha_inicio_uso <= CURDATE()
+                              AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE())
+                                  < CAST(vida_util_meses AS SIGNED)
+                            THEN depreciacion_diaria ELSE 0 END), 0) AS dep_diaria_total
+                 FROM activos WHERE activo = 1"
+            )->fetch();
+        } else {
+            $row = db()->query(
+                "SELECT COUNT(*) AS total,
+                        IFNULL(SUM(costo_inicial),0) AS inversion_total,
+                        IFNULL(SUM(CASE WHEN TIMESTAMPDIFF(MONTH,fecha_adquisicion,CURDATE())
+                            < CAST(vida_util_meses AS SIGNED) THEN depreciacion_mensual ELSE 0 END),0) AS dep_mensual_total,
+                        IFNULL(SUM(CASE WHEN TIMESTAMPDIFF(MONTH,fecha_adquisicion,CURDATE())
+                            < CAST(vida_util_meses AS SIGNED) THEN depreciacion_diaria ELSE 0 END),0) AS dep_diaria_total
+                 FROM activos WHERE activo = 1"
+            )->fetch();
+        }
         return $row;
     }
 
@@ -214,10 +245,10 @@ class ActivoModel
             $stmt = db()->prepare(
                 'INSERT INTO activos
                     (nombre, numero_unidades, precio_unitario, descripcion,
-                     lugar_compra, serial, costo_inicial,
+                     lugar_compra, proveedor_id, serial, costo_inicial,
                      fecha_adquisicion' . $colsFechaInicio . ', garantia_hasta, vida_util_meses,
                      estado_fisico, categoria_activo, responsable, notas, created_by)
-                 VALUES (?,?,?,?,?,?,?,?' . $valFechaInicio . ',?,?,?,?,?,?,?)'
+                 VALUES (?,?,?,?,?,?,?,?,?' . $valFechaInicio . ',?,?,?,?,?,?,?)'
             );
             $stmt->execute(array_merge([
                 $nombre,
@@ -225,6 +256,7 @@ class ActivoModel
                 $precio_u > 0 ? $precio_u : null,
                 trim($datos['descripcion']    ?? '') ?: null,
                 trim($datos['lugar_compra']   ?? '') ?: null,
+                !empty($datos['proveedor_id']) ? (int)$datos['proveedor_id'] : null,
                 trim($datos['serial']          ?? '') ?: null,
                 $costo,
                 $datos['fecha_adquisicion']   ?? date('Y-m-d'),
@@ -281,9 +313,12 @@ class ActivoModel
         $fecha_inicio_uso = trim($datos['fecha_inicio_uso'] ?? '') ?: null;
 
         if ($colsNuevas) {
-            $tieneInicio = self::columnas_existen(['fecha_inicio_uso']);
-            $colFI       = $tieneInicio ? ', fecha_inicio_uso = ?' : '';
-            $valFI       = $tieneInicio ? [$fecha_inicio_uso] : [];
+            $tieneInicio    = self::columnas_existen(['fecha_inicio_uso']);
+            $tieneProveedor = self::columnas_existen(['proveedor_id']);
+            $colFI  = $tieneInicio    ? ', fecha_inicio_uso = ?' : '';
+            $valFI  = $tieneInicio    ? [$fecha_inicio_uso] : [];
+            $colPV  = $tieneProveedor ? ', proveedor_id = ?'    : '';
+            $valPV  = $tieneProveedor ? [!empty($datos['proveedor_id']) ? (int)$datos['proveedor_id'] : null] : [];
 
             $stmt = db()->prepare(
                 'UPDATE activos
@@ -291,7 +326,7 @@ class ActivoModel
                      descripcion = ?, lugar_compra = ?, serial = ?,
                      costo_inicial = ?, fecha_adquisicion = ?' . $colFI . ', garantia_hasta = ?,
                      vida_util_meses = ?, estado_fisico = ?, categoria_activo = ?,
-                     responsable = ?, notas = ?, updated_by = ?
+                     responsable = ?, notas = ?' . $colPV . ', updated_by = ?
                  WHERE id = ?'
             );
             $stmt->execute(array_merge([
@@ -308,6 +343,7 @@ class ActivoModel
                 $datos['categoria_activo']     ?? 'otro',
                 trim($datos['responsable']     ?? '') ?: null,
                 trim($datos['notas']           ?? '') ?: null,
+            ], $valPV, [
                 $uid, $id,
             ]));
         } else {
@@ -353,9 +389,15 @@ class ActivoModel
 
         $uid = (int)($_SESSION['usuario_id'] ?? 0);
 
-        // Columnas a copiar (excluir id, foto_url, serial, timestamps, created_by/updated_by)
+        // Columnas a NO copiar al duplicar:
+        //   id              → auto-increment en el nuevo registro
+        //   foto_url        → la foto es del activo original, no de la copia
+        //   serial          → el número de serie es único por equipo
+        //   timestamps      → generados automáticamente por MySQL
+        //   depreciacion_*  → el trigger trg_activos_deprec_insert los recalcula
+        // IMPORTANTE: si se agregan columnas nuevas a `activos`, revisar si deben excluirse aquí.
         $excluir = ['id', 'foto_url', 'serial', 'created_at', 'created_by', 'updated_at', 'updated_by',
-                    'depreciacion_mensual', 'depreciacion_diaria']; // el trigger los recalcula
+                    'depreciacion_mensual', 'depreciacion_diaria'];
 
         $campos = [];
         $valores = [];
@@ -410,29 +452,38 @@ class ActivoModel
                , SUM(CASE WHEN garantia_hasta < CURDATE() THEN 1 ELSE 0 END)   AS garantia_vencida"
             : ', 0 AS en_mal_estado, 0 AS garantia_vencida';
 
-        $campoF = "COALESCE(CASE WHEN fecha_inicio_uso <= CURDATE() THEN fecha_inicio_uso ELSE NULL END, fecha_adquisicion)";
-
+        // Depreciación operativa: solo activos en uso (fecha_inicio_uso definida)
+        // Valor en libros:        usa fecha_adquisicion (el activo pierde valor contable desde la compra)
         $row = db()->query(
             "SELECT COUNT(*)                              AS total,
                     IFNULL(SUM(costo_inicial), 0)         AS inversion_total,
-                    -- Solo activos que AÚN tienen vida útil (no depreciados)
+
+                    -- Depreciación operativa: solo activos con fecha_inicio_uso asignada y en curso
                     IFNULL(SUM(CASE
-                        WHEN TIMESTAMPDIFF(MONTH, $campoF, CURDATE())
-                             < CAST(vida_util_meses AS SIGNED)
+                        WHEN fecha_inicio_uso IS NOT NULL
+                          AND fecha_inicio_uso <= CURDATE()
+                          AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE())
+                              < CAST(vida_util_meses AS SIGNED)
                         THEN depreciacion_mensual ELSE 0 END), 0) AS dep_mensual_total,
+
                     IFNULL(SUM(CASE
-                        WHEN TIMESTAMPDIFF(MONTH, $campoF, CURDATE())
-                             < CAST(vida_util_meses AS SIGNED)
+                        WHEN fecha_inicio_uso IS NOT NULL
+                          AND fecha_inicio_uso <= CURDATE()
+                          AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE())
+                              < CAST(vida_util_meses AS SIGNED)
                         THEN depreciacion_diaria ELSE 0 END), 0) AS dep_diaria_total,
-                    -- Valor en libros = costo − depreciación acumulada (mín. 0)
+
+                    -- Valor en libros = costo − (depreciación × meses desde COMPRA)
+                    -- Usa fecha_adquisicion: el activo pierde valor contable desde que se adquirió
                     IFNULL(SUM(
                         GREATEST(0,
                             costo_inicial - (
                                 CAST(depreciacion_mensual AS SIGNED)
-                                * GREATEST(0, CAST(TIMESTAMPDIFF(MONTH, $campoF, CURDATE()) AS SIGNED))
+                                * GREATEST(0, CAST(TIMESTAMPDIFF(MONTH, fecha_adquisicion, CURDATE()) AS SIGNED))
                             )
                         )
                     ), 0) AS valor_en_libros
+
                     $extra
              FROM activos WHERE activo = 1"
         )->fetch();

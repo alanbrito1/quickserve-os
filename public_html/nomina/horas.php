@@ -13,8 +13,13 @@ $mes  = (int)($_GET['mes']  ?? date('n'));
 $anio = (int)($_GET['anio'] ?? date('Y'));
 $mes  = max(1, min(12, $mes));
 
+// Parámetros laborales — necesarios antes de cargar empleados (para horas_mes_std)
+$params_lab    = NominaModel::params();
+$horas_mes_std = NominaModel::horas_mes_estandar($params_lab);
+
 // Empleados por horas con resumen del período
-$empleados_hora = NominaModel::empleados_por_horas_periodo($mes, $anio);
+// Se pasa horas_mes_std para que el valor/hora sea correcto (salario_base ÷ jornada legal)
+$empleados_hora = NominaModel::empleados_por_horas_periodo($mes, $anio, $horas_mes_std);
 
 // Empleado seleccionado
 $emp_sel   = (int)($_GET['emp'] ?? 0);
@@ -23,9 +28,7 @@ if ($emp_sel) {
     $horas_mes = NominaModel::horas_periodo($emp_sel, $mes, $anio);
 }
 
-// Parámetros laborales para mostrar info de recargos
-$params_lab = NominaModel::params();
-$horas_mes_std = NominaModel::horas_mes_estandar($params_lab);
+// params_lab y horas_mes_std ya están cargados arriba
 
 $meses = [1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',
           7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre'];
@@ -64,7 +67,7 @@ $TIPOS_HORA = [
         .fg select { padding:8px 12px; border:2px solid var(--g8); border-radius:10px; font-size:14px; outline:none; }
         .fg select:focus { border-color:var(--brand); }
         .btn-ver { padding:9px 16px; background:var(--brand); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; }
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; margin-bottom:16px; }
         .card-title { font-size:15px; font-weight:800; padding:14px 18px; border-bottom:1px solid var(--g9); }
         table { width:100%; border-collapse:collapse; }
         th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--g5); padding:9px 12px; background:var(--g9); border-bottom:1px solid var(--g8); text-align:left; }
@@ -83,7 +86,7 @@ $TIPOS_HORA = [
         /* Modal */
         .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:60; align-items:center; justify-content:center; padding:16px; }
         .overlay.on { display:flex; }
-        .modal { background:var(--white); border-radius:16px; padding:22px; width:100%; max-width:420px; }
+        .modal { background:var(--white); border-radius:16px; padding:22px; width:100%; max-width:420px; max-height:90vh; max-height:90dvh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
         .modal-hdr { font-size:16px; font-weight:800; margin-bottom:16px; display:flex; justify-content:space-between; }
         .btn-cls { background:var(--g9); border:none; color:var(--g5); width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:16px; }
         .hfg { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
@@ -99,11 +102,70 @@ $TIPOS_HORA = [
         .toast-ok  { background:#065f46; color:#d1fae5; }
         .toast-err { background:#991b1b; color:#fee2e2; }
 
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — REGISTRO DE HORAS
+           El elemento crítico es .dias-grid (7 columnas = días de la semana).
+           En móvil pequeño cada columna puede quedar muy angosta.
+           ════════════════════════════════════════════════════════════════ */
 
+        /* ── Teléfono vertical (< 480px) ── */
+        @media (max-width: 479px) {
+            /* Reducir padding de las tarjetas de día para que quepan */
+            .dias-grid  { gap: 4px !important; padding: 10px !important; }
+            .dia-card   { padding: 5px 3px !important; }
+            .dia-num    { font-size: 10px !important; }
+            .dia-hrs    { font-size: 13px !important; }
+            .dia-desc   { display: none; } /* la descripción se omite en móvil pequeño */
+            /* Barra de resumen: apilar métricas en 2 columnas */
+            .resumen-bar { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+            .rb-val     { font-size: 18px !important; }
+            /* Filtros de período: apilados */
+            .row-top    { flex-direction: column; align-items: stretch; }
+            .row-top .fg { width: 100%; }
+            .btn-ver    { width: 100%; min-height: 44px; }
+            /* Modal de registro de horas: pantalla completa */
+            .modal      { border-radius: 16px 16px 0 0 !important; max-width: 100% !important; }
+        }
+
+        /* ── Teléfono muy pequeño (< 360px): reducir aún más las tarjetas ── */
+        @media (max-width: 359px) {
+            .dias-grid  { gap: 2px !important; padding: 6px !important; }
+            .dia-card   { padding: 4px 2px !important; }
+            .dia-hrs    { font-size: 11px !important; }
+        }
+
+        /* ── Tablet (640-1023px) ── */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            .main { max-width: 100%; padding: 16px 18px 60px; }
+            .dias-grid { gap: 8px !important; }
+            .dia-card  { padding: 10px !important; }
+            .dia-hrs   { font-size: 18px !important; }
+            .resumen-bar { gap: 28px; }
+        }
+
+        /* ── Pantalla grande (≥1600px) ── */
+        @media (min-width: 1600px) {
+            .main       { max-width: 1440px !important; padding: 24px 32px 60px !important; }
+            .dias-grid  { gap: 12px; padding: 22px; }
+            .dia-card   { padding: 14px 12px; }
+            .dia-num    { font-size: 13px; }
+            .dia-hrs    { font-size: 22px; }
+            .dia-desc   { font-size: 12px; }
+            .rb-val     { font-size: 26px; }
+            .rb-lbl     { font-size: 12px; }
+        }
+
+        /* ── TV (≥1920px) ── */
+        @media (min-width: 1920px) {
+            .main       { max-width: 1680px !important; }
+            .dia-num    { font-size: 15px; }
+            .dia-hrs    { font-size: 28px; }
+            .rb-val     { font-size: 32px; }
+        }
     </style>
 </head>
 <body>
-<?php $nav_sub = 'horas'; include __DIR__ . '/../app/views/nav.php'; ?>
+<?php $nav_activo = 'nomina'; $nav_sub = 'horas'; include __DIR__ . '/../app/views/nav.php'; ?>
 <main class="main">
 
 
@@ -165,15 +227,27 @@ $TIPOS_HORA = [
             </tr></thead>
             <tbody>
             <?php foreach ($empleados_hora as $e):
-                $pago = $e['horas_total'] * $e['valor_hora'];
+                // Pago estimado usa horas_ponderadas (con recargos) × valor/hora
+                $pago = round((float)$e['horas_ponderadas'] * (float)$e['valor_hora']);
+                $tieneRecargos = abs((float)$e['horas_ponderadas'] - (float)$e['horas_total']) > 0.01;
             ?>
             <tr>
-                <td><strong><?= htmlspecialchars($e['nombre_completo']) ?></strong>
-                    <?php if ($e['cargo']): ?><br><small style="color:var(--g5)"><?= htmlspecialchars($e['cargo']) ?></small><?php endif; ?>
+                <td>
+                    <strong><?= htmlspecialchars($e['nombre_completo']) ?></strong>
+                    <?php if ($e['cargo']): ?>
+                    <br><small style="color:var(--g5)"><?= htmlspecialchars($e['cargo']) ?></small>
+                    <?php endif; ?>
                 </td>
-                <td>$<?= number_format($e['valor_hora'],0,',','.') ?>/h</td>
+                <td>$<?= number_format($e['valor_hora'],0,',','.') ?>/h
+                    <br><small style="color:var(--g5)"><?= number_format($horas_mes_std,2,'.','') ?>h/mes (jornada legal)</small>
+                </td>
                 <td style="text-align:center"><?= $e['dias_trabajados'] ?></td>
-                <td style="text-align:right"><strong><?= $e['horas_total'] ?>h</strong></td>
+                <td style="text-align:right">
+                    <strong><?= number_format((float)$e['horas_total'],2,'.','') ?>h</strong>
+                    <?php if ($tieneRecargos): ?>
+                    <br><small style="color:#7c3aed" title="Horas ajustadas por recargos"><?= number_format((float)$e['horas_ponderadas'],2,'.','') ?>h ponderadas</small>
+                    <?php endif; ?>
+                </td>
                 <td style="text-align:right;font-weight:700;color:var(--brand)">$<?= number_format($pago,0,',','.') ?></td>
                 <td>
                     <a href="?mes=<?= $mes ?>&anio=<?= $anio ?>&emp=<?= $e['id'] ?>"
@@ -191,9 +265,11 @@ $TIPOS_HORA = [
         foreach ($empleados_hora as $e) {
             if ($e['id'] == $emp_sel) { $empData = $e; break; }
         }
-        $totalHoras = $empData['horas_total'] ?? 0;
-        $valorHora  = $empData['valor_hora']  ?? 0;
-        $pagoEst    = $totalHoras * $valorHora;
+        $totalHoras      = (float)($empData['horas_total']      ?? 0);
+        $horasPonderadas = (float)($empData['horas_ponderadas'] ?? $totalHoras);
+        $valorHora       = (float)($empData['valor_hora']       ?? 0);
+        // Pago estimado: horas ponderadas (con recargos) × valor/hora
+        $pagoEst = round($horasPonderadas * $valorHora);
     ?>
 
     <div class="resumen-bar">
@@ -201,9 +277,24 @@ $TIPOS_HORA = [
             <div class="rb-val"><?= htmlspecialchars($empData['nombre_completo'] ?? '') ?></div>
             <div class="rb-lbl">Contrato por horas — <?= $meses[$mes] ?> <?= $anio ?></div>
         </div>
-        <div><div class="rb-val"><?= $totalHoras ?>h</div><div class="rb-lbl">Total horas</div></div>
-        <div><div class="rb-val">$<?= number_format($valorHora,0,',','.') ?></div><div class="rb-lbl">Valor/hora</div></div>
-        <div><div class="rb-val" style="color:var(--green)">$<?= number_format($pagoEst,0,',','.') ?></div><div class="rb-lbl">Pago estimado</div></div>
+        <div>
+            <div class="rb-val"><?= number_format($totalHoras,2,'.','') ?>h</div>
+            <div class="rb-lbl">Horas registradas</div>
+        </div>
+        <?php if (abs($horasPonderadas - $totalHoras) > 0.01): ?>
+        <div>
+            <div class="rb-val" style="color:#7c3aed"><?= number_format($horasPonderadas,2,'.','') ?>h</div>
+            <div class="rb-lbl">Horas con recargos</div>
+        </div>
+        <?php endif; ?>
+        <div>
+            <div class="rb-val">$<?= number_format($valorHora,2,'.','') ?></div>
+            <div class="rb-lbl">Valor/hora base</div>
+        </div>
+        <div>
+            <div class="rb-val" style="color:var(--green)">$<?= number_format($pagoEst,0,',','.') ?></div>
+            <div class="rb-lbl">Pago estimado<?= abs($horasPonderadas-$totalHoras)>0.01 ? ' (c/recargos)' : '' ?></div>
+        </div>
     </div>
 
     <!-- Cuadrícula de días del mes -->

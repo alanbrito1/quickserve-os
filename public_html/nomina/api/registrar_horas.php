@@ -60,7 +60,9 @@ try {
     $total      = NominaModel::total_horas_periodo($empleado_id, (int)$mes, (int)$anio);
 
     // Calcular pago estimado del período con desglose
-    $emp = db()->query("SELECT salario_base, valor_hora FROM empleados WHERE id = $empleado_id")->fetch();
+    $stmtEmp = db()->prepare('SELECT salario_base, valor_hora FROM empleados WHERE id = ?');
+    $stmtEmp->execute([$empleado_id]);
+    $emp = $stmtEmp->fetch();
     $params = NominaModel::params();
     $horas_mes_std = NominaModel::horas_mes_estandar($params);
     $valor_hora_base = !empty($emp['valor_hora'])

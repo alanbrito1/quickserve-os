@@ -16,6 +16,50 @@ $productos = VentaModel::productos_con_capacidad();
 $clientes  = ClienteModel::todos();
 $resumen   = VentaModel::resumen_hoy();
 
+// Serializar clientes para el autocomplete JS del POS.
+// Se incluye nombre completo (nombre + apellido), empresa y saldo_fiado
+// para el buscador en tiempo real del selector de cliente.
+$clientes_js = json_encode(
+    array_map(fn($c) => [
+        'id'      => (int)$c['id'],
+        'nombre'  => $c['nombre'],
+        'apellido'=> $c['apellido'] ?? '',
+        'empresa' => $c['empresa']  ?? '',
+        'saldo'   => (float)$c['saldo_fiado'],
+    ], $clientes),
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+);
+
+// Cargar combo configs indexadas por producto_id para el POS.
+// Si la migración 025 aún no se ha aplicado, el array queda vacío sin romper la página.
+$combo_map = [];
+try {
+    $rows = db()->query(
+        'SELECT cc.id AS combo_id, cc.producto_id, cc.precio_adicional, cc.nombre,
+                ci.insumo_id, i.nombre AS insumo_nombre
+         FROM combo_configs cc
+         JOIN combo_insumos ci ON ci.combo_id = cc.id
+         JOIN insumos i ON i.id = ci.insumo_id
+         WHERE cc.activo = 1
+         ORDER BY cc.producto_id, i.nombre'
+    )->fetchAll();
+    foreach ($rows as $row) {
+        $pid = (int)$row['producto_id'];
+        if (!isset($combo_map[$pid])) {
+            $combo_map[$pid] = [
+                'combo_id'         => (int)$row['combo_id'],
+                'precio_adicional' => (float)$row['precio_adicional'],
+                'nombre'           => $row['nombre'],
+                'insumos'          => [],
+            ];
+        }
+        $combo_map[$pid]['insumos'][] = $row['insumo_nombre'];
+    }
+} catch (\Exception $e) {
+    // Migración 025 aún no aplicada — el POS sigue funcionando sin combos
+    $combo_map = [];
+}
+
 // Agrupar productos por categoría para el grid
 $por_categoria = [];
 foreach ($productos as $p) {
@@ -43,7 +87,7 @@ $nav_activo = 'ventas';
             --white:  #ffffff;
             --green:  #059669;
             --yellow: #d97706;
-            --r:      14px;
+            /* --r viene de nav.php (theme_radius en Admin → Apariencia) */
         }
 
         body {
@@ -55,34 +99,7 @@ $nav_activo = 'ventas';
             padding-bottom: 80px;
         }
 
-        /* ---- HEADER ---- */
-        .header {
-            background: var(--dark);
-            color: var(--white);
-            height: 54px;
-            padding: 0 14px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 50;
-            box-shadow: 0 2px 8px rgba(0,0,0,.35);
-        }
-        .header-brand { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-        .header-brand span { color: var(--brand); }
-        .header-nav { display: flex; gap: 6px; }
-        .nav-link {
-            color: var(--g8);
-            text-decoration: none;
-            font-size: 13px;
-            padding: 5px 10px;
-            border-radius: 8px;
-            transition: background .15s;
-        }
-        .nav-link:hover     { background: var(--g2); color: var(--white); }
-        .nav-link.active    { background: var(--brand); color: var(--white); }
-        .nav-link.logout    { color: var(--g5); }
+        /* nav.php provee el header global — sin header propio aquí */
 
         /* ---- BARRA DE RESUMEN ---- */
         .resumen-bar {
@@ -139,6 +156,14 @@ $nav_activo = 'ventas';
         .prod-card.en-carrito { border-color: var(--brand); }
         .prod-card.sin-stock  { opacity: .45; cursor: not-allowed; }
 
+        /* Fila de etiquetas: tamaño + combo/sencillo en la misma línea */
+        .prod-meta {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
         .prod-tamano {
             display: inline-block;
             font-size: 10px;
@@ -147,15 +172,49 @@ $nav_activo = 'ventas';
             border-radius: 20px;
             background: var(--g9);
             color: var(--g2);
-            margin-bottom: 6px;
             text-transform: uppercase;
             letter-spacing: .4px;
+            white-space: nowrap;
+        }
+        /* Badge verde si el producto tiene opción combo configurada */
+        .prod-combo {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 20px;
+            background: #d1fae5;
+            color: #065f46;
+            letter-spacing: .3px;
+            white-space: nowrap;
+        }
+        /* Badge gris si el producto es solo sencillo (sin combo) */
+        .prod-sencillo {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 20px;
+            background: var(--g9);
+            color: var(--g5);
+            letter-spacing: .3px;
+            white-space: nowrap;
         }
         .prod-nombre {
             font-size: 14px;
             font-weight: 700;
             line-height: 1.2;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            color: var(--dark);
+        }
+        /* Subtítulo (nombre2): corrección de color — era rgba blanco invisible
+           sobre fondo blanco de la card. Ahora usa gris legible. */
+        .prod-sub {
+            font-size: 11px;
+            color: var(--g5);
+            line-height: 1.3;
+            margin-bottom: 3px;
+            font-weight: 400;
         }
         .prod-precio {
             font-size: 17px;
@@ -365,9 +424,111 @@ $nav_activo = 'ventas';
         .metodo-btn:hover  { border-color: var(--brand); color: var(--brand); }
         .metodo-btn.sel    { border-color: var(--brand); background: #fef2f0; color: var(--brand); }
 
-        /* Selector de cliente (fiado) */
-        .fiado-section { display: none; }
-        .fiado-section.visible { display: block; }
+        /* ── Selector de cliente con búsqueda en tiempo real ──────────────── */
+        .fiado-section { display: block; }
+
+        /* Contenedor del autocomplete */
+        .cliente-ac { position: relative; }
+
+        /* Input de búsqueda + botón limpiar */
+        .cliente-ac-wrap {
+            display: flex;
+            align-items: center;
+            border: 2px solid var(--g8);
+            border-radius: 10px;
+            background: var(--white);
+            overflow: hidden;
+            transition: border-color .15s;
+        }
+        .cliente-ac-wrap:focus-within { border-color: var(--brand); }
+        .cliente-ac-wrap input {
+            flex: 1;
+            padding: 12px 14px;
+            border: none;
+            font-size: 15px;
+            color: var(--dark);
+            background: transparent;
+            outline: none;
+            min-width: 0;
+        }
+        /* Botón × para limpiar la selección */
+        .cliente-ac-clear {
+            padding: 0 12px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: var(--g5);
+            cursor: pointer;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .cliente-ac-clear:hover { color: var(--brand); }
+
+        /* Dropdown de resultados — z-index 1200 garantiza que quede por encima
+           del overlay del confirm-sheet (z-index ~60) sin importar el contexto */
+        .cliente-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0; right: 0;
+            background: var(--white);
+            border: 1px solid var(--g8);
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.12);
+            max-height: 260px;
+            overflow-y: auto;
+            z-index: 1200;
+            display: none;
+        }
+        .cliente-dropdown.open { display: block; }
+
+        /* Cada opción del dropdown */
+        .cli-opt {
+            padding: 11px 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--g9);
+            min-height: 44px; /* touch-friendly */
+        }
+        .cli-opt:last-child { border-bottom: none; }
+        .cli-opt:hover, .cli-opt.focused {
+            background: #fef2f0;
+        }
+        .cli-opt-nombre { font-size: 14px; font-weight: 600; }
+        .cli-opt-empresa { font-size: 11px; color: var(--g5); }
+        .cli-opt-deuda {
+            font-size: 11px; font-weight: 700; color: var(--brand);
+            background: #fee2e2; padding: 2px 7px; border-radius: 20px;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        /* Sin resultados */
+        .cli-opt-empty {
+            padding: 14px; font-size: 13px; color: var(--g5);
+            text-align: center;
+        }
+
+        /* Chip del cliente seleccionado (reemplaza el input tras elegir) */
+        .cliente-chip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px 14px;
+            border: 2px solid #86efac;
+            border-radius: 10px;
+            background: #f0fdf4;
+        }
+        .cliente-chip-info { display: flex; flex-direction: column; gap: 2px; }
+        .cliente-chip-nombre { font-size: 14px; font-weight: 700; color: #166534; }
+        .cliente-chip-deuda  { font-size: 11px; color: var(--brand); font-weight: 700; }
+        .cliente-chip-btn {
+            background: none; border: none; cursor: pointer;
+            color: #166534; font-size: 18px; line-height: 1; padding: 0 4px;
+            flex-shrink: 0;
+        }
+        .cliente-chip-btn:hover { color: var(--brand); }
 
         select, input[type="text"] {
             width: 100%;
@@ -429,6 +590,84 @@ $nav_activo = 'ventas';
         .btn-confirmar:hover     { background: #c73d28; }
         .btn-confirmar:disabled  { background: var(--g8); cursor: not-allowed; }
 
+        /* ---- SELECTOR SOLO / COMBO ---- */
+        /* Mini bottom-sheet que aparece al tocar un producto que tiene combo */
+        .combo-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.55);
+            z-index: 70;
+            align-items: flex-end;
+        }
+        .combo-overlay.active { display: flex; }
+        .combo-sheet {
+            background: var(--white);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            padding: 20px 18px max(24px, env(safe-area-inset-bottom));
+            animation: slideUp .18s ease-out;
+        }
+        .combo-sheet-title {
+            font-size: 15px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .combo-sheet-sub {
+            font-size: 12px;
+            color: var(--g5);
+            margin-bottom: 16px;
+        }
+        /* Dos botones lado a lado: Solo | Combo */
+        .combo-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .combo-opt {
+            padding: 14px 10px;
+            border: 2px solid var(--g8);
+            background: var(--white);
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+            line-height: 1.4;
+            transition: border-color .15s, background .15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .combo-opt:hover  { border-color: var(--brand); }
+        .combo-opt.is-combo { border-color: var(--green); background: #f0fdf4; color: #065f46; }
+        .combo-opt-price {
+            display: block;
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--brand);
+            margin-top: 4px;
+        }
+        .combo-opt.is-combo .combo-opt-price { color: var(--green); }
+        .combo-opt-extras {
+            display: block;
+            font-size: 11px;
+            color: var(--g5);
+            margin-top: 3px;
+            font-weight: 400;
+        }
+        /* Badge "COMBO" en el carrito */
+        .badge-combo {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 800;
+            background: #d1fae5;
+            color: #065f46;
+            padding: 1px 5px;
+            border-radius: 20px;
+            vertical-align: middle;
+            margin-left: 4px;
+            letter-spacing: .3px;
+        }
+
         /* ---- TOAST ---- */
         .toast {
             position: fixed;
@@ -451,11 +690,125 @@ $nav_activo = 'ventas';
         .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast-ok  { background: #065f46; color: #d1fae5; }
         .toast-err { background: #991b1b; color: #fee2e2; }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE POS
+           ════════════════════════════════════════════════════════════════ */
+
+        /* ── Tablet portrait (640-1023px): 4 y 5 columnas en el grid ── */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            /* Ya tenemos 3 cols @ 520px y 4 cols @ 720px — aquí 5 cols */
+            .productos-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+            /* Tarjeta un poco más grande en tablet */
+            .prod-card  { padding: 16px 14px; }
+            .prod-nombre { font-size: 15px; }
+            .prod-precio { font-size: 18px; }
+            /* Barra de resumen: más espacio y fuente levemente mayor */
+            .resumen-bar { font-size: 13px; padding: 9px 18px; gap: 18px; }
+            /* Main con más padding en tablet */
+            .main { padding: 14px 18px 0; max-width: 100%; }
+            /* El sheet pasa a ser un modal centrado en lugar de bottom-sheet */
+            .overlay { align-items: center !important; padding: 20px; }
+            .sheet {
+                border-radius: 16px !important;
+                max-width: 540px;
+                max-height: 88vh;
+                animation: fadeIn .2s ease-out;
+            }
+            .combo-overlay { align-items: center !important; padding: 20px; }
+            .combo-sheet {
+                border-radius: 16px !important;
+                max-width: 420px;
+                margin: 0 auto;
+                animation: fadeIn .18s ease-out;
+            }
+        }
+
+        /* ── Escritorio pequeño (1024-1279px) ── */
+        @media (min-width: 1024px) {
+            .productos-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
+            .main  { padding: 16px 20px 0; max-width: 960px; }
+            .prod-nombre { font-size: 14px; }
+            .prod-precio { font-size: 17px; }
+            /* Modales centrados en escritorio */
+            .overlay, .combo-overlay {
+                align-items: center !important;
+                padding: 24px;
+            }
+            .sheet {
+                border-radius: 16px !important;
+                max-width: 560px;
+                max-height: 86vh;
+            }
+            .combo-sheet {
+                border-radius: 16px !important;
+                max-width: 440px;
+                margin: 0 auto;
+            }
+            /* Barra de cobrar en desktop: alineada al contenido */
+            .cobrar-bar { justify-content: center; gap: 32px; }
+        }
+
+        /* ── Escritorio estándar (1280-1599px) ── */
+        @media (min-width: 1280px) {
+            .productos-grid { grid-template-columns: repeat(5, 1fr); gap: 14px; }
+            .main  { max-width: 1100px; padding: 18px 24px 0; }
+            .prod-card  { padding: 18px 14px; }
+        }
+
+        /* ── Pantalla grande / TV (≥1600px) ── */
+        @media (min-width: 1600px) {
+            .productos-grid { grid-template-columns: repeat(6, 1fr); gap: 16px; }
+            .main  { max-width: 1400px !important; padding: 22px 32px 0 !important; }
+            .prod-card  { padding: 22px 18px; }
+            .prod-nombre { font-size: 16px; }
+            .prod-precio { font-size: 22px; }
+            .prod-capacidad { font-size: 12px; padding: 3px 10px; }
+            .resumen-bar { font-size: 15px; padding: 11px 32px; gap: 24px; }
+            /* Cobrar bar */
+            .cobrar-total  { font-size: 24px; }
+            .cobrar-btn    { font-size: 18px; padding: 16px 32px; }
+            .cobrar-count  { font-size: 14px; padding: 5px 14px; }
+            /* Modales centrados y más grandes en pantalla grande */
+            .sheet       { max-width: 680px; }
+            .combo-sheet { max-width: 520px; }
+        }
+
+        /* ── TV (≥1920px) ── */
+        @media (min-width: 1920px) {
+            .productos-grid { grid-template-columns: repeat(7, 1fr); gap: 18px; }
+            .main  { max-width: 1680px !important; padding: 28px 40px 0 !important; }
+            .prod-card   { padding: 26px 20px; }
+            .prod-nombre { font-size: 18px; }
+            .prod-precio { font-size: 26px; }
+            .prod-capacidad { font-size: 13px; padding: 4px 12px; }
+            .resumen-bar { font-size: 16px; padding: 13px 40px; }
+            .cobrar-total  { font-size: 28px; }
+            .cobrar-btn    { font-size: 20px; padding: 18px 40px; }
+            .sheet { max-width: 800px; }
+        }
+
+        /* Animación fade para modales centrados en desktop */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(.96); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* ── Teléfono vertical muy pequeño (< 360px) ── */
+        @media (max-width: 359px) {
+            /* En teléfonos muy pequeños (ej. iPhone SE 1ª gen) una columna */
+            .productos-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .prod-card  { padding: 10px 8px; }
+            .prod-nombre { font-size: 12px; }
+            .prod-precio { font-size: 15px; }
+            .prod-sub    { font-size: 10px; }
+            .prod-combo, .prod-sencillo, .prod-tamano { font-size: 8px; padding: 1px 5px; }
+            .metodos-grid { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
 <body>
-
-<!-- ---- HEADER ---- -->
+<?php include __DIR__ . '/../app/views/nav.php'; ?>
 
 <!-- ---- BARRA DE RESUMEN DEL DÍA ---- -->
 <div class="resumen-bar">
@@ -468,6 +821,16 @@ $nav_activo = 'ventas';
     <span>Digital: <strong>$<?= number_format($resumen['nequi'] + $resumen['daviplata'] + $resumen['bancolombia'], 0, ',', '.') ?></strong></span>
     <span class="resumen-sep">|</span>
     <span>Fiado: <strong>$<?= number_format($resumen['fiado'], 0, ',', '.') ?></strong></span>
+    <?php if ((float)($resumen['obsequio'] ?? 0) > 0): ?>
+    <span class="resumen-sep">|</span>
+    <span>🎁 Obsequios: <strong><?= $resumen['obsequio_n'] ?></strong></span>
+    <?php endif; ?>
+    <span class="resumen-sep">|</span>
+    <a href="<?= APP_BASE ?>/ventas/historial.php"
+       style="background:var(--brand);color:#fff;text-decoration:none;padding:4px 12px;
+              border-radius:20px;font-size:12px;font-weight:700;flex-shrink:0">
+        Ver historial
+    </a>
 </div>
 
 <!-- ---- GRID DE PRODUCTOS ---- -->
@@ -488,15 +851,34 @@ $nav_activo = 'ventas';
             id="card-<?= $p['id'] ?>"
             data-id="<?= $p['id'] ?>"
             data-nombre="<?= htmlspecialchars($p['nombre']) ?>"
+            data-nombre2="<?= htmlspecialchars($p['nombre2'] ?? '') ?>"
             data-precio="<?= $precio ?>"
             data-capacidad="<?= $cap ?>"
-            onclick="agregarAlCarrito(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['nombre'])) ?>, <?= $precio ?>, <?= $cap ?>)"
+            onclick="agregarAlCarrito(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['nombre'])) ?>, <?= $precio ?>, <?= $cap ?>, <?= htmlspecialchars(json_encode($p['nombre2'] ?? '')) ?>)"
         >
+            <!-- Badge de carrito (aparece al añadir el producto) -->
             <span class="prod-qty-badge" id="qty-<?= $p['id'] ?>">1</span>
-            <?php if ($p['tamano'] !== 'unico'): ?>
-            <span class="prod-tamano"><?= htmlspecialchars($p['tamano']) ?></span>
-            <?php endif; ?>
+
+            <!-- Fila de etiquetas: Tamaño + Combo/Sencillo -->
+            <div class="prod-meta">
+                <?php if ($p['tamano'] !== 'unico'): ?>
+                <span class="prod-tamano">Tam. <?= htmlspecialchars($p['tamano']) ?></span>
+                <?php endif; ?>
+                <?php if (isset($combo_map[$p['id']])): ?>
+                <!-- Producto tiene configuración de combo activa → indicar al cajero -->
+                <span class="prod-combo">+ Combo</span>
+                <?php else: ?>
+                <!-- Sin combo: solo versión sencilla -->
+                <span class="prod-sencillo">Sencillo</span>
+                <?php endif; ?>
+            </div>
+
+            <!-- Nombre principal del producto -->
             <div class="prod-nombre"><?= htmlspecialchars($p['nombre']) ?></div>
+            <!-- Subtítulo complementario (nombre2) — visible ahora con color gris legible -->
+            <?php if (!empty($p['nombre2'])): ?>
+            <div class="prod-sub"><?= htmlspecialchars($p['nombre2']) ?></div>
+            <?php endif; ?>
             <div class="prod-precio">$<?= number_format($precio, 0, ',', '.') ?></div>
             <span class="prod-capacidad <?= $cap_class ?>" id="cap-<?= $p['id'] ?>">
                 <?= $cap_txt ?>
@@ -514,6 +896,29 @@ $nav_activo = 'ventas';
     </div>
     <?php endif; ?>
 </main>
+
+<!-- ══ MINI SHEET: SELECCIONAR SOLO / COMBO ══════════════════════════════════ -->
+<!-- Se muestra al tocar un producto que tiene combo configurado (migración 025) -->
+<div class="combo-overlay" id="combo-overlay" onclick="if(event.target===this)cerrarCombo()">
+    <div class="combo-sheet">
+        <div class="combo-sheet-title" id="combo-titulo">Sándwich XL</div>
+        <div class="combo-sheet-sub"   id="combo-extras">Combo incluye: bebida + papas</div>
+        <div class="combo-options">
+            <!-- Botón SOLO -->
+            <button class="combo-opt" id="combo-btn-solo" onclick="elegirOpcionCombo(0)">
+                Solo
+                <span class="combo-opt-price" id="combo-precio-solo">$0</span>
+                <span class="combo-opt-extras">Sin adicionales</span>
+            </button>
+            <!-- Botón COMBO -->
+            <button class="combo-opt is-combo" id="combo-btn-combo" onclick="elegirOpcionCombo(1)">
+                Combo
+                <span class="combo-opt-price" id="combo-precio-combo">$0</span>
+                <span class="combo-opt-extras" id="combo-extras-combo">+bebida +papas</span>
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- ---- BARRA STICKY: COBRAR ---- -->
 <div class="cobrar-bar" id="cobrar-bar">
@@ -556,21 +961,53 @@ $nav_activo = 'ventas';
                 <button class="metodo-btn"     onclick="selMetodo(this,'daviplata')">🔵 Daviplata</button>
                 <button class="metodo-btn"     onclick="selMetodo(this,'bancolombia')">🟡 Bancolombia</button>
                 <button class="metodo-btn"     onclick="selMetodo(this,'fiado')">📋 Fiado</button>
+                <button class="metodo-btn"     onclick="selMetodo(this,'obsequio')">🎁 Obsequio</button>
             </div>
         </div>
 
-        <!-- Sección fiado (cliente + nuevo cliente) -->
+        <!-- Selector de cliente — visible para todos los métodos de pago.
+             Implementa búsqueda en tiempo real con autocomplete:
+             - Filtra por nombre, apellido y empresa mientras el usuario escribe
+             - Muestra deuda pendiente en rojo junto al nombre
+             - Chip verde al seleccionar; botón × para limpiar
+             - Navegación con teclado (↑ ↓ Enter Escape)
+             - Touch-friendly: ítems de 44px mínimo -->
         <div class="sheet-section fiado-section" id="fiado-section">
-            <p class="sheet-section-title">Cliente (Fiado)</p>
-            <select id="cliente-select" onchange="clienteSeleccionado=this.value">
-                <option value="">— Seleccionar cliente —</option>
-                <?php foreach ($clientes as $c): ?>
-                <option value="<?= $c['id'] ?>">
-                    <?= htmlspecialchars($c['nombre']) ?>
-                    <?= $c['saldo_fiado'] > 0 ? ' (Deuda: $' . number_format($c['saldo_fiado'],0,',','.') . ')' : '' ?>
-                </option>
-                <?php endforeach; ?>
-            </select>
+            <p class="sheet-section-title" id="cliente-section-title">Cliente (opcional)</p>
+
+            <!-- Autocomplete de clientes -->
+            <div class="cliente-ac" id="cliente-ac">
+                <!-- Estado: buscando — input visible -->
+                <div class="cliente-ac-wrap" id="cliente-search-wrap">
+                    <input type="text" id="cliente-buscar"
+                           placeholder="Buscar cliente por nombre..."
+                           autocomplete="off"
+                           inputmode="text"
+                           aria-label="Buscar cliente por nombre, apellido o empresa"
+                           aria-autocomplete="list"
+                           aria-controls="cliente-dropdown"
+                           aria-haspopup="listbox"
+                           oninput="acFiltrar()"
+                           onfocus="acAbrir()"
+                           onkeydown="acTecla(event)">
+                    <button id="cliente-ac-clear" class="cliente-ac-clear"
+                            onclick="acLimpiar()" style="display:none"
+                            title="Quitar cliente seleccionado" aria-label="Quitar cliente">×</button>
+                </div>
+                <!-- Dropdown de resultados — role=listbox para lectores de pantalla -->
+                <div class="cliente-dropdown" id="cliente-dropdown"
+                     role="listbox" aria-label="Resultados de búsqueda de clientes"></div>
+                <!-- Estado: cliente seleccionado — chip verde -->
+                <div class="cliente-chip" id="cliente-chip" style="display:none">
+                    <div class="cliente-chip-info">
+                        <span class="cliente-chip-nombre" id="cliente-chip-nombre">—</span>
+                        <span class="cliente-chip-deuda"  id="cliente-chip-deuda"  style="display:none"></span>
+                    </div>
+                    <button class="cliente-chip-btn" onclick="acLimpiar()"
+                            title="Cambiar cliente" aria-label="Cambiar cliente">×</button>
+                </div>
+            </div>
+
             <button class="btn-sm btn-sm-ghost" style="margin-top:8px; width:100%"
                     onclick="toggleNuevoCliente()">+ Nuevo cliente</button>
             <div class="nuevo-cliente-form" id="form-nuevo-cliente">
@@ -585,16 +1022,19 @@ $nav_activo = 'ventas';
             </div>
         </div>
 
-        <!-- Combo -->
+        <!-- Combos: se muestran automáticamente cuando hay ítems combo en el carrito -->
+        <div class="sheet-section" id="combos-resumen-sec" style="display:none">
+            <p class="sheet-section-title">Ítems con combo</p>
+            <div id="combos-resumen" style="font-size:13px;color:#065f46;background:#f0fdf4;
+                 border-radius:8px;padding:8px 12px;line-height:1.7"></div>
+        </div>
+
+        <!-- Fecha de la venta (por defecto hoy, editable para registrar ventas pasadas) -->
         <div class="sheet-section">
-            <p class="sheet-section-title">Adicionales</p>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-                <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
-                    <input type="checkbox" id="es-combo-inp"
-                           style="width:18px;height:18px;accent-color:var(--brand)">
-                    <span><strong>Incluye combo</strong> (bebida + papas)</span>
-                </label>
-            </div>
+            <p class="sheet-section-title">Fecha de la venta</p>
+            <input type="date" id="fecha-venta-input" value="<?= date('Y-m-d') ?>"
+                   max="<?= date('Y-m-d') ?>"
+                   style="padding:8px 10px;border:1px solid var(--g8);border-radius:8px;font-size:13px;width:100%;color:var(--dark)">
         </div>
 
         <!-- Notas -->
@@ -619,34 +1059,309 @@ $nav_activo = 'ventas';
      JAVASCRIPT — Lógica del carrito y comunicación con la API
      ==================================================================== -->
 <script>
+// Mapa de combos precargado desde PHP.
+// Clave: producto_id (número), valor: {combo_id, precio_adicional, nombre, insumos:[...]}
+const COMBOS = <?= json_encode($combo_map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
+
 // ---- Estado del carrito ----
-let carrito          = {};  // { id: { id, nombre, precio, cantidad } }
-let metodoPago       = 'efectivo';
+// Clave: `${producto_id}-${es_combo}` — permite el mismo producto como solo Y combo
+let carrito             = {};
+let metodoPago          = 'efectivo';
 let clienteSeleccionado = '';
+
+// ════════════════════════════════════════════════════════════════════════
+//  AUTOCOMPLETE DE CLIENTES
+//  Reemplaza el <select> estático por un buscador en tiempo real.
+//  Filtra por nombre, apellido y empresa mientras el usuario escribe.
+//  Incluye navegación con teclado (↑ ↓ Enter Escape) y touch-friendly.
+// ════════════════════════════════════════════════════════════════════════
+
+const CLIENTES_DATA = <?= $clientes_js ?>;
+let acIndexActivo   = -1;   // índice del ítem resaltado con teclado
+let acResultados    = [];   // subconjunto filtrado actual
+
+/* Normaliza texto para búsqueda sin importar tildes ni mayúsculas.
+   String() convierte null/undefined a '' para evitar bugs con apellidos vacíos. */
+function acNorm(s) {
+    return String(s || '').toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/* Filtra la lista según el texto del input y renderiza el dropdown */
+function acFiltrar() {
+    const q     = acNorm(document.getElementById('cliente-buscar')?.value);
+    const clear = document.getElementById('cliente-ac-clear');
+
+    // Mostrar botón × cuando hay texto
+    if (clear) clear.style.display = q ? '' : 'none';
+
+    if (!q) {
+        // Sin texto → mostrar todos (máx. 8 para no saturar)
+        acResultados = CLIENTES_DATA.slice(0, 8);
+    } else {
+        acResultados = CLIENTES_DATA.filter(c => {
+            const haystack = acNorm(c.nombre + ' ' + c.apellido + ' ' + c.empresa);
+            return haystack.includes(q);
+        }).slice(0, 10);
+    }
+
+    acIndexActivo = -1;
+    acRenderDropdown();
+    acAbrir();
+}
+
+/* Renderiza los ítems en el dropdown */
+function acRenderDropdown() {
+    const dd = document.getElementById('cliente-dropdown');
+    if (!dd) return;
+    if (acResultados.length === 0) {
+        dd.innerHTML = '<div class="cli-opt-empty">Sin resultados</div>';
+        return;
+    }
+    dd.innerHTML = acResultados.map((c, i) => {
+        const nombreMostrar = c.nombre + (c.apellido ? ' ' + c.apellido : '');
+        const empresa = c.empresa ? `<div class="cli-opt-empresa">${escAc(c.empresa)}</div>` : '';
+        const deuda   = c.saldo > 0
+            ? `<span class="cli-opt-deuda">Deuda $${Math.round(c.saldo).toLocaleString('es-CO')}</span>`
+            : '';
+        return `<div class="cli-opt" data-idx="${i}" data-id="${c.id}"
+                     onclick="acSeleccionar(${i})"
+                     onmouseenter="acResaltar(${i})"
+                     role="option">
+                    <div>
+                        <div class="cli-opt-nombre">${escAc(nombreMostrar)}</div>
+                        ${empresa}
+                    </div>
+                    ${deuda}
+                </div>`;
+    }).join('');
+}
+
+/* Abre el dropdown */
+function acAbrir() {
+    const dd = document.getElementById('cliente-dropdown');
+    if (dd) dd.classList.add('open');
+    // Si el dropdown está vacío por primera apertura (sin texto), cargar los primeros clientes
+    if (acResultados.length === 0 && !document.getElementById('cliente-buscar')?.value) {
+        acResultados = CLIENTES_DATA.slice(0, 8);
+        acRenderDropdown();
+    }
+}
+
+/* Cierra el dropdown */
+function acCerrar() {
+    const dd = document.getElementById('cliente-dropdown');
+    if (dd) dd.classList.remove('open');
+    acIndexActivo = -1;
+}
+
+/* Resalta un ítem con hover o teclado */
+function acResaltar(idx) {
+    acIndexActivo = idx;
+    document.querySelectorAll('.cli-opt').forEach((el, i) => {
+        el.classList.toggle('focused', i === idx);
+    });
+}
+
+/* Selecciona un cliente del dropdown */
+function acSeleccionar(idx) {
+    const cli = acResultados[idx];
+    if (!cli) return;
+
+    clienteSeleccionado = cli.id;
+    const nombre = cli.nombre + (cli.apellido ? ' ' + cli.apellido : '');
+
+    // Mostrar chip y ocultar input
+    document.getElementById('cliente-search-wrap').style.display = 'none';
+    document.getElementById('cliente-chip').style.display        = '';
+    document.getElementById('cliente-chip-nombre').textContent   = nombre;
+
+    const deudaEl = document.getElementById('cliente-chip-deuda');
+    if (cli.saldo > 0) {
+        deudaEl.textContent = 'Deuda: $' + Math.round(cli.saldo).toLocaleString('es-CO');
+        deudaEl.style.display = '';
+    } else {
+        deudaEl.style.display = 'none';
+    }
+
+    acCerrar();
+}
+
+/* Limpia la selección y vuelve al input */
+function acLimpiar() {
+    clienteSeleccionado = '';
+    const input = document.getElementById('cliente-buscar');
+    if (input) { input.value = ''; input.focus(); }
+    document.getElementById('cliente-ac-clear').style.display = 'none';
+    document.getElementById('cliente-search-wrap').style.display = '';
+    document.getElementById('cliente-chip').style.display = 'none';
+    acCerrar();
+}
+
+/* Navegación con teclado dentro del dropdown */
+function acTecla(e) {
+    const dd = document.getElementById('cliente-dropdown');
+    if (!dd?.classList.contains('open')) {
+        if (e.key === 'ArrowDown') { acAbrir(); acFiltrar(); }
+        return;
+    }
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        acResaltar(Math.min(acIndexActivo + 1, acResultados.length - 1));
+        _acScrollToFocused();
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        acResaltar(Math.max(acIndexActivo - 1, 0));
+        _acScrollToFocused();
+    } else if (e.key === 'Enter' && acIndexActivo >= 0) {
+        e.preventDefault();
+        acSeleccionar(acIndexActivo);
+    } else if (e.key === 'Escape') {
+        acCerrar();
+    }
+}
+
+/* Scroll del dropdown para que el ítem resaltado sea visible */
+function _acScrollToFocused() {
+    const focused = document.querySelector('.cli-opt.focused');
+    if (focused) focused.scrollIntoView({ block: 'nearest' });
+}
+
+/* Escape de caracteres HTML para evitar XSS en el dropdown */
+function escAc(s) {
+    return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* Cerrar dropdown al hacer clic fuera del componente */
+document.addEventListener('click', e => {
+    const ac = document.getElementById('cliente-ac');
+    if (ac && !ac.contains(e.target)) acCerrar();
+});
+
+/* API pública: seleccionar cliente por ID (usada al crear cliente nuevo) */
+function acSeleccionarPorId(id, nombre, saldo) {
+    // Añadir a CLIENTES_DATA si no existe (cliente recién creado)
+    if (!CLIENTES_DATA.find(c => c.id === id)) {
+        CLIENTES_DATA.unshift({ id, nombre, apellido: '', empresa: '', saldo: saldo || 0 });
+    }
+    const idx = CLIENTES_DATA.findIndex(c => c.id === id);
+    acResultados = CLIENTES_DATA;
+    acSeleccionar(CLIENTES_DATA.findIndex(c => c.id === id) >= 0 ? CLIENTES_DATA.findIndex(c => c.id === id) : 0);
+    // Fallback directo si acSeleccionar no encontró el idx
+    if (!clienteSeleccionado) {
+        clienteSeleccionado = id;
+        document.getElementById('cliente-search-wrap').style.display = 'none';
+        document.getElementById('cliente-chip').style.display = '';
+        document.getElementById('cliente-chip-nombre').textContent = nombre;
+        const deudaEl = document.getElementById('cliente-chip-deuda');
+        deudaEl.style.display = 'none';
+    }
+}
+
+/* Resetear el selector al completar una venta (se llama desde procesarVenta tras éxito) */
+function acReset() {
+    acLimpiar();
+    const wrap = document.getElementById('cliente-search-wrap');
+    if (wrap) wrap.style.display = '';
+}
+
+// Estado del selector de combo
+// nombre2 se almacena aquí para mostrarlo en el carrito y en el resumen de confirmación
+let _comboActual = null; // { id, nombre, nombre2, precio, capacidad }
 
 // ---- CARRITO ----
 
-function agregarAlCarrito(id, nombre, precio, capacidad) {
+// nombre2: subtítulo complementario (puede ser '' si el producto no tiene)
+function agregarAlCarrito(id, nombre, precio, capacidad, nombre2 = '') {
     if (capacidad === 0) {
         mostrarToast('Sin stock: ' + nombre, 'err');
         return;
     }
-    if (!carrito[id]) {
-        carrito[id] = { id, nombre, precio, cantidad: 1 };
-    } else {
-        carrito[id].cantidad++;
+
+    // Si el producto tiene combo configurado → mostrar selector Solo/Combo
+    if (COMBOS[id]) {
+        _comboActual = { id, nombre, nombre2, precio, capacidad };
+        mostrarSelectorCombo(id, nombre, precio);
+        return;
     }
-    actualizarUI();
-    // Feedback táctil breve en la tarjeta
-    const card = document.getElementById('card-' + id);
-    card.style.transform = 'scale(.93)';
-    setTimeout(() => card.style.transform = '', 120);
+
+    // Producto sin combo → agregar directamente como Solo
+    _agregarItem(id, nombre, nombre2, precio, capacidad, 0);
 }
 
-function quitarDelCarrito(id) {
-    if (!carrito[id]) return;
-    carrito[id].cantidad--;
-    if (carrito[id].cantidad <= 0) delete carrito[id];
+/**
+ * Muestra el mini-sheet para elegir Solo o Combo.
+ * Se llama cuando el producto tiene un combo configurado.
+ */
+function mostrarSelectorCombo(id, nombre, precio) {
+    const combo       = COMBOS[id];
+    const precioCombo = precio + combo.precio_adicional;
+    const extras      = combo.insumos.join(', ');
+
+    document.getElementById('combo-titulo').textContent       = nombre;
+    document.getElementById('combo-extras').textContent       = 'Combo: ' + (combo.nombre || 'Combo');
+    document.getElementById('combo-precio-solo').textContent  = formatPeso(precio);
+    document.getElementById('combo-precio-combo').textContent = formatPeso(precioCombo);
+    document.getElementById('combo-extras-combo').textContent = extras || 'Extras incluidos';
+
+    document.getElementById('combo-overlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+/** Cierra el mini-sheet de combo sin agregar nada */
+function cerrarCombo() {
+    document.getElementById('combo-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+    _comboActual = null;
+}
+
+/**
+ * Llamado al pulsar "Solo" (esCombo=0) o "Combo" (esCombo=1) en el selector.
+ */
+function elegirOpcionCombo(esCombo) {
+    if (!_comboActual) return;
+    const { id, nombre, nombre2, precio, capacidad } = _comboActual;
+    const precioFinal = esCombo
+        ? precio + (COMBOS[id]?.precio_adicional || 0)
+        : precio;
+
+    cerrarCombo();
+    _agregarItem(id, nombre, nombre2 || '', precioFinal, capacidad, esCombo);
+}
+
+/**
+ * Agrega o incrementa un ítem en el carrito.
+ * @param {number} id        producto_id
+ * @param {string} nombre    nombre principal del producto
+ * @param {string} nombre2   subtítulo complementario (puede ser '')
+ * @param {number} precio    precio ya resuelto (con o sin adicional del combo)
+ * @param {number} capacidad
+ * @param {number} esCombo   0 = solo, 1 = combo
+ */
+function _agregarItem(id, nombre, nombre2, precio, capacidad, esCombo) {
+    // Clave única por producto + modo para permitir ambos en el mismo ticket
+    const key = id + '-' + esCombo;
+    if (!carrito[key]) {
+        // nombre2 se guarda para mostrarlo en el resumen del carrito y en la confirmación
+        carrito[key] = { id, nombre, nombre2: nombre2 || '', precio, cantidad: 1, es_combo: esCombo };
+    } else {
+        carrito[key].cantidad++;
+    }
+    actualizarUI();
+    // Feedback visual en la tarjeta del producto
+    const card = document.getElementById('card-' + id);
+    if (card) {
+        card.style.transform = 'scale(.93)';
+        setTimeout(() => card.style.transform = '', 120);
+    }
+}
+
+function quitarDelCarrito(key) {
+    if (!carrito[key]) return;
+    carrito[key].cantidad--;
+    if (carrito[key].cantidad <= 0) delete carrito[key];
     actualizarUI();
     renderModalItems(); // refrescar lista en modal si está abierto
 }
@@ -667,22 +1382,23 @@ function actualizarUI() {
     document.getElementById('cart-count').textContent = count;
     document.getElementById('cart-total').textContent = formatPeso(total);
 
-    // Badges individuales en las tarjetas
-    Object.values(carrito).forEach(item => {
-        const badge = document.getElementById('qty-' + item.id);
-        const card  = document.getElementById('card-' + item.id);
-        if (badge) {
-            badge.textContent = item.cantidad;
-            badge.style.display = 'flex';
-            card.classList.add('en-carrito');
-        }
+    // Badges individuales en las tarjetas: suma de solo + combo del mismo producto
+    const porProducto = {};
+    items.forEach(item => {
+        porProducto[item.id] = (porProducto[item.id] || 0) + item.cantidad;
     });
-    // Limpiar badges de productos removidos del carrito
+
     document.querySelectorAll('.prod-qty-badge').forEach(badge => {
-        const id = badge.id.replace('qty-', '');
-        if (!carrito[id]) {
+        const pid = parseInt(badge.id.replace('qty-', ''));
+        const card = document.getElementById('card-' + pid);
+        const qty  = porProducto[pid] || 0;
+        if (qty > 0) {
+            badge.textContent = qty;
+            badge.style.display = 'flex';
+            card?.classList.add('en-carrito');
+        } else {
             badge.style.display = 'none';
-            document.getElementById('card-' + id)?.classList.remove('en-carrito');
+            card?.classList.remove('en-carrito');
         }
     });
 }
@@ -710,17 +1426,42 @@ function renderModalItems() {
     const items = Object.values(carrito);
     const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
-    const html = items.map(item => `
+    const html = items.map(item => {
+        const key        = item.id + '-' + item.es_combo;
+        const comboBadge = item.es_combo
+            ? '<span class="badge-combo">COMBO</span>'
+            : '';
+        // nombre2 se muestra como subtítulo gris debajo del nombre principal
+        const sub2 = item.nombre2
+            ? `<span style="display:block;font-size:10px;color:var(--g5);font-weight:400;margin-top:1px">${escHtml(item.nombre2)}</span>`
+            : '';
+        return `
         <div class="cart-item">
-            <span class="cart-item-name">${escHtml(item.nombre)}</span>
+            <span class="cart-item-name">${escHtml(item.nombre)}${comboBadge}${sub2}</span>
             <span class="cart-item-qty">× ${item.cantidad}</span>
             <span class="cart-item-price">${formatPeso(item.precio * item.cantidad)}</span>
-            <button class="cart-item-rm" onclick="quitarDelCarrito(${item.id})" title="Quitar uno">−</button>
-        </div>
-    `).join('');
+            <button class="cart-item-rm" onclick="quitarDelCarrito('${key}')" title="Quitar uno">−</button>
+        </div>`;
+    }).join('');
 
     document.getElementById('modal-items').innerHTML = html;
     document.getElementById('modal-total').textContent = formatPeso(total);
+
+    // Mostrar resumen de combos si hay ítems combo en el carrito
+    const combosEnCarrito = items.filter(i => i.es_combo);
+    const secCombo = document.getElementById('combos-resumen-sec');
+    if (combosEnCarrito.length > 0) {
+        secCombo.style.display = '';
+        document.getElementById('combos-resumen').innerHTML = combosEnCarrito
+            .map(i => {
+                // Mostrar nombre + nombre2 en el resumen de combos
+                const fullName = i.nombre2 ? `${escHtml(i.nombre)} — ${escHtml(i.nombre2)}` : escHtml(i.nombre);
+                return `✔ ${fullName} ×${i.cantidad} — incluye ${(COMBOS[i.id]?.insumos || []).join(', ') || 'extras del combo'}`;
+            })
+            .join('<br>');
+    } else {
+        secCombo.style.display = 'none';
+    }
 }
 
 // ---- MÉTODO DE PAGO ----
@@ -729,14 +1470,17 @@ function selMetodo(btn, metodo) {
     document.querySelectorAll('.metodo-btn').forEach(b => b.classList.remove('sel'));
     btn.classList.add('sel');
     metodoPago = metodo;
-    const fiado = document.getElementById('fiado-section');
-    if (metodo === 'fiado') {
-        fiado.classList.add('visible');
-    } else {
-        fiado.classList.remove('visible');
-        clienteSeleccionado = '';
-        document.getElementById('cliente-select').value = '';
+    // El selector de cliente siempre visible — label varía según método
+    const titulo = document.querySelector('#fiado-section .sheet-section-title');
+    if (titulo) {
+        if (metodo === 'fiado')     titulo.textContent = 'Cliente (requerido para fiado)';
+        else if (metodo === 'obsequio') titulo.textContent = 'Cliente a quien se obsequia (opcional)';
+        else                        titulo.textContent = 'Cliente (opcional)';
     }
+    // Cambiar label del botón confirmar para que sea claro cuando es obsequio
+    const btnConf = document.getElementById('btn-confirmar');
+    if (btnConf) btnConf.textContent = metodo === 'obsequio' ? '🎁 Registrar Obsequio' : 'Confirmar Venta';
+    // Si cambia a otro método, no borramos el cliente ya seleccionado
 }
 
 // ---- NUEVO CLIENTE ON-THE-FLY ----
@@ -763,11 +1507,8 @@ async function crearCliente() {
     const data = await resp.json();
 
     if (data.success) {
-        // Añadir al select y seleccionarlo automáticamente
-        const select = document.getElementById('cliente-select');
-        const opt = new Option(data.nombre, data.id, true, true);
-        select.add(opt);
-        clienteSeleccionado = data.id;
+        // Seleccionar el nuevo cliente en el autocomplete
+        acSeleccionarPorId(data.id, data.nombre, 0);
         toggleNuevoCliente();
         document.getElementById('nc-nombre').value   = '';
         document.getElementById('nc-telefono').value = '';
@@ -780,13 +1521,16 @@ async function crearCliente() {
 // ---- CONFIRMAR VENTA ----
 
 async function confirmarVenta() {
-    // Validar que haya items
-    if (Object.keys(carrito).length === 0) return;
+    // Validar que haya ítems — mostrar feedback si el carrito está vacío
+    if (Object.keys(carrito).length === 0) {
+        mostrarToast('Agrega productos al carrito antes de confirmar', 'err');
+        return;
+    }
 
-    // Validar cliente si es fiado
+    // Validar cliente si es fiado — enfocar el buscador
     if (metodoPago === 'fiado' && !clienteSeleccionado) {
         mostrarToast('Selecciona un cliente para el fiado', 'err');
-        document.getElementById('cliente-select').focus();
+        document.getElementById('cliente-buscar')?.focus();
         return;
     }
 
@@ -794,20 +1538,21 @@ async function confirmarVenta() {
     btn.disabled = true;
     btn.textContent = 'Procesando…';
 
-    // Armar carrito para enviar
+    // Armar carrito para enviar: incluir es_combo por ítem (migración 025)
     const carritoArray = Object.values(carrito).map(i => ({
         producto_id: i.id,
         cantidad:    i.cantidad,
         precio:      i.precio,
+        es_combo:    i.es_combo || 0,
     }));
 
     const fd = new FormData();
-    fd.append('csrf_token',  document.getElementById('csrf-token').value);
-    fd.append('metodo_pago', metodoPago);
-    fd.append('cliente_id',  clienteSeleccionado || '');
-    fd.append('notas',       document.getElementById('notas-input').value.trim());
-    fd.append('es_combo',    document.getElementById('es-combo-inp')?.checked ? '1' : '0');
-    fd.append('carrito',     JSON.stringify(carritoArray));
+    fd.append('csrf_token',   document.getElementById('csrf-token').value);
+    fd.append('metodo_pago',  metodoPago);
+    fd.append('cliente_id',   clienteSeleccionado || '');
+    fd.append('notas',        document.getElementById('notas-input').value.trim());
+    fd.append('fecha_venta',  document.getElementById('fecha-venta-input').value || '');
+    fd.append('carrito',      JSON.stringify(carritoArray));
 
     try {
         const resp = await fetch('api/procesar_venta.php', { method: 'POST', body: fd });
@@ -819,15 +1564,17 @@ async function confirmarVenta() {
             mostrarToast('✓ Venta #' + data.venta_id + ' registrada', 'ok');
             // Actualizar contadores de stock en las tarjetas sin recargar página
             setTimeout(refrescarCapacidades, 600);
-            // Resetear inputs del modal
+            // Resetear inputs del modal y selector de cliente
             document.getElementById('notas-input').value = '';
-            document.getElementById('cliente-select').value = '';
+            document.getElementById('fecha-venta-input').value = new Date().toISOString().split('T')[0];
+            acReset();           // limpia el autocomplete y resetea clienteSeleccionado
             clienteSeleccionado = '';
-            // Volver a efectivo
+            // Volver a efectivo y restaurar label del botón
             document.querySelectorAll('.metodo-btn').forEach(b => b.classList.remove('sel'));
             document.querySelector('.metodo-btn').classList.add('sel');
             metodoPago = 'efectivo';
-            document.getElementById('fiado-section').classList.remove('visible');
+            document.getElementById('btn-confirmar').textContent = 'Confirmar Venta';
+            // fiado-section siempre visible (display:block) — no hay clase que quitar
         } else {
             mostrarToast(data.error || 'Error al procesar la venta', 'err');
         }
@@ -856,7 +1603,7 @@ async function refrescarCapacidades() {
             let cls, txt;
             if (cap === 0)          { cls = 'cap-agotado'; txt = 'Agotado'; }
             else if (cap < 10)      { cls = 'cap-bajo';    txt = cap + ' disp.'; }
-            else if (cap === 9999)  { cls = 'cap-libre';   txt = 'Disponible'; }
+            else if (cap === 9999)  { cls = 'cap-ok';      txt = 'Disponible'; }
             else                    { cls = 'cap-ok';      txt = cap + ' disp.'; }
 
             capEl.className = 'prod-capacidad ' + cls;
@@ -891,9 +1638,12 @@ function mostrarToast(msg, tipo) {
     toastTimer = setTimeout(() => t.classList.remove('visible'), 3200);
 }
 
-// Cerrar modal con tecla Escape
+// Cerrar modales con tecla Escape
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') cerrarModal();
+    if (e.key === 'Escape') {
+        cerrarModal();
+        cerrarCombo();
+    }
 });
 </script>
 

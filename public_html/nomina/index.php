@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/NominaModel.php';
 
+$nav_activo = 'nomina';
+$nav_sub    = 'nomina';
 permiso_requerir('nomina', 'solo_ver');
 
 // Período seleccionado (default: mes actual)
@@ -44,13 +46,6 @@ $msg_err = $_GET['err'] ?? '';
         }
         body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--g9); min-height:100vh; color:var(--dark); }
 
-        /* Header */
-        .hdr { background:var(--dark); color:var(--white); height:54px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; box-shadow:0 2px 8px rgba(0,0,0,.3); }
-        .brand { font-size:17px; font-weight:800; } .brand span{color:var(--brand);}
-        .nav { display:flex; gap:6px; }
-        .nl { color:var(--g8); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:8px; }
-        .nl:hover { background:var(--g2); color:var(--white); } .nl.act { background:var(--brand); color:var(--white); }
-
         .main { padding:16px 14px; max-width:960px; margin:0 auto; }
 
         /* Alertas */
@@ -79,7 +74,7 @@ $msg_err = $_GET['err'] ?? '';
         .btn-generar:disabled { background:var(--g8); cursor:not-allowed; }
 
         /* Tabla de liquidaciones */
-        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; }
+        .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; overflow-x:auto; }
         .card-title { font-size:15px; font-weight:800; padding:14px 18px; border-bottom:1px solid var(--g9); display:flex; justify-content:space-between; align-items:center; }
 
         table { width:100%; border-collapse:collapse; }
@@ -118,6 +113,49 @@ $msg_err = $_GET['err'] ?? '';
         /* Delete button */
         .btn-del { padding:5px 10px; background:#fee2e2; color:#991b1b; border:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
         .btn-del:hover { background:#fca5a5; }
+
+        /* ════════════════════════════════════════════════════════════════
+           RESPONSIVE — NÓMINA (liquidaciones)
+           Tabla cols: 1=Empleado 2=Contrato(hm) 3=Salario(hm)
+                       4=Cargas(hm) 5=Provisiones(hm) 6=CostoTotal 7=Estado 8=Acc.
+           ════════════════════════════════════════════════════════════════ */
+
+        /* ── Teléfono vertical (< 480px) ── */
+        @media (max-width: 479px) {
+            /* Estado (col 7) también oculto → visible: Empleado, CostoTotal, Acciones */
+            table thead tr th:nth-child(7), table tbody tr td:nth-child(7) { display: none; }
+            .resumen-grid { grid-template-columns: 1fr 1fr !important; }
+            .btn-primary  { width: 100%; }
+        }
+
+        /* ── Tablet (640-1023px): mostrar contrato, ocultar cargas y provisiones ── */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            .main { max-width: 100%; padding: 16px 18px 60px; }
+            .hide-m { display: table-cell !important; }
+            table thead tr th:nth-child(4), table tbody tr td:nth-child(4),
+            table thead tr th:nth-child(5), table tbody tr td:nth-child(5) { display: none; }
+        }
+
+        /* ── Escritorio (≥1024px): todas las columnas visibles ── */
+        @media (min-width: 1024px) {
+            .hide-m { display: table-cell !important; }
+        }
+
+        /* ── Pantalla grande (≥1600px) ── */
+        @media (min-width: 1600px) {
+            .main { max-width: 1440px !important; padding: 24px 32px 60px !important; }
+            .stat-n { font-size: 28px; }
+            table thead tr th { font-size: 12px !important; padding: 11px 16px !important; }
+            table tbody tr td { font-size: 15px !important; padding: 12px 16px !important; }
+        }
+
+        /* ── TV (≥1920px) ── */
+        @media (min-width: 1920px) {
+            .main { max-width: 1680px !important; }
+            .stat-n { font-size: 34px; }
+            table thead tr th { font-size: 14px !important; padding: 14px 20px !important; }
+            table tbody tr td { font-size: 16px !important; padding: 14px 20px !important; }
+        }
     </style>
 </head>
 <body>
@@ -167,7 +205,7 @@ $msg_err = $_GET['err'] ?? '';
     <div class="generar-wrap">
         <button class="btn-generar" id="btn-generar"
                 onclick="generarNomina(<?= $mes ?>, <?= $anio ?>)">
-            ⚡ Generar Nómina — <?= $meses_nombres[$mes] ?> <?= $anio ?>
+            <?= IC_BOLT ?> Generar Nómina — <?= $meses_nombres[$mes] ?> <?= $anio ?>
         </button>
         <span style="font-size:12px; color:var(--g5); margin-left:12px">
             Genera liquidación para empleados activos sin nómina del período.
@@ -181,7 +219,7 @@ $msg_err = $_GET['err'] ?? '';
             <span>Liquidaciones — <?= $meses_nombres[$mes] ?> <?= $anio ?></span>
             <?php if (!empty($liquidaciones) && permiso_tiene('nomina','admin_total')): ?>
             <button class="btn-del" onclick="eliminarPeriodo(<?= $mes ?>, <?= $anio ?>)">
-                Eliminar período
+                <?= IC_TRASH ?> Eliminar período
             </button>
             <?php endif; ?>
         </div>
@@ -224,6 +262,38 @@ $msg_err = $_GET['err'] ?? '';
                     $tipo    = $liq['contrato_usado'] ?? $liq['tipo_contrato'] ?? 'tiempo_completo';
                     $tipoCfg = $TIPO_LABELS[$tipo] ?? $TIPO_LABELS['tiempo_completo'];
                     $esPagado= (bool)($liq['pagado'] ?? false);
+
+                    // Pago base real según tipo de contrato:
+                    // tiempo_completo/medio_tiempo → salario_base
+                    // por_horas  → valor_hora × horas_trabajadas (calculado)
+                    // por_servicio → valor_proyecto
+                    // Fórmula universal: costo_total − aux − cargas − provisiones
+                    $pago_base = (float)$liq['costo_total_empleador']
+                               - (float)$liq['aux_transporte']
+                               - (float)$liq['total_cargas']
+                               - (float)$liq['total_provisiones'];
+
+                    // Etiqueta descriptiva del pago según tipo
+                    $horas = (int)($liq['horas_trabajadas'] ?? 0);
+                    $lbl_pago = match($tipo) {
+                        'por_horas'    => 'Pago (' . $horas . 'h)',
+                        'por_servicio' => 'Valor proyecto',
+                        'medio_tiempo' => 'Salario (50%)',
+                        default        => 'Salario base',
+                    };
+
+                    // Detectar si las horas actuales difieren de las liquidadas (datos inconsistentes)
+                    $alerta_horas = false;
+                    if ($tipo === 'por_horas' && $horas > 0) {
+                        try {
+                            $horasActuales = NominaModel::total_horas_periodo(
+                                (int)$liq['empleado_id'],
+                                (int)$liq['periodo_mes'],
+                                (int)$liq['periodo_anio']
+                            );
+                            $alerta_horas = abs($horasActuales - $horas) > 0.1;
+                        } catch (\Exception $ex) { /* silenciar */ }
+                    }
                 ?>
                 <tr>
                     <td>
@@ -232,7 +302,13 @@ $msg_err = $_GET['err'] ?? '';
                         <br><small style="color:var(--g5)"><?= htmlspecialchars($liq['cargo']) ?></small>
                         <?php endif; ?>
                         <?php if ($tipo === 'por_horas' && !empty($liq['horas_trabajadas'])): ?>
-                        <br><small style="color:#d97706">⏱ <?= $liq['horas_trabajadas'] ?>h trabajadas</small>
+                        <br><small style="color:#d97706">⏱ <?= $liq['horas_trabajadas'] ?>h liquidadas</small>
+                        <?php if ($alerta_horas): ?>
+                        <br><small style="color:var(--brand);font-weight:700"
+                            title="Las horas en el registro han cambiado desde que se generó esta liquidación. Considera eliminar el período y regenerar.">
+                            ⚠ Horas cambiaron — verificar
+                        </small>
+                        <?php endif; ?>
                         <?php elseif ($tipo === 'por_servicio' && !empty($liq['descripcion_pago'])): ?>
                         <br><small style="color:var(--g5)"><?= htmlspecialchars(substr($liq['descripcion_pago'],0,50)) ?></small>
                         <?php endif; ?>
@@ -243,9 +319,24 @@ $msg_err = $_GET['err'] ?? '';
                             <?= $tipoCfg['label'] ?>
                         </span>
                     </td>
-                    <td class="r hide-m">$<?= number_format($liq['salario_base'], 0, ',', '.') ?></td>
-                    <td class="r hide-m">$<?= number_format($liq['total_cargas'], 0, ',', '.') ?></td>
-                    <td class="r hide-m">$<?= number_format($liq['total_provisiones'], 0, ',', '.') ?></td>
+                    <td class="r hide-m">
+                        $<?= number_format($pago_base, 0, ',', '.') ?>
+                        <br><small style="color:var(--g5)"><?= $lbl_pago ?></small>
+                    </td>
+                    <td class="r hide-m">
+                        <?php if ($tipo === 'por_servicio'): ?>
+                        <span style="color:var(--g5)">—</span>
+                        <?php else: ?>
+                        $<?= number_format($liq['total_cargas'], 0, ',', '.') ?>
+                        <?php endif; ?>
+                    </td>
+                    <td class="r hide-m">
+                        <?php if ($tipo === 'por_servicio'): ?>
+                        <span style="color:var(--g5)">—</span>
+                        <?php else: ?>
+                        $<?= number_format($liq['total_provisiones'], 0, ',', '.') ?>
+                        <?php endif; ?>
+                    </td>
                     <td class="r" style="font-weight:800; color:var(--brand)">
                         $<?= number_format($liq['costo_total_empleador'], 0, ',', '.') ?>
                     </td>
@@ -329,18 +420,34 @@ $msg_err = $_GET['err'] ?? '';
                         </div>
                         <!-- Total final -->
                         <div class="desglose-total">
+                            <!-- Pago base con etiqueta según tipo de contrato -->
                             <div class="drow" style="font-size:12px; color:var(--g5)">
-                                <span>Salario Base</span><span>$<?= number_format($liq['salario_base'], 0, ',', '.') ?></span>
+                                <span><?= htmlspecialchars($lbl_pago) ?></span>
+                                <span>$<?= number_format($pago_base, 0, ',', '.') ?></span>
                             </div>
+                            <?php if ((float)$liq['aux_transporte'] > 0): ?>
                             <div class="drow" style="font-size:12px; color:var(--g5)">
-                                <span>Auxilio Transporte</span><span>$<?= number_format($liq['aux_transporte'], 0, ',', '.') ?></span>
+                                <span>Auxilio Transporte</span>
+                                <span>$<?= number_format($liq['aux_transporte'], 0, ',', '.') ?></span>
                             </div>
+                            <?php endif; ?>
+                            <?php if ((float)$liq['total_cargas'] > 0): ?>
                             <div class="drow" style="font-size:12px; color:var(--g5)">
-                                <span>+ Cargas</span><span>$<?= number_format($liq['total_cargas'], 0, ',', '.') ?></span>
+                                <span>+ Cargas empleador</span>
+                                <span>$<?= number_format($liq['total_cargas'], 0, ',', '.') ?></span>
                             </div>
+                            <?php endif; ?>
+                            <?php if ((float)$liq['total_provisiones'] > 0): ?>
                             <div class="drow" style="font-size:12px; color:var(--g5)">
-                                <span>+ Provisiones</span><span>$<?= number_format($liq['total_provisiones'], 0, ',', '.') ?></span>
+                                <span>+ Provisiones</span>
+                                <span>$<?= number_format($liq['total_provisiones'], 0, ',', '.') ?></span>
                             </div>
+                            <?php endif; ?>
+                            <?php if ($tipo === 'por_servicio'): ?>
+                            <div class="drow" style="font-size:11px;color:var(--g5);font-style:italic">
+                                <span>Sin cargas ni provisiones (contratista)</span><span></span>
+                            </div>
+                            <?php endif; ?>
                             <div class="drow total-final">
                                 <span>COSTO TOTAL EMPLEADOR</span>
                                 <span>$<?= number_format($liq['costo_total_empleador'], 0, ',', '.') ?></span>
@@ -431,10 +538,18 @@ async function eliminarPeriodo(mes, anio) {
     fd.append('anio',   anio);
     fd.append('accion', 'eliminar_periodo');
 
-    const resp = await fetch('api/generar.php', { method: 'POST', body: fd });
-    // Re-usar el endpoint con una acción diferente — simplemente recargar
-    mostrarToast('Período eliminado', 'ok');
-    setTimeout(() => location.reload(), 1000);
+    try {
+        const resp = await fetch('api/generar.php', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            mostrarToast(`Período eliminado (${data.eliminados ?? 0} liquidaciones)`, 'ok');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            mostrarToast(data.error || 'Error al eliminar el período.', 'err');
+        }
+    } catch (e) {
+        mostrarToast('Error de conexión.', 'err');
+    }
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
