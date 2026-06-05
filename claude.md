@@ -1,6 +1,43 @@
-# ClanDestino ERP v4.22 — Memoria de Sesión
+# ClanDestino ERP v4.23 — Memoria de Sesión
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
+
+---
+
+## 0. CONTROL DE VERSIONES — INSTRUCCIÓN OBLIGATORIA
+
+> **⚠️ REGLA CRÍTICA:** Hacer commit y push a GitHub después de cada bloque significativo de trabajo.
+> **NO** acumular todos los cambios de una sesión en un solo commit al final.
+
+### Cuándo hacer commit
+| Evento | Frecuencia |
+|--------|-----------|
+| Módulo nuevo completado | Inmediatamente al terminar |
+| Migración SQL creada | Con cada migración |
+| Bloque de bugs corregidos (3+) | Al terminar el bloque |
+| Cambio de versión (v4.x → v4.y) | Siempre |
+| Final de cada sesión de trabajo | Obligatorio |
+
+### Flujo estándar
+```bash
+cd "C:\Users\alan_\ClanDestino"
+git add -A -- "public_html/" "database/migrations/" "claude.md"
+git commit -m "feat/fix/docs: descripción clara del cambio — v4.XX"
+git push origin master
+```
+
+### Prefijos de commit
+- `feat:` — módulo nuevo o funcionalidad nueva
+- `fix:` — corrección de bug
+- `refactor:` — cambio de código sin nueva funcionalidad
+- `docs:` — solo CLAUDE.md, ayuda o README
+- `chore:` — migraciones, configuración, versión
+
+### Credenciales Git
+El token de GitHub está guardado en el archivo de memoria privada de Claude
+(`C:\Users\alan_\.claude\projects\...\memory\github_token.md`).
+NO guardar tokens en este archivo — está en el repositorio y sería público.
+Las credenciales de git están configuradas en Windows Credential Manager.
 
 ---
 
