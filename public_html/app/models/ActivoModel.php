@@ -18,17 +18,9 @@ require_once __DIR__ . '/../helpers/AuditoriaHelper.php';
 class ActivoModel
 {
     /**
-     * Retorna todos los activos con su estado de vida útil calculado.
-     *
-     * Estado:
-     *   nuevo     → < 50% del tiempo transcurrido
-     *   medio     → 50–74% transcurrido
-     *   critico   → 75–99% transcurrido
-     *   depreciado→ ≥ 100% transcurrido (vida útil cumplida)
-     */
-    /**
      * Retorna activos con estado de vida calculado.
-     * @param string $orden  'fecha'|'nombre'|'lugar' — criterio de ordenamiento
+     * Estado: nuevo (<50%), medio (50-74%), critico (75-99%), depreciado (≥100%).
+     * @param string $orden  'fecha'|'nombre'|'lugar'
      */
     public static function todos(string $orden = 'fecha'): array
     {
@@ -118,11 +110,7 @@ class ActivoModel
     }
 
     /**
-     * Suma las depreciaciones diarias de todos los activos en uso.
-     * Este valor se suma al costo operativo diario del negocio.
-     */
-    /**
-     * Suma las depreciaciones diarias SOLO de activos que aún tienen vida útil.
+     * Suma las depreciaciones diarias de activos en uso que aún tienen vida útil.
      * Un activo totalmente depreciado ya no genera costo operativo diario.
      */
     public static function costo_diario_total(): float
@@ -199,15 +187,8 @@ class ActivoModel
     }
 
     /**
-     * Crea un nuevo activo.
-     * El trigger calcula depreciacion_mensual y depreciacion_diaria automáticamente.
-     *
-     * @throws RuntimeException si los datos son inválidos
-     */
-    /**
-     * Crea un nuevo activo con todos los campos extendidos.
-     * Si se proveen precio_unitario y numero_unidades, el trigger calcula costo_inicial.
-     *
+     * Crea un nuevo activo. Si se provee precio_unitario×numero_unidades, calcula costo_inicial.
+     * El trigger MySQL recalcula depreciacion_mensual y depreciacion_diaria automáticamente.
      * @throws RuntimeException si datos obligatorios faltan
      */
     public static function crear(array $datos): int
