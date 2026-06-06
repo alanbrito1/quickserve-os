@@ -194,20 +194,34 @@ try {
     // 2b. Líneas from_stock=0 → restaurar insumos vía receta.
     // COALESCE(vd.factor_receta_snap, 1.0): si la venta fue con variante, se restaura
     // la cantidad escalada que se descontó originalmente (mig. 035).
+    // Mig. 036: es_base=1 → el factor fue siempre 1.0 para ese ingrediente.
+    static $tiene036ev = null;
+    if ($tiene036ev === null) {
+        try {
+            $tiene036ev = (int)$pdo->query(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recetas'
+                   AND COLUMN_NAME='es_base'"
+            )->fetchColumn() > 0;
+        } catch (\Exception $e) { $tiene036ev = false; }
+    }
+    $colEsBaseEv = $tiene036ev ? ', r.es_base' : ', 0 AS es_base';
+
     $oldIng = $pdo->prepare(
-        'SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
+        "SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
                 GREATEST(p.unidades_por_receta, 1)       AS rinde,
-                COALESCE(vd.factor_receta_snap, 1.0)     AS factor_receta
+                COALESCE(vd.factor_receta_snap, 1.0)     AS factor_receta{$colEsBaseEv}
          FROM venta_detalles vd
          JOIN recetas r ON r.producto_id = vd.producto_id
          JOIN productos p ON p.id = vd.producto_id
-         WHERE vd.venta_id = ? AND vd.from_stock = 0'
+         WHERE vd.venta_id = ? AND vd.from_stock = 0"
     );
     $oldIng->execute([$id]);
     foreach ($oldIng->fetchAll() as $row) {
+        $factor     = !empty($row['es_base']) ? 1.0 : (float)$row['factor_receta'];
         $devolucion = ((float)$row['cantidad_requerida'] / (int)$row['rinde'])
                     * (int)$row['cantidad']
-                    * (float)$row['factor_receta'];
+                    * $factor;
         $pdo->prepare(
             'UPDATE insumos SET stock_actual = stock_actual + ?, updated_by = ? WHERE id = ?'
         )->execute([$devolucion, $uid, (int)$row['insumo_id']]);
@@ -297,7 +311,7 @@ try {
     // También trae nombre y nombre2 para el snapshot (migración 034)
     $stmtProdInfo  = $pdo->prepare('SELECT stock_disponible, unidades_por_receta, nombre, nombre2 FROM productos WHERE id = ? FOR UPDATE');
     $stmtStockProd = $pdo->prepare('UPDATE productos SET stock_disponible = stock_disponible - ?, updated_by = ? WHERE id = ? AND stock_disponible >= ?');
-    $stmtReceta    = $pdo->prepare('SELECT insumo_id, cantidad_requerida FROM recetas WHERE producto_id = :pid');
+    $stmtReceta    = $pdo->prepare("SELECT insumo_id, cantidad_requerida{$colEsBaseEv} FROM recetas WHERE producto_id = :pid");
     $stmtDescuento = $pdo->prepare('UPDATE insumos SET stock_actual = stock_actual - :desc, updated_by = :uid WHERE id = :id AND stock_actual >= :desc2');
     $stmtComboIns  = $pdo->prepare('SELECT ci.insumo_id, ci.cantidad, i.nombre AS insumo_nombre FROM combo_insumos ci JOIN insumos i ON i.id = ci.insumo_id WHERE ci.combo_id = ?');
     $stmtComboId   = $pdo->prepare('SELECT id FROM combo_configs WHERE producto_id = ? AND activo = 1 LIMIT 1');

@@ -286,7 +286,7 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">ClanDestino ERP — Visión General</div>
-                    <div class="section-badge">v4.30 · Colombia</div>
+                    <div class="section-badge">v4.40 · Colombia</div>
                 </div>
             </div>
             <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
@@ -933,6 +933,26 @@ descuento = (cantidad_requerida ÷ unidades_por_receta) × cantidad_vendida × <
             </ul>
             <div class="warn"><strong>Nota de inmutabilidad:</strong> Al vender una variante, la etiqueta (<code>variante_etiqueta</code>) y el factor (<code>factor_receta_snap</code>) se guardan como snapshot en <code>venta_detalles</code>. Si luego editas el factor de la variante, las ventas históricas se revierten con el factor original.</div>
 
+            <div class="sub-title">Ingrediente base — migración 036</div>
+            <p>Dentro de la receta de un producto, cada ingrediente puede marcarse como <strong>"base"</strong> (<code>es_base = 1</code>). Un ingrediente base tiene cantidad <strong>fija</strong>: no se escala con el <code>factor_receta</code> de la variante de tamaño.</p>
+            <table class="data-table">
+                <thead><tr><th>Ingrediente</th><th>es_base</th><th>Venta Regular (factor 1.0)</th><th>Venta XL (factor 1.5)</th></tr></thead>
+                <tbody>
+                    <tr><td>Pan (1 unidad)</td><td>1 — base</td><td>1 unidad</td><td>1 unidad <em>(no escala)</em></td></tr>
+                    <tr><td>Pollo (150g)</td><td>0 — escala</td><td>150g</td><td>225g (×1.5)</td></tr>
+                    <tr><td>Salsa (1 cdta)</td><td>1 — base</td><td>1 cdta</td><td>1 cdta <em>(no escala)</em></td></tr>
+                </tbody>
+            </table>
+            <div class="formula-block">
+<span class="title">Fórmula con ingrediente base</span>
+descuento = (cantidad_requerida ÷ unidades_por_receta) × cantidad_vendida × <span class="var">factor</span>
+
+<span class="comment">donde factor = 1.0  si es_base = 1  (ingrediente fijo)
+              factor = factor_receta  si es_base = 0  (ingrediente que escala)</span></div>
+            <div class="ok"><strong>Cómo marcar un ingrediente como base:</strong> En la fila expandida de un producto (Módulo Productos), cada ingrediente de la receta tiene un botón 🔒. Al pulsarlo, el botón se torna verde y el badge <em>🔒base</em> aparece junto al nombre. Pulsa de nuevo para desmarcar.</div>
+            <div class="tip">El marcado como base también aplica al <strong>revertir stock</strong> al anular una venta o al editar una venta existente — garantiza que se restaure exactamente la cantidad que se consumió originalmente.</div>
+            <div class="warn"><strong>Limitación:</strong> Si cambias <code>es_base</code> de un ingrediente después de haber realizado ventas, la restauración de stock en ventas antiguas usará el valor actual de <code>es_base</code>, no el que existía cuando se realizó la venta. Se recomienda configurar <code>es_base</code> antes de comenzar a vender.</div>
+
             <div class="sub-title">Dar de baja stock terminado — 🎁 Regalar y 🗑 Desechar</div>
             <p>Cuando hay <code>stock_disponible &gt; 0</code>, cada tarjeta de producto muestra dos botones para bajar stock sin pasar por el POS:</p>
             <table class="data-table">
@@ -1439,7 +1459,7 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     <tr><td><code>proveedores</code></td><td>Directorio de proveedores con categoría y contacto</td><td>base + 003 + 011</td></tr>
                     <tr><td><code>insumos</code></td><td>Inventario de materias primas. Incluye presentación, equivalencia física (030) y unidades como VARCHAR (031)</td><td>base + 003 + 010 + 030 + 031</td></tr>
                     <tr><td><code>productos</code></td><td>Carta de productos con receta, nombre2 (027), stock terminado (015), categoría/tamaño como VARCHAR (031)</td><td>base + 015 + 027 + 031</td></tr>
-                    <tr><td><code>recetas</code></td><td>Ingredientes requeridos por producto con cantidades</td><td>base</td></tr>
+                    <tr><td><code>recetas</code></td><td>Ingredientes requeridos por producto. <code>es_base</code>: cantidad fija, no escala con variante (mig.036)</td><td>base + 036</td></tr>
                     <tr><td><code>combo_configs / combo_insumos</code></td><td>Configuración de combos: producto + insumos extras por combo</td><td>025</td></tr>
                     <tr><td><code>producto_variantes</code></td><td>Variantes de tamaño por producto (etiqueta, precio, factor_receta). Sin FK (cPanel errno 121)</td><td>035</td></tr>
                     <tr><td><code>clientes</code></td><td>Clientes con saldo fiado, apellido (028) y empresa (028)</td><td>base + 028</td></tr>
@@ -1556,6 +1576,7 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     <tr><td>G06 Obsequios</td><td>No en pendiente_pago. Total > 0. En ajustes_stock correctamente.</td></tr>
                     <tr><td>G07 Combos</td><td>combo_configs e integridad de venta_detalles.</td></tr>
                     <tr><td>G23 Variantes 035</td><td>producto_variantes y columnas venta_detalles (variante_id, factor_receta_snap). Factor en rango, precios positivos, sin duplicados, coherencia NULL.</td></tr>
+                    <tr><td>G24 Ingrediente Base 036</td><td>recetas.es_base solo 0 o 1. Ningún ingrediente es crítico Y base a la vez. Productos con factor≠1 tienen al menos un ingrediente escalable.</td></tr>
                     <tr><td>G08 Clientes</td><td>Campos mig. 028, saldos, FKs del módulo de fusión.</td></tr>
                     <tr><td>G09 Producción</td><td>Lotes activos con costo coherente. FK sin huérfanos.</td></tr>
                     <tr><td>G10 Activos</td><td>Sin fecha_inicio_uso → depreciación = 0. Divisor 30.41666.</td></tr>

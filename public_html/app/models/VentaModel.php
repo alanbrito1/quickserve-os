@@ -149,9 +149,22 @@ class VentaModel
                  WHERE id = ? AND stock_disponible >= ?'
             );
 
+            // Detectar migración 036 (es_base en recetas)
+            static $tiene036v = null;
+            if ($tiene036v === null) {
+                try {
+                    $tiene036v = (int)$pdo->query(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS
+                         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recetas'
+                           AND COLUMN_NAME='es_base'"
+                    )->fetchColumn() > 0;
+                } catch (\Exception $e) { $tiene036v = false; }
+            }
+            $colEsBaseV = $tiene036v ? ', es_base' : ', 0 AS es_base';
+
             $stmtReceta = $pdo->prepare(
-                'SELECT insumo_id, cantidad_requerida
-                 FROM recetas WHERE producto_id = :pid'
+                "SELECT insumo_id, cantidad_requerida{$colEsBaseV}
+                 FROM recetas WHERE producto_id = :pid"
             );
 
             // Reutilizado tanto para descontar insumos del sándwich como del combo
@@ -248,7 +261,9 @@ class VentaModel
                     // factor_receta escala las cantidades si es una variante de diferente tamaño.
                     $stmtReceta->execute([':pid' => $pid]);
                     foreach ($stmtReceta->fetchAll() as $ing) {
-                        $descuento = ((float)$ing['cantidad_requerida'] / $rinde) * $cantidad * $factorReceta;
+                        // es_base=1: ingrediente fijo (pan, salsa) — no escala con factor de variante
+                        $factor    = !empty($ing['es_base']) ? 1.0 : $factorReceta;
+                        $descuento = ((float)$ing['cantidad_requerida'] / $rinde) * $cantidad * $factor;
 
                         $stmtDescuento->execute([
                             ':desc'  => $descuento,
@@ -365,20 +380,34 @@ class VentaModel
             // Líneas que descontaron insumos directamente → restaurar cada insumo del sándwich.
             // Si hay variante (migración 035), incluir factor_receta para restaurar la cantidad
             // correcta escalada. COALESCE garantiza factor 1.0 para ventas anteriores a migración.
+            // Migración 036: es_base=1 → el factor siempre fue 1.0 para ese ingrediente.
+            static $tiene036a = null;
+            if ($tiene036a === null) {
+                try {
+                    $tiene036a = (int)$pdo->query(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS
+                         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recetas'
+                           AND COLUMN_NAME='es_base'"
+                    )->fetchColumn() > 0;
+                } catch (\Exception $e) { $tiene036a = false; }
+            }
+            $colEsBaseA = $tiene036a ? ', r.es_base' : ', 0 AS es_base';
+
             $ingLines = $pdo->prepare(
-                'SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
+                "SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
                         GREATEST(p.unidades_por_receta, 1) AS rinde,
-                        COALESCE(vd.factor_receta_snap, 1.0) AS factor_receta
+                        COALESCE(vd.factor_receta_snap, 1.0) AS factor_receta{$colEsBaseA}
                  FROM venta_detalles vd
                  JOIN recetas  r ON r.producto_id = vd.producto_id
                  JOIN productos p ON p.id = vd.producto_id
-                 WHERE vd.venta_id = ? AND vd.from_stock = 0'
+                 WHERE vd.venta_id = ? AND vd.from_stock = 0"
             );
             $ingLines->execute([$venta_id]);
             foreach ($ingLines->fetchAll() as $row) {
+                $factor     = !empty($row['es_base']) ? 1.0 : (float)$row['factor_receta'];
                 $devolucion = ((float)$row['cantidad_requerida'] / (int)$row['rinde'])
                               * (int)$row['cantidad']
-                              * (float)$row['factor_receta'];
+                              * $factor;
                 $pdo->prepare(
                     'UPDATE insumos SET stock_actual = stock_actual + ?, updated_by = ? WHERE id = ?'
                 )->execute([$devolucion, $uid, (int)$row['insumo_id']]);

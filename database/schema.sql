@@ -302,6 +302,7 @@ CREATE TABLE `recetas` (
     `insumo_id`          INT UNSIGNED  NOT NULL,
     `cantidad_requerida` DECIMAL(12,6) NOT NULL,  -- cantidad por TANDA (÷ unidades_por_receta = por unidad)
     `es_insumo_critico`  TINYINT(1)    NOT NULL DEFAULT 0,  -- define capacidad máxima del POS
+    `es_base`            TINYINT(1)    NOT NULL DEFAULT 0,  -- cantidad fija, no escala con factor_receta (mig. 036)
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `created_by`         INT UNSIGNED  DEFAULT NULL,
     `updated_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

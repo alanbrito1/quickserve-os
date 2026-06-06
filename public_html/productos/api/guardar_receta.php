@@ -57,8 +57,9 @@ try {
 
     } else {
         // Insertar o actualizar cantidad_requerida
-        $cantidad  = (float)($_POST['cantidad']   ?? 0);
+        $cantidad   = (float)($_POST['cantidad']   ?? 0);
         $es_critico = (int)($_POST['es_critico']   ?? 0);
+        $es_base    = (int)($_POST['es_base']      ?? 0);
 
         if ($cantidad <= 0) {
             echo json_encode(['success' => false, 'error' => 'La cantidad debe ser mayor a 0.']);
@@ -72,14 +73,30 @@ try {
             )->execute([$producto_id]);
         }
 
+        // Detectar migración 036 (es_base en recetas)
+        static $tiene036g = null;
+        if ($tiene036g === null) {
+            try {
+                $tiene036g = (int)db()->query(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recetas'
+                       AND COLUMN_NAME='es_base'"
+                )->fetchColumn() > 0;
+            } catch (\Exception $e) { $tiene036g = false; }
+        }
+        $colBase = $tiene036g ? ', es_base' : '';
+        $updBase = $tiene036g ? ', es_base = VALUES(es_base)' : '';
+        $valBase = $tiene036g ? [$producto_id, $insumo_id, $cantidad, $es_critico, (int)$es_base, $uid]
+                              : [$producto_id, $insumo_id, $cantidad, $es_critico, $uid];
+
         db()->prepare(
-            'INSERT INTO recetas (producto_id, insumo_id, cantidad_requerida, es_insumo_critico, created_by)
-             VALUES (?, ?, ?, ?, ?)
+            "INSERT INTO recetas (producto_id, insumo_id, cantidad_requerida, es_insumo_critico{$colBase}, created_by)
+             VALUES (?, ?, ?, ?" . ($tiene036g ? ', ?' : '') . ", ?)
              ON DUPLICATE KEY UPDATE
                 cantidad_requerida  = VALUES(cantidad_requerida),
-                es_insumo_critico   = VALUES(es_insumo_critico),
-                updated_by          = VALUES(created_by)'
-        )->execute([$producto_id, $insumo_id, $cantidad, $es_critico, $uid]);
+                es_insumo_critico   = VALUES(es_insumo_critico){$updBase},
+                updated_by          = VALUES(created_by)"
+        )->execute($valBase);
 
         // Recalcular costo del producto inmediatamente
         db()->prepare(

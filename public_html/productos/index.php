@@ -576,15 +576,23 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
     ings.forEach(i => {
         totalIng += parseFloat(i.costo_linea || 0);
         const crit = i.es_insumo_critico == 1 ? '<span class="badge-crit">⚡crítico</span>' : '';
+        const base = i.es_base == 1
+            ? '<span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:3px" title="Cantidad fija — no escala con variante de tamaño">🔒base</span>'
+            : '';
         const cantLabel = rinde > 1
             ? `${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)} <span style="color:#9ca3af;font-size:10px">(tanda)</span>`
             : `${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)}`;
         tblRows += `<tr>
-            <td>${esc(i.nombre)}${crit}</td>
+            <td>${esc(i.nombre)}${crit}${base}</td>
             <td>${cantLabel}</td>
             <td style="text-align:right">$${fmt(i.costo_actual)}</td>
             <td style="text-align:right"><strong>$${fmt(i.costo_linea)}</strong> <span style="color:#9ca3af;font-size:10px">/u</span></td>
-            ${puedEdt ? `<td><button class="btn-sm btn-red" onclick="delIng(${id},${i.insumo_id})">✕</button></td>` : ''}
+            ${puedEdt ? `<td style="display:flex;gap:3px;align-items:center">
+                <button class="btn-sm" style="${i.es_base ? 'background:#10b981;color:#fff' : ''}"
+                        onclick="toggleBase(${id},${i.insumo_id},${i.es_base},${i.cantidad_requerida},${i.es_insumo_critico})"
+                        title="Ingrediente base: cantidad fija, no escala con variante">🔒</button>
+                <button class="btn-sm btn-red" onclick="delIng(${id},${i.insumo_id})">✕</button>
+            </td>` : ''}
         </tr>`;
     });
 
@@ -596,6 +604,9 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
             <input type="number" id="ci-${id}" placeholder="Cantidad" step="0.001" min="0.001" style="width:110px">
             <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--g5)">
                 <input type="checkbox" id="krit-${id}"> Crítico
+            </label>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--g5)" title="Base: cantidad fija, no escala con variante de tamaño (ej: pan, salsa)">
+                <input type="checkbox" id="base-${id}"> 🔒Base
             </label>
             <button class="btn-sm btn-grn" onclick="addIng(${id})">+ Agregar</button>
         </div>` : '';
@@ -676,15 +687,32 @@ async function addIng(prodId) {
     const insumoId = document.getElementById('si-' + prodId).value;
     const cantidad = document.getElementById('ci-' + prodId).value;
     const critico  = document.getElementById('krit-' + prodId).checked ? 1 : 0;
+    const esBase   = document.getElementById('base-' + prodId).checked ? 1 : 0;
     if (!cantidad || parseFloat(cantidad) <= 0) { toast('Cantidad inválida', 'err'); return; }
     const fd = new FormData();
     fd.append('csrf_token', csrf()); fd.append('accion','guardar');
     fd.append('producto_id', prodId); fd.append('insumo_id', insumoId);
     fd.append('cantidad', cantidad); fd.append('es_critico', critico);
+    fd.append('es_base', esBase);
     const r = await fetch('api/guardar_receta.php', {method:'POST',body:fd});
     const d = await r.json();
     if (d.success) { delete cache[prodId]; toast('Guardado', 'ok'); reloadReceta(prodId); }
     else toast(d.error || 'Error', 'err');
+}
+
+async function toggleBase(prodId, insumoId, esBase, cantidad, esCritico) {
+    const fd = new FormData();
+    fd.append('csrf_token', csrf()); fd.append('accion','guardar');
+    fd.append('producto_id', prodId); fd.append('insumo_id', insumoId);
+    fd.append('cantidad', cantidad); fd.append('es_critico', esCritico);
+    fd.append('es_base', esBase ? 0 : 1);
+    const r = await fetch('api/guardar_receta.php', {method:'POST',body:fd});
+    const d = await r.json();
+    if (d.success) {
+        delete cache[prodId];
+        toast(esBase ? 'Ingrediente ya escala con variante' : 'Ingrediente marcado como base (fijo)', 'ok');
+        reloadReceta(prodId);
+    } else toast(d.error || 'Error', 'err');
 }
 
 async function delIng(prodId, insumoId) {

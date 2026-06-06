@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.31'); // 2026-06-06: v4.31 fixes editar_venta factor_receta + POS card variante indicator
+define('APP_VERSION', '4.40'); // 2026-06-06: v4.40 ingrediente base (mig.036) — es_base en recetas no escala con factor_receta
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

@@ -26,6 +26,7 @@
  *   G21  Migración 031       — conversión ENUM → VARCHAR para catálogos
  *   G22  Snapshots 032-034   — coherencia de empaque, nómina, nombres y saldos
  *   G23  Variantes 035       — tabla producto_variantes, columnas venta_detalles, coherencia
+ *   G24  Ingrediente Base 036 — columna es_base en recetas, coherencia con variantes
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1168,6 +1169,51 @@ if ($tiene_vd_snap) {
         $var_inconsistente > 0 ? "{$var_inconsistente} detalles con variante_id/variante_etiqueta incoherentes." : '');
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+//  G24 — INGREDIENTE BASE (migración 036)
+//  Verifica la columna es_base en recetas y su coherencia.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G24 Ingrediente Base 036';
+
+$tiene_es_base = columna_existe($pdo, 'recetas', 'es_base');
+t($G, "recetas.es_base existe (mig.036)",
+    $tiene_es_base, "Aplicar 036_receta_ingrediente_base.sql", !$tiene_es_base);
+
+if ($tiene_es_base) {
+    // es_base solo puede ser 0 o 1
+    $base_invalido = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM recetas WHERE es_base NOT IN (0,1)");
+    t($G, "recetas: es_base solo contiene 0 o 1",
+        $base_invalido === 0,
+        $base_invalido > 0 ? "{$base_invalido} filas con es_base fuera de rango." : '');
+
+    // Un ingrediente no puede ser crítico Y base al mismo tiempo
+    // (crítico define capacidad del POS; base es informativo sobre escalado de variante)
+    $critico_y_base = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM recetas WHERE es_insumo_critico = 1 AND es_base = 1");
+    t($G, "recetas: ningún ingrediente es crítico Y base a la vez",
+        $critico_y_base === 0,
+        $critico_y_base > 0 ? "{$critico_y_base} ingredientes con es_insumo_critico=1 y es_base=1 simultáneamente." : '',
+        $critico_y_base > 0);
+
+    // Todos los productos activos con variantes activas deben tener al menos un ingrediente no-base
+    // (de lo contrario, el factor de variante no afecta ningún ingrediente)
+    $prod_sin_escala = (int)scalar($pdo,
+        "SELECT COUNT(DISTINCT pv.producto_id)
+         FROM producto_variantes pv
+         WHERE pv.activo = 1
+           AND pv.factor_receta != 1.0
+           AND NOT EXISTS (
+               SELECT 1 FROM recetas r
+               WHERE r.producto_id = pv.producto_id AND r.es_base = 0
+           )" . ($tiene_pv ? '' : ' AND 1=0'));
+    t($G, "Productos con variante escalada (factor≠1) tienen al menos un ingrediente que escala",
+        $prod_sin_escala === 0,
+        $prod_sin_escala > 0 ? "{$prod_sin_escala} productos con factor≠1 pero todos los ingredientes son base." : '',
+        $prod_sin_escala > 0);
+}
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -1226,7 +1272,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    22 grupos
+    24 grupos
 </p>
 
 <!-- Resumen global -->

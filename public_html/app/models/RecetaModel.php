@@ -53,11 +53,24 @@ class RecetaModel
     /**
      * Retorna los ingredientes de un producto con costo por tanda y costo por sándwich.
      * costo_linea = costo por sándwich (cantidad_requerida × costo_actual ÷ unidades_por_receta)
+     * es_base = 1 significa que la cantidad es fija y no escala con factor_receta de variante (mig. 036)
      */
     public static function ingredientes_de(int $producto_id): array
     {
+        static $tiene036r = null;
+        if ($tiene036r === null) {
+            try {
+                $tiene036r = (int)db()->query(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recetas'
+                       AND COLUMN_NAME='es_base'"
+                )->fetchColumn() > 0;
+            } catch (\Exception $e) { $tiene036r = false; }
+        }
+        $colBase = $tiene036r ? 'r.es_base' : '0 AS es_base';
+
         $stmt = db()->prepare(
-            'SELECT r.cantidad_requerida, r.es_insumo_critico,
+            "SELECT r.cantidad_requerida, r.es_insumo_critico, {$colBase},
                     i.id AS insumo_id, i.nombre, i.unidad_medida, i.costo_actual,
                     ROUND(r.cantidad_requerida * i.costo_actual, 2) AS costo_batch,
                     ROUND(r.cantidad_requerida * i.costo_actual
@@ -67,7 +80,7 @@ class RecetaModel
              JOIN insumos   i ON i.id = r.insumo_id
              JOIN productos p ON p.id = r.producto_id
              WHERE r.producto_id = :pid
-             ORDER BY r.es_insumo_critico DESC, i.nombre'
+             ORDER BY r.es_insumo_critico DESC, i.nombre"
         );
         $stmt->execute([':pid' => $producto_id]);
         return $stmt->fetchAll();

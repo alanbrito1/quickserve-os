@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.30 — Memoria de Sesión
+# ClanDestino ERP v4.40 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -629,6 +629,7 @@ schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas,
 033_nomina_snapshots.sql               → ADD COLUMN nomina_liquidaciones.(valor_hora_snap, valor_proyecto_snap) — tarifa/hora y valor proyecto usados al liquidar
 034_snapshots_nombres_y_saldo.sql      → ADD COLUMN venta_detalles.(nombre_snap, nombre2_snap) | compra_detalles.(nombre_snap, unidad_snap) | produccion_lotes.(nombre_snap) | pagos_fiado.(saldo_anterior, saldo_posterior)
 035_variantes_producto.sql             → CREATE TABLE producto_variantes (id, producto_id, etiqueta, precio_venta, factor_receta, activo, created_by); ALTER venta_detalles ADD (variante_id, variante_etiqueta, factor_receta_snap). SIN FK (errno 121 cPanel)
+036_receta_ingrediente_base.sql        → ALTER TABLE recetas ADD COLUMN es_base TINYINT(1) DEFAULT 0 — ingredientes base no escalan con factor_receta de variante
 
 ### Política de snapshots (principio de inmutabilidad extendido)
 Además de los precios, TODOS estos datos se guardan como snapshot al momento de la transacción:
@@ -839,7 +840,7 @@ Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si 
 | Compras (panel pres.) | ✅ | Panel informativo de solo lectura al seleccionar insumo: badge tipo empaque + unidad básica + cant/empaque + badge verde equivalencia física + hint dinámico total físico. Snapshot de presentación se guarda en `compra_detalles` (mig. 032 + 034). `calcPres` eliminado — lógica simplificada. |
 | Historial ventas | ✅ | Acepta `?cliente_id=X` para filtrar por cliente; banner verde con nombre del cliente y saldo pendiente; preserva filtro al cambiar fechas |
 | Reporte Precios | ✅ | **6 tabs**: Insumos (con columnas de empaque), Productos, Nómina (con tarifa/hora snap), Costos Fijos, **Activos** (historial logs_historial), **Fiado/Abonos** (saldo antes/después) |
-| Tests | ✅ | Suite de pruebas en `/tests/suite.php` (solo superadmin) — **23 grupos, ~136 pruebas** (G01-G23: esquema, migraciones 026-035, precios, stock, fiado, obsequios, combos, clientes, produccion, activos, nomina, costos, FK, catalogos, configuracion, seguridad, auditoria, eficiencia, usuario UX, inmutabilidad profunda, ENUMs→VARCHAR, snapshots 032-034, **G23: variantes 035**) |
+| Tests | ✅ | Suite de pruebas en `/tests/suite.php` (solo superadmin) — **24 grupos, ~140 pruebas** (G01-G24: esquema, migraciones 026-036, precios, stock, fiado, obsequios, combos, clientes, produccion, activos, nomina, costos, FK, catalogos, configuracion, seguridad, auditoria, eficiencia, usuario UX, inmutabilidad profunda, ENUMs→VARCHAR, snapshots 032-034, **G23: variantes 035**, **G24: ingrediente base 036**) |
 
 ---
 
@@ -1016,8 +1017,37 @@ Todo subido a GitHub. Sin pendientes de código ni migraciones.
 - `ayuda/index.php`: sección "Variantes de tamaño" con fórmulas, flujo POS, tabla campos, nota inmutabilidad; badge v4.30; G23 en tabla de tests; `producto_variantes` en tabla de DB
 - `database/schema.sql`: tabla `producto_variantes`; columnas `variante_id/variante_etiqueta/factor_receta_snap` en `venta_detalles`; DROP TABLE añadido; contador 28 tablas; versión v4.30
 
+---
+
+## Estado v4.40 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `database/migrations/036_receta_ingrediente_base.sql` | ALTER TABLE recetas ADD COLUMN es_base TINYINT DEFAULT 0 |
+| `database/schema.sql` | Columna `es_base` en tabla `recetas`; versión v4.40 |
+| `public_html/app/models/RecetaModel.php` | `ingredientes_de()` detecta mig.036; devuelve `es_base` |
+| `public_html/app/models/VentaModel.php` | `crear()` y `anular()` detectan mig.036; aplican `factor=1.0` para ingredientes base |
+| `public_html/ventas/api/editar_venta.php` | Paso 2b (reversal) y stmtReceta detectan mig.036; factor=1.0 para ingredientes base |
+| `public_html/productos/api/guardar_receta.php` | Acepta `es_base` POST param; detecta mig.036; incluye en INSERT/UPDATE |
+| `public_html/productos/index.php` | Badge 🔒base, botón toggle `toggleBase()`, checkbox en form agregar |
+| `public_html/tests/suite.php` | G24: 4 pruebas para mig.036 (es_base existe, rango 0/1, no crítico+base, escalabilidad) |
+| `public_html/ayuda/index.php` | Sección "Ingrediente base — migración 036" con tabla, fórmula, limitaciones |
+| `public_html/app/config/app.php` | APP_VERSION → 4.40 |
+
+### Concepto clave: ingrediente base
+
+- `es_base = 0` (defecto): ingrediente escala con `factor_receta` de la variante. Ej: pollo → 150g × 1.5 = 225g para XL.
+- `es_base = 1`: ingrediente fijo, no escala. Ej: pan → siempre 1 unidad sin importar si es Regular o XL.
+- Aplica en `VentaModel::crear()`, `VentaModel::anular()`, y `editar_venta.php` paso 2b.
+- Backward-compatible: DEFAULT 0 → todas las recetas existentes se comportan igual que antes.
+
+### Limitación conocida (aceptada)
+Si `es_base` se cambia en una receta después de realizar ventas, la restauración de stock en ventas antiguas usará el valor actual, no el histórico (no hay snapshot de `es_base` en `venta_detalles`). Configurar antes de comenzar a vender.
+
 **Próxima sesión puede continuar desde:**
-- Roadmap v4.4: considerar "ingrediente base" para escalar receta por factor de peso/tamaño
 - Considerar: sugerencia de producción diaria basada en variante más vendida
+- Posible herramienta de consolidación: migrar "Pollo XL" + "Pollo Regular" (productos separados) → un solo "Pollo" con variantes
 
 *Última actualización: 2026-06-06 | v4.30 — variantes completo incluyendo docs, schema.sql y ayuda.*
