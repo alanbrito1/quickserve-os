@@ -959,9 +959,21 @@ Todo subido a GitHub. Sin pendientes de código ni migraciones.
 - `admin/api/usuario_crud.php`: bcrypt cost 12, email normalizado, no puede cambiar propio rol
 - `ventas/api/cambiar_estado.php`: transacción atómica + detección migración 034 correcta
 - `ventas/api/editar_venta.php`: detección migración 034 + reversa de stock completa
-- No se encontraron vulnerabilidades XSS ni SQL injection adicionales
+
+**✅ Auditoría XSS completada (sesión 2026-06-06 continuación):**
+- Escaneados los 82 archivos en busca de `<?= $var ?>` sin `htmlspecialchars()`
+- **17 echoes sin escapar corregidos** en 14 archivos: `lista_compras.php`, `compras.php`,
+  `operativo.php`, `reportes/compras.php`, `costos/index.php`, `reportes/costos.php`,
+  `reportes/precios.php`, `nomina/parametros.php`, `productos/index.php`, `productos/analisis.php`,
+  `reportes/ventas.php`, `ventas/historial.php`, `inventario/index.php`, `proveedores/index.php`,
+  `activos/index.php`
+- **Whitelist de modelo añadida** en `CostoIndirectoModel` (`tipo`, `frecuencia`) y
+  `NominaModel` (`tipo_contrato`) — campos que llegaban sin validar a la BD
+- `admin/api/lista_crud.php`: valor de catálogo validado con `/^[a-z0-9_]+$/` (solo alfanumérico)
+- `admin/backup.php`: path traversal prevention en ZIP upload, archivos config protegidos
+- `AuthHelper.php`: bcrypt, CSRF hash_equals, rate limiting, session httponly+samesite=Lax
 
 **Próxima sesión puede continuar desde:**
 - Roadmap v4.3: ingrediente base + variantes de producto
 
-*Última actualización: 2026-06-06 | v4.25 — auditoría exhaustiva completada; CompraModel::editar() fix 034.*
+*Última actualización: 2026-06-06 | v4.25 — auditoría XSS exhaustiva completada; whitelist tipo/frecuencia/tipo_contrato.*
