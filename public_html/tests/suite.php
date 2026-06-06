@@ -801,7 +801,7 @@ t($G, "logs_historial tiene registros",
 
 // Registros de auditoría en los últimos 30 días (indica actividad reciente del sistema)
 $logs_recientes = (int)scalar($pdo,
-    "SELECT COUNT(*) FROM logs_historial WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+    "SELECT COUNT(*) FROM logs_historial WHERE fecha_cambio >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
 t($G, "Hay registros de auditoria en los ultimos 30 dias",
     $logs_recientes > 0,
     "Sin actividad auditada en 30 dias. Normal si es instalacion nueva.",

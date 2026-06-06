@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.24'); // 2026-06-06: ajuste insumo sin cantidad + panel informativo presentación en compras
+define('APP_VERSION', '4.25'); // 2026-06-06: responsive global fix + bugs fecha_cambio + migr. 032-034 APLICADAS
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

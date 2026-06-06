@@ -196,7 +196,7 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
         .kpi-val.green { color:var(--green); }
 
         /* Secciones */
-        .section { background:var(--white); border:1px solid var(--g8); border-radius:14px; padding:20px; margin-bottom:20px; }
+        .section { background:var(--white); border:1px solid var(--g8); border-radius:14px; padding:20px; margin-bottom:20px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .section-title { font-size:15px; font-weight:700; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--g9); display:flex; justify-content:space-between; align-items:center; }
         .section-title span { font-size:12px; font-weight:400; color:var(--g5); }
 

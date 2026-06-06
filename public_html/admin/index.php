@@ -105,11 +105,11 @@ if (($_SESSION['usuario_rol'] ?? '') === 'superadmin') {
 $logs = [];
 try {
     $logs = db()->query(
-        "SELECT l.tabla, l.campo, l.valor_nuevo, l.accion, l.created_at,
+        "SELECT l.tabla, l.campo, l.valor_nuevo, l.accion, l.fecha_cambio,
                 u.nombre AS usuario_nombre
          FROM logs_historial l
          LEFT JOIN usuarios u ON u.id = l.usuario_id
-         ORDER BY l.created_at DESC
+         ORDER BY l.fecha_cambio DESC
          LIMIT 10"
     )->fetchAll();
 } catch (Exception $e) {}
@@ -318,7 +318,7 @@ try {
             <tbody>
             <?php foreach ($logs as $l): ?>
             <tr>
-                <td style="color:var(--g5)"><?= date('d/m H:i', strtotime($l['created_at'])) ?></td>
+                <td style="color:var(--g5)"><?= date('d/m H:i', strtotime($l['fecha_cambio'])) ?></td>
                 <td><code style="font-size:11px"><?= htmlspecialchars($l['tabla']) ?></code></td>
                 <td style="color:var(--g5)"><?= htmlspecialchars($l['campo'] ?? '') ?></td>
                 <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">

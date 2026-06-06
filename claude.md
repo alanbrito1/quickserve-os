@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.24 — Memoria de Sesión
+# ClanDestino ERP v4.25 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -593,7 +593,7 @@ Exportación: `?export=1` en la URL. Herramienta: `XlsxWriter.php` (ZipArchive, 
 ## 13. MIGRACIONES — ORDEN COMPLETO
 
 ```
-schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.24 (27 tablas, 9 triggers, seed data — todo en uno, sin migraciones)
+schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas, 9 triggers, seed data — todo en uno, sin migraciones)
 002_login_intentos.sql           → Rate limiting
 003_sprint2.sql                  → Nuevas columnas ventas/activos/nómina
 004_datos_reales.sql             → Datos reales del negocio
@@ -935,16 +935,21 @@ Uso: `<button class="btn-ajuste ic" title="..."><?= IC_EDIT ?></button>` — la 
 | `ventas/api/detalle_venta.php` | Mismo problema con nombre actual en vez de snapshot | COALESCE en SELECT de items del detalle |
 | `clientes/api/crud.php` | trim() sin re-validar nombre vacío (podría guardar ' ') | Validación explícita post-trim |
 
-### Estado al cierre de sesión 2026-06-06
+### Estado al cierre de sesión 2026-06-06 (v4.25)
 Todo subido a GitHub. Sin pendientes de código ni migraciones.
 
 **✅ Código y base de datos 100% sincronizados:**
-- Migraciones 032, 033, 034 confirmadas como ya aplicadas en producción (verificado con dump 2026-06-06)
-- `database/schema.sql` reescrito y sincronizado con la estructura real de producción (dump 2026-06-06)
-- Diferencias corregidas en schema.sql vs versión anterior: `logs_historial.fecha_cambio`, `empleados.usuario_id`, `registro_horas.aprobado`, `activos` sin `estado_vida`, `parametros_laborales` con `nombre`/`activo`/`orden`, `configuracion_negocio.categoria` como ENUM, y más
+- Migraciones 002-034 todas aplicadas en producción
+- `database/schema.sql` sincronizado con producción (dump 2026-06-06)
+
+**✅ Fixes aplicados en v4.25:**
+- `admin/index.php`: `logs_historial.created_at` → `logs_historial.fecha_cambio` (query + display)
+- `tests/suite.php`: `logs_historial.created_at` → `logs_historial.fecha_cambio` (G17 Auditoría)
+- `app/views/nav.php`: CSS global `html { overflow-x:hidden; max-width:100% }` y `box-sizing:border-box` — fix mobile overflow en todos los módulos
+- `productos/analisis.php`: `.section` con `overflow-x:auto` para tablas en análisis
+- `ayuda/index.php`: migraciones 032-034 corregidas de PENDIENTE → APLICADA; badge v4.25
 
 **Próxima sesión puede continuar desde:**
-- Phase 2 (ingrediente base + variantes) — deferred, roadmap v4.3
-- `ayuda/index.php` documentada con cambios v4.24 ✅
+- Roadmap v4.3: ingrediente base + variantes de producto
 
-*Última actualización: 2026-06-06 | v4.24 — schema.sql sincronizado con producción; todas las migraciones 002-034 aplicadas.*
+*Última actualización: 2026-06-06 | v4.25 — responsive fix global; bugs fecha_cambio corregidos; doc actualizada.*

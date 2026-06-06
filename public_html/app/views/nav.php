@@ -545,6 +545,17 @@ input, select, textarea,
 -->
 <style>
 /* ═══════════════════════════════════════════════════════════════════════
+   0. OVERFLOW GLOBAL — evita que cualquier elemento desborde el viewport
+   en horizontal. html usa overflow-x:hidden en lugar de body para no
+   interferir con position:fixed (modales, toasts, nav sticky).
+   ═══════════════════════════════════════════════════════════════════════ */
+html {
+    overflow-x: hidden;  /* ningún módulo puede ser más ancho que el viewport */
+    max-width: 100%;
+}
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ═══════════════════════════════════════════════════════════════════════
    1. VARIABLES GLOBALES DE ESPACIADO Y TAMAÑO
    ═══════════════════════════════════════════════════════════════════════ */
 :root {

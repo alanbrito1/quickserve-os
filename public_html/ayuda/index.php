@@ -286,7 +286,7 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">ClanDestino ERP — Visión General</div>
-                    <div class="section-badge">v4.24 · Colombia</div>
+                    <div class="section-badge">v4.25 · Colombia</div>
                 </div>
             </div>
             <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
@@ -1228,7 +1228,7 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
             <div class="sub-title">Secciones del módulo Admin</div>
             <table class="data-table">
                 <tr><th>Sección</th><th>Función</th></tr>
-                <tr><td>Resumen</td><td>Dashboard del sistema: usuarios activos, ventas hoy, últimos cambios. Incluye verificador de migraciones pendientes (032-034).</td></tr>
+                <tr><td>Resumen</td><td>Dashboard del sistema: usuarios activos, ventas hoy, últimos cambios en tiempo real.</td></tr>
                 <tr><td>Usuarios</td><td>Crear/editar usuarios, asignar rol y permisos por módulo (matriz interactiva)</td></tr>
                 <tr><td>Apariencia</td><td>Nombre del negocio, logo (upload), color brand, color dark, fuente, radio de bordes. Vista previa en tiempo real.</td></tr>
                 <tr><td>Catálogos</td><td>Gestionar opciones de dropdowns: presentaciones, unidades, categorías de insumo/producto/activo/costo/proveedor y tamaños</td></tr>
@@ -1429,17 +1429,17 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     </tr>
                     <tr>
                         <td><strong>032</strong></td>
-                        <td><span style="color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">PENDIENTE</span></td>
+                        <td><span style="color:#065f46;background:#d1fae5;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">APLICADA</span></td>
                         <td>Agrega 4 columnas snapshot de empaque a <code>compra_detalles</code>: <code>presentacion</code>, <code>cantidad_presentacion</code>, <code>cant_presentaciones</code>, <code>precio_presentacion</code>. Permite registrar "2 pacas a $29.000/paca" y no solo "24 unidades a $2.416/u".</td>
                     </tr>
                     <tr>
                         <td><strong>033</strong></td>
-                        <td><span style="color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">PENDIENTE</span></td>
+                        <td><span style="color:#065f46;background:#d1fae5;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">APLICADA</span></td>
                         <td>Agrega 2 columnas snapshot a <code>nomina_liquidaciones</code>: <code>valor_hora_snap</code> (tarifa/hora usada al liquidar) y <code>valor_proyecto_snap</code> (valor del proyecto para <code>por_servicio</code>). Permite auditar qué tarifa se usó aunque el empleado cambie de tarifa después.</td>
                     </tr>
                     <tr>
                         <td><strong>034</strong></td>
-                        <td><span style="color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">PENDIENTE</span></td>
+                        <td><span style="color:#065f46;background:#d1fae5;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">APLICADA</span></td>
                         <td>Agrega snapshots de <strong>nombres</strong> y <strong>contexto financiero</strong>: <code>venta_detalles.nombre_snap/nombre2_snap</code>, <code>compra_detalles.nombre_snap/unidad_snap</code>, <code>produccion_lotes.nombre_snap</code>, <code>pagos_fiado.saldo_anterior/saldo_posterior</code>.</td>
                     </tr>
                 </tbody>
