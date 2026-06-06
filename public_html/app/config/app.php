@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.23'); // 2026-06-04: autocomplete clientes POS + estado de cuenta + 8 fixes seguridad
+define('APP_VERSION', '4.24'); // 2026-06-06: ajuste insumo sin cantidad + panel informativo presentación en compras
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
