@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.50'); // 2026-06-06: v4.50 registrar abono / pago de fiado desde módulo clientes
+define('APP_VERSION', '4.51'); // 2026-06-06: v4.51 recordatorio de pago por WhatsApp desde clientes y dashboard
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

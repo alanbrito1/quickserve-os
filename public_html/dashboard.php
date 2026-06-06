@@ -652,11 +652,27 @@ $nivel_labels = [
                     <a href="<?= APP_BASE ?>/ventas/fiado.php">Ver todos</a>
                 </div>
                 <?php foreach ($alertas['fiados_pendientes'] as $cli): ?>
+                <?php
+                $tel_da  = preg_replace('/[^0-9]/', '', $cli['telefono'] ?? '');
+                $tel_wad = (strlen($tel_da) === 10 && str_starts_with($tel_da, '3')) ? '57'.$tel_da : $tel_da;
+                $sf_fmt  = '$' . number_format($cli['saldo_fiado'], 0, ',', '.');
+                $msg_wad = rawurlencode(
+                    "Hola {$cli['nombre']}, te recordamos que tienes un saldo pendiente de {$sf_fmt} en "
+                    . APP_NAME . ". ¿Cuándo podemos acordar el pago? ¡Gracias! 🙏"
+                );
+                ?>
                 <div class="alerta-item">
                     <div>
                         <div class="alerta-nom"><?= htmlspecialchars($cli['nombre']) ?></div>
                         <?php if (!empty($cli['telefono'])): ?>
-                        <div class="alerta-sub">📞 <?= htmlspecialchars($cli['telefono']) ?></div>
+                        <div class="alerta-sub">
+                            📞 <?= htmlspecialchars($cli['telefono']) ?>
+                            <?php if ($tel_wad): ?>
+                            &nbsp;<a href="https://wa.me/<?= $tel_wad ?>?text=<?= $msg_wad ?>"
+                                     target="_blank" rel="noopener noreferrer"
+                                     style="color:#25d366;font-weight:700;text-decoration:none;font-size:11px">WA ↗</a>
+                            <?php endif; ?>
+                        </div>
                         <?php endif; ?>
                     </div>
                     <div class="alerta-val">$<?= number_format($cli['saldo_fiado'],0,',','.') ?></div>

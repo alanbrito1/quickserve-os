@@ -375,8 +375,23 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
                        class="btn-acc ic" title="Ver historial de ventas"><?= IC_EYE ?></a>
                     <!-- Estado de cuenta: historial completo de cargos + abonos con saldo corriente -->
                     <a href="<?= APP_BASE ?>/clientes/estado_cuenta.php?id=<?= (int)$c['id'] ?>"
-                       class="btn-acc ic <?= (float)$c['saldo_fiado'] > 0 ? '' : '' ?>"
+                       class="btn-acc ic"
                        title="Estado de cuenta / Extracto"><?= IC_RECEIPT ?></a>
+                    <!-- WhatsApp recordatorio: visible para todos si tiene teléfono y deuda -->
+                    <?php if (!empty($c['telefono']) && (float)$c['saldo_fiado'] > 0): ?>
+                    <?php
+                    $tel_n  = preg_replace('/[^0-9]/', '', $c['telefono']);
+                    $tel_wa = (strlen($tel_n) === 10 && str_starts_with($tel_n, '3')) ? '57'.$tel_n : $tel_n;
+                    $s_fmt  = '$' . number_format((float)$c['saldo_fiado'], 0, ',', '.');
+                    $msg_wa = rawurlencode(
+                        "Hola {$c['nombre']}, te recordamos que tienes un saldo pendiente de {$s_fmt} en "
+                        . APP_NAME . ". ¿Cuándo podemos acordar el pago? ¡Gracias! 🙏"
+                    );
+                    ?>
+                    <a href="https://wa.me/<?= $tel_wa ?>?text=<?= $msg_wa ?>" target="_blank"
+                       rel="noopener noreferrer" class="btn-acc ic"
+                       title="Recordatorio de pago por WhatsApp" style="color:#25d366"><?= IC_WA ?></a>
+                    <?php endif; ?>
                 </td>
             </tr>
             <?php endforeach; ?>

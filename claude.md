@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.50 — Memoria de Sesión
+# ClanDestino ERP v4.51 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1301,3 +1301,25 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - **Auditoría**: `log_registrar('pagos_fiado', $abono_id, 'abono', ...)`.
 
 *Última actualización: 2026-06-06 | v4.50 — registro de abonos a fiado desde módulo clientes.*
+
+---
+
+## Estado v4.51 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/app/views/icons.php` | Nuevo `IC_WA` — burbuja de chat (Heroicons outline annotation) |
+| `public_html/clientes/index.php` | Botón verde `IC_WA` al final de la fila (visible a todos) si `telefono` + `saldo_fiado > 0`; genera URL `wa.me/57XXXXXXXXXX?text=...` con rawurlencode; mensaje pre-escrito con nombre, deuda y APP_NAME |
+| `public_html/dashboard.php` | Panel fiados pendientes: sub-línea del teléfono ahora incluye link "WA ↗" verde cuando el cliente tiene teléfono; mismo mensaje pre-escrito; genera URL en PHP con rawurlencode |
+| `public_html/app/config/app.php` | APP_VERSION → 4.51 |
+
+### Funcionalidad v4.51
+
+- **Botón WA en clientes**: ícono burbuja de chat verde en cada fila con `saldo_fiado > 0` y `telefono` registrado. Sin permiso especial (es solo un enlace externo). Abre WhatsApp con mensaje: _"Hola [nombre], te recordamos que tienes un saldo pendiente de $X en [negocio]. ¿Cuándo podemos acordar el pago? ¡Gracias! 🙏"_
+- **Link WA en dashboard**: el panel "Fiados pendientes" muestra "📞 [tel] · WA ↗" en verde para los clientes con teléfono; al hacer clic abre WhatsApp con el mismo mensaje pre-escrito.
+- **Normalización de teléfono**: si el número tiene 10 dígitos y empieza en `3` → prefijo `57` (Colombia). Cualquier otro número se usa tal cual.
+- Sin nueva API ni migración.
+
+*Última actualización: 2026-06-06 | v4.51 — recordatorio de pago por WhatsApp desde clientes y dashboard.*
