@@ -25,6 +25,7 @@
  *   G20  Inmutabilidad ext.  — nombres snapshot en ventas, compras, producción
  *   G21  Migración 031       — conversión ENUM → VARCHAR para catálogos
  *   G22  Snapshots 032-034   — coherencia de empaque, nómina, nombres y saldos
+ *   G23  Variantes 035       — tabla producto_variantes, columnas venta_detalles, coherencia
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1100,6 +1101,71 @@ if (columna_existe($pdo, 'nomina_liquidaciones', 'valor_hora_snap')) {
 } else {
     t($G, "Migración 033 aplicada (nomina_liquidaciones.valor_hora_snap)",
       false, "Aplicar 033_nomina_snapshots.sql", true);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+//  G23 — VARIANTES DE PRODUCTO (migración 035)
+//  Verifica la tabla producto_variantes y las columnas de variante en venta_detalles.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G23 Variantes 035';
+
+$tiene_pv = columna_existe($pdo, 'producto_variantes', 'id');
+t($G, "Tabla producto_variantes existe",
+    $tiene_pv, "Aplicar 035_variantes_producto.sql", !$tiene_pv);
+
+$tiene_vd_var = columna_existe($pdo, 'venta_detalles', 'variante_id');
+t($G, "venta_detalles.variante_id existe (mig.035)",
+    $tiene_vd_var, "Aplicar 035_variantes_producto.sql", !$tiene_vd_var);
+
+$tiene_vd_snap = columna_existe($pdo, 'venta_detalles', 'factor_receta_snap');
+t($G, "venta_detalles.factor_receta_snap existe (mig.035)",
+    $tiene_vd_snap, "Aplicar 035_variantes_producto.sql", !$tiene_vd_snap);
+
+if ($tiene_pv) {
+    // Factor de receta debe estar en rango válido (0.001 - 10)
+    $factor_invalido = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM producto_variantes WHERE factor_receta <= 0 OR factor_receta > 10");
+    t($G, "producto_variantes: factor_receta en rango válido (0.001–10)",
+        $factor_invalido === 0,
+        $factor_invalido > 0 ? "{$factor_invalido} variantes con factor fuera de rango." : '');
+
+    // Precio de venta debe ser positivo
+    $precio_invalido = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM producto_variantes WHERE precio_venta <= 0");
+    t($G, "producto_variantes: precio_venta siempre positivo",
+        $precio_invalido === 0,
+        $precio_invalido > 0 ? "{$precio_invalido} variantes con precio <= 0." : '');
+
+    // No deben existir etiquetas duplicadas activas para el mismo producto
+    $dup_etiquetas = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM (
+            SELECT producto_id, etiqueta, COUNT(*) AS cnt
+            FROM producto_variantes WHERE activo = 1
+            GROUP BY producto_id, etiqueta HAVING cnt > 1
+         ) AS dups");
+    t($G, "producto_variantes: sin etiquetas duplicadas activas por producto",
+        $dup_etiquetas === 0,
+        $dup_etiquetas > 0 ? "{$dup_etiquetas} combinaciones producto+etiqueta con duplicados activos." : '');
+}
+
+if ($tiene_vd_snap) {
+    // factor_receta_snap debe estar en rango válido cuando no es NULL
+    $snap_invalido = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM venta_detalles
+         WHERE factor_receta_snap IS NOT NULL
+           AND (factor_receta_snap <= 0 OR factor_receta_snap > 10)");
+    t($G, "venta_detalles: factor_receta_snap en rango válido cuando no es NULL",
+        $snap_invalido === 0,
+        $snap_invalido > 0 ? "{$snap_invalido} detalles con factor_receta_snap fuera de rango." : '');
+
+    // variante_id y variante_etiqueta deben aparecer juntos (si uno está, el otro también)
+    $var_inconsistente = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM venta_detalles
+         WHERE (variante_id IS NULL) != (variante_etiqueta IS NULL)");
+    t($G, "venta_detalles: variante_id y variante_etiqueta son coherentes (ambos NULL o ambos NOT NULL)",
+        $var_inconsistente === 0,
+        $var_inconsistente > 0 ? "{$var_inconsistente} detalles con variante_id/variante_etiqueta incoherentes." : '');
 }
 
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────

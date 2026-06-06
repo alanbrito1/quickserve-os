@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.25 — Memoria de Sesión
+# ClanDestino ERP v4.30 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -628,6 +628,7 @@ schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas,
 032_compra_detalles_presentacion.sql   → ADD COLUMN compra_detalles.(presentacion, cantidad_presentacion, cant_presentaciones, precio_presentacion) — snapshot del empaque al comprar
 033_nomina_snapshots.sql               → ADD COLUMN nomina_liquidaciones.(valor_hora_snap, valor_proyecto_snap) — tarifa/hora y valor proyecto usados al liquidar
 034_snapshots_nombres_y_saldo.sql      → ADD COLUMN venta_detalles.(nombre_snap, nombre2_snap) | compra_detalles.(nombre_snap, unidad_snap) | produccion_lotes.(nombre_snap) | pagos_fiado.(saldo_anterior, saldo_posterior)
+035_variantes_producto.sql             → CREATE TABLE producto_variantes (id, producto_id, etiqueta, precio_venta, factor_receta, activo, created_by); ALTER venta_detalles ADD (variante_id, variante_etiqueta, factor_receta_snap). SIN FK (errno 121 cPanel)
 
 ### Política de snapshots (principio de inmutabilidad extendido)
 Además de los precios, TODOS estos datos se guardan como snapshot al momento de la transacción:
@@ -821,7 +822,7 @@ Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si 
 - Estado visual: input+dropdown (buscando) → chip verde (seleccionado)
 - Cierra al hacer clic fuera del componente (event listener en document)
 | Dashboard | ✅ | Resumen del día + **panel de alertas**: insumos bajos, fiados pendientes, productos bajo mínimo |
-| Ventas / POS | ✅ | Fiado crea estado=pendiente_pago; historial con filtros; marcar pagado (transacción atómica); anular; selector solo/combo; fecha_venta; obsequio como método de pago |
+| Ventas / POS | ✅ | Fiado crea estado=pendiente_pago; historial con filtros; marcar pagado (transacción atómica); anular; selector solo/combo; fecha_venta; obsequio como método de pago; **selector de variante de tamaño** (mig.035) |
 | Inventario | ✅ | costo_actual trigger; modal editar/ajustar guarda presentación/costo **sin requerir cantidad de ajuste** (cantidad=0 omite llamada a ajustar_stock.php) |
 | Compras | ✅ | Filtros por fecha/lugar/ítem/categoría; editar/duplicar/eliminar compras; **panel informativo de presentación** al seleccionar insumo: muestra tipo de empaque, unidad básica, cant/empaque, equivalencia física y hint dinámico "= X unidades total" |
 | Proveedores | ✅ | CRUD, toggle |
@@ -830,13 +831,13 @@ Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si 
 | Nómina | ✅ | 4 contratos; pago correcto; aux proporcional; eliminar período funcional |
 | Activos | ✅ | Sortable, dep solo con fecha_inicio_uso, 30.41666 como divisor |
 | Costos | ✅ | Selector período, 8 KPIs consolidados |
-| Reportes | ✅ | 6 reportes: Ventas, Operativo, Nómina, Costos, Compras, **Variación de Precios** (nuevo); Operativo con Obsequios/Desechos |
+| Reportes | ✅ | 6 reportes: Ventas, Operativo, Nómina, Costos, Compras, **Variación de Precios** (nuevo); Operativo con Obsequios/Desechos; Ventas con tabla **Por Variante** (mig.035) |
 | Admin | ✅ | Usuarios, apariencia (2 logos + tipografía + theme_radius), backup BD + código ZIP, migraciones + updates de código, **Catálogos** (admin/listas.php — gestiona 6 listas configurables) |
 | Ayuda | ✅ | Documentación actualizada v4.13: obsequio, desechar, reportes obsequios/desechos |
 | Compras (panel pres.) | ✅ | Panel informativo de solo lectura al seleccionar insumo: badge tipo empaque + unidad básica + cant/empaque + badge verde equivalencia física + hint dinámico total físico. Snapshot de presentación se guarda en `compra_detalles` (mig. 032 + 034). `calcPres` eliminado — lógica simplificada. |
 | Historial ventas | ✅ | Acepta `?cliente_id=X` para filtrar por cliente; banner verde con nombre del cliente y saldo pendiente; preserva filtro al cambiar fechas |
 | Reporte Precios | ✅ | **6 tabs**: Insumos (con columnas de empaque), Productos, Nómina (con tarifa/hora snap), Costos Fijos, **Activos** (historial logs_historial), **Fiado/Abonos** (saldo antes/después) |
-| Tests | ✅ | Suite de pruebas en `/tests/suite.php` (solo superadmin) — **22 grupos, ~130 pruebas** (G01-G22: esquema, migraciones 026-034, precios, stock, fiado, obsequios, combos, clientes, produccion, activos, nomina, costos, FK, catalogos, configuracion, seguridad, auditoria, eficiencia, usuario UX, inmutabilidad profunda, ENUMs→VARCHAR, **G22: coherencia snapshots 032-034**) |
+| Tests | ✅ | Suite de pruebas en `/tests/suite.php` (solo superadmin) — **23 grupos, ~136 pruebas** (G01-G23: esquema, migraciones 026-035, precios, stock, fiado, obsequios, combos, clientes, produccion, activos, nomina, costos, FK, catalogos, configuracion, seguridad, auditoria, eficiencia, usuario UX, inmutabilidad profunda, ENUMs→VARCHAR, snapshots 032-034, **G23: variantes 035**) |
 
 ---
 
@@ -982,7 +983,36 @@ Todo subido a GitHub. Sin pendientes de código ni migraciones.
 - Fase 3 (Tests): suite verificada — 22 grupos, ~130 pruebas, cubre hasta mig. 034, sin gaps
 - Fase 4 (Ayuda): `ayuda/index.php` verificado — ya documenta todas las funciones incluyendo 032-034
 
-**Próxima sesión puede continuar desde:**
-- Roadmap v4.3: ingrediente base + variantes de producto
+---
 
-*Última actualización: 2026-06-06 | v4.25 — responsive audit completada; produccion.php fix; zip seguridad.*
+### Estado al cierre de sesión 2026-06-06 (v4.30)
+
+**✅ v4.3 Variantes de tamaño completada:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `database/migrations/035_variantes_producto.sql` | Nueva tabla `producto_variantes`; ALTER `venta_detalles` con `variante_id`, `variante_etiqueta`, `factor_receta_snap` |
+| `public_html/productos/api/variantes_crud.php` | CRUD completo: GET lista, POST guardar/eliminar/reactivar |
+| `public_html/app/models/VentaModel.php` | `crear()` detecta mig.035, descuenta insumos × `factor_receta`; `anular()` restaura con `COALESCE(factor_receta_snap, 1.0)` |
+| `public_html/productos/index.php` | Sección "Variantes" en fila expandida: CRUD inline, Promise.all para cargar en paralelo |
+| `public_html/ventas/index.php` | `VARIANTES` map PHP+JS; overlay `.variante-overlay` con picker de tamaño; `_agregarItem` acepta variante_id/etiq/factor; carrito key incluye variante |
+| `public_html/ventas/api/procesar_venta.php` | Valida `factor_receta` (0.001–10) por ítem |
+| `public_html/ventas/api/detalle_venta.php` | Detecta mig.035; incluye `variante_etiqueta` en SELECT |
+| `public_html/ventas/historial.php` | Badge azul `variante_etiqueta` en detalle expandido |
+| `public_html/reportes/ventas.php` | Query "ventas por variante"; card HTML + hoja Excel "Por Variante" (solo si hay datos) |
+| `public_html/tests/suite.php` | G23 (6 tests): tabla, columnas, factor rango, precio positivo, sin duplicados, coherencia NULL |
+| `public_html/app/config/app.php` | APP_VERSION → 4.30 |
+
+**Flujo en el POS:**
+1. Tocar producto con variantes → abre `.variante-overlay` con botones XL / Regular / Familiar
+2. Seleccionar variante → si también tiene combo, abre combo picker; si no, agrega al carrito
+3. Carrito muestra badge azul con la etiqueta de variante
+4. Al confirmar: `variante_id`, `variante_etiqueta`, `factor_receta` viajan en cada ítem del JSON
+5. `VentaModel::crear()` usa `factor_receta` para escalar el descuento de insumos
+
+**Próxima sesión puede continuar desde:**
+- `ayuda/index.php`: documentar v4.3 variantes
+- `database/schema.sql`: actualizar con migración 035
+- Considerar: "ingrediente base" (escalar receta por peso/tamaño del producto base)
+
+*Última actualización: 2026-06-06 | v4.30 — variantes de tamaño completo (mig.035 + picker POS + historial + reporte + tests).*

@@ -54,6 +54,36 @@ $fs_row = $from_stock_stats->fetch();
 $metodo_label = ['efectivo'=>'Efectivo','nequi'=>'Nequi','daviplata'=>'Daviplata',
                  'bancolombia'=>'Bancolombia','fiado'=>'Fiado','obsequio'=>'Obsequio'];
 
+// Ventas por variante (migración 035) — vacío si la migración no está aplicada.
+$ventas_variante = [];
+try {
+    $tiene035v = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='venta_detalles'
+           AND COLUMN_NAME='variante_etiqueta'"
+    )->fetchColumn() > 0;
+    if ($tiene035v) {
+        $stmt = db()->prepare(
+            "SELECT COALESCE(vd.nombre_snap, p.nombre) AS producto,
+                    vd.variante_etiqueta                AS variante,
+                    SUM(vd.cantidad)                    AS total_unidades,
+                    SUM(vd.subtotal)                    AS total_venta
+             FROM venta_detalles vd
+             JOIN ventas v    ON v.id = vd.venta_id
+             JOIN productos p ON p.id = vd.producto_id
+             WHERE DATE(v.fecha_venta) BETWEEN :desde AND :hasta
+               AND v.estado != 'anulada'
+               AND vd.variante_etiqueta IS NOT NULL
+             GROUP BY producto, vd.variante_etiqueta
+             ORDER BY producto, total_venta DESC"
+        );
+        $stmt->execute([':desde' => $desde, ':hasta' => $hasta]);
+        $ventas_variante = $stmt->fetchAll();
+    }
+} catch (\Exception $e) {
+    $ventas_variante = [];
+}
+
 // ── EXPORTAR EXCEL ──────────────────────────────────────────────────────────
 if (isset($_GET['export'])) {
     $w = new XlsxWriter();
@@ -120,6 +150,23 @@ if (isset($_GET['export'])) {
             (float)$p['margen_bruto'],
             (float)$p['margen_pct'],
         ]);
+    }
+
+    // ── Hoja 3: Por Variante (solo si hay datos de mig. 035) ───────────────
+    if (!empty($ventas_variante)) {
+        $w->setSheet('Por Variante');
+        $w->addRow(['ClanDestino ERP — Ventas por Variante de Tamaño'], true);
+        $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
+        $w->addEmptyRow();
+        $w->addRow(['Producto', 'Variante', 'Unidades', 'Total Venta'], true);
+        foreach ($ventas_variante as $row) {
+            $w->addRow([
+                $row['producto'],
+                $row['variante'],
+                (int)$row['total_unidades'],
+                (float)$row['total_venta'],
+            ]);
+        }
     }
 
     $w->download('ClanDestino_Ventas_' . $desde . '_' . $hasta . '.xlsx');
@@ -328,6 +375,33 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
             </tbody>
         </table>
     </div>
+
+    <?php if (!empty($ventas_variante)): ?>
+    <!-- Ventas por variante de tamaño (migración 035) -->
+    <div class="card">
+        <div class="card-title">Ventas por Variante de Tamaño</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Variante</th>
+                    <th class="r">Unidades</th>
+                    <th class="r">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($ventas_variante as $row): ?>
+                <tr>
+                    <td><?= htmlspecialchars($row['producto']) ?></td>
+                    <td><span class="badge" style="background:#dbeafe;color:#1e40af"><?= htmlspecialchars($row['variante']) ?></span></td>
+                    <td class="r"><?= (int)$row['total_unidades'] ?></td>
+                    <td class="r"><strong>$<?= number_format($row['total_venta'],0,',','.') ?></strong></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
 
 </main>
 </body>

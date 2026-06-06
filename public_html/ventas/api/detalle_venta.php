@@ -32,17 +32,29 @@ if (permiso_es_solo_propios('ventas') && (int)$venta['created_by'] !== (int)($_S
     exit;
 }
 
+// Detectar migración 035 (columna variante_etiqueta en venta_detalles)
+$tiene035 = false;
+try {
+    $tiene035 = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='venta_detalles'
+           AND COLUMN_NAME='variante_etiqueta'"
+    )->fetchColumn() > 0;
+} catch (\Exception $e) {}
+
+$colVariante = $tiene035 ? ', vd.variante_etiqueta' : ", NULL AS variante_etiqueta";
+
 // Obtener líneas de detalle con nombre_snap cuando existe (migración 034).
 // COALESCE garantiza retrocompatibilidad: si el snapshot no existe usa el nombre actual.
 $items = db()->prepare(
-    'SELECT COALESCE(vd.nombre_snap,  p.nombre)  AS nombre,
+    "SELECT COALESCE(vd.nombre_snap,  p.nombre)  AS nombre,
             COALESCE(vd.nombre2_snap, p.nombre2) AS nombre2,
             vd.cantidad, vd.precio_unitario, vd.subtotal,
-            vd.from_stock, vd.es_combo
+            vd.from_stock, vd.es_combo{$colVariante}
      FROM venta_detalles vd
      JOIN productos p ON p.id = vd.producto_id
      WHERE vd.venta_id = ?
-     ORDER BY nombre'
+     ORDER BY nombre"
 );
 $items->execute([$id]);
 

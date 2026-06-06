@@ -60,6 +60,29 @@ try {
     $combo_map = [];
 }
 
+// Cargar variantes de tamaño indexadas por producto_id para el POS.
+// Solo variantes activas. Si la migración 035 aún no está aplicada, queda vacío.
+$variantes_map = [];
+try {
+    $rows = db()->query(
+        'SELECT producto_id, id, etiqueta, precio_venta, factor_receta
+         FROM producto_variantes
+         WHERE activo = 1
+         ORDER BY producto_id, precio_venta ASC'
+    )->fetchAll();
+    foreach ($rows as $row) {
+        $pid = (int)$row['producto_id'];
+        $variantes_map[$pid][] = [
+            'id'            => (int)$row['id'],
+            'etiqueta'      => $row['etiqueta'],
+            'precio_venta'  => (float)$row['precio_venta'],
+            'factor_receta' => (float)$row['factor_receta'],
+        ];
+    }
+} catch (\Exception $e) {
+    $variantes_map = [];
+}
+
 // Agrupar productos por categoría para el grid
 $por_categoria = [];
 foreach ($productos as $p) {
@@ -668,6 +691,68 @@ $nav_activo = 'ventas';
             letter-spacing: .3px;
         }
 
+        /* Badge "VARIANTE" en el carrito */
+        .badge-variante {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 800;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 1px 5px;
+            border-radius: 20px;
+            vertical-align: middle;
+            margin-left: 4px;
+            letter-spacing: .3px;
+        }
+
+        /* ---- SELECTOR DE VARIANTE DE TAMAÑO ---- */
+        .variante-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.55);
+            z-index: 70;
+            align-items: flex-end;
+        }
+        .variante-overlay.active { display: flex; }
+        .variante-sheet {
+            background: var(--white);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            padding: 20px 18px max(24px, env(safe-area-inset-bottom));
+            animation: slideUp .18s ease-out;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .variante-sheet-title {
+            font-size: 15px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .variante-sheet-sub {
+            font-size: 12px;
+            color: var(--g5);
+            margin-bottom: 16px;
+        }
+        .variante-options { display: flex; flex-direction: column; gap: 10px; }
+        .variante-opt {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border: 2px solid var(--g8);
+            background: var(--white);
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: border-color .15s, background .15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .variante-opt:hover  { border-color: var(--brand); background: #fff5f4; }
+        .variante-opt-price  { font-size: 16px; font-weight: 800; color: var(--brand); }
+
         /* ---- TOAST ---- */
         .toast {
             position: fixed;
@@ -715,8 +800,14 @@ $nav_activo = 'ventas';
                 max-height: 88vh;
                 animation: fadeIn .2s ease-out;
             }
-            .combo-overlay { align-items: center !important; padding: 20px; }
+            .combo-overlay, .variante-overlay { align-items: center !important; padding: 20px; }
             .combo-sheet {
+                border-radius: 16px !important;
+                max-width: 420px;
+                margin: 0 auto;
+                animation: fadeIn .18s ease-out;
+            }
+            .variante-sheet {
                 border-radius: 16px !important;
                 max-width: 420px;
                 margin: 0 auto;
@@ -731,7 +822,7 @@ $nav_activo = 'ventas';
             .prod-nombre { font-size: 14px; }
             .prod-precio { font-size: 17px; }
             /* Modales centrados en escritorio */
-            .overlay, .combo-overlay {
+            .overlay, .combo-overlay, .variante-overlay {
                 align-items: center !important;
                 padding: 24px;
             }
@@ -741,6 +832,11 @@ $nav_activo = 'ventas';
                 max-height: 86vh;
             }
             .combo-sheet {
+                border-radius: 16px !important;
+                max-width: 440px;
+                margin: 0 auto;
+            }
+            .variante-sheet {
                 border-radius: 16px !important;
                 max-width: 440px;
                 margin: 0 auto;
@@ -920,6 +1016,18 @@ $nav_activo = 'ventas';
     </div>
 </div>
 
+<!-- ══ MINI SHEET: SELECCIONAR VARIANTE DE TAMAÑO ════════════════════════ -->
+<!-- Se muestra al tocar un producto que tiene variantes configuradas (migración 035) -->
+<div class="variante-overlay" id="variante-overlay" onclick="if(event.target===this)cerrarVariante()">
+    <div class="variante-sheet">
+        <div class="variante-sheet-title" id="variante-titulo">Elige el tamaño</div>
+        <div class="variante-sheet-sub"   id="variante-sub">Selecciona una opción</div>
+        <div class="variante-options"     id="variante-options">
+            <!-- Botones generados por JS según las variantes del producto -->
+        </div>
+    </div>
+</div>
+
 <!-- ---- BARRA STICKY: COBRAR ---- -->
 <div class="cobrar-bar" id="cobrar-bar">
     <div class="cobrar-info">
@@ -1061,10 +1169,11 @@ $nav_activo = 'ventas';
 <script>
 // Mapa de combos precargado desde PHP.
 // Clave: producto_id (número), valor: {combo_id, precio_adicional, nombre, insumos:[...]}
-const COMBOS = <?= json_encode($combo_map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
+const COMBOS    = <?= json_encode($combo_map,    JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
+const VARIANTES = <?= json_encode($variantes_map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
 
 // ---- Estado del carrito ----
-// Clave: `${producto_id}-${es_combo}` — permite el mismo producto como solo Y combo
+// Clave: `${producto_id}-${es_combo}-${variante_id|'solo'}` — permite mismo producto en distintas variantes
 let carrito             = {};
 let metodoPago          = 'efectivo';
 let clienteSeleccionado = '';
@@ -1267,9 +1376,9 @@ function acReset() {
     if (wrap) wrap.style.display = '';
 }
 
-// Estado del selector de combo
-// nombre2 se almacena aquí para mostrarlo en el carrito y en el resumen de confirmación
-let _comboActual = null; // { id, nombre, nombre2, precio, capacidad }
+// Estado del selector de combo y de variante
+let _comboActual    = null; // { id, nombre, nombre2, precio, capacidad, varianteId?, varianteEtiq?, factorReceta? }
+let _varianteActual = null; // { id, nombre, nombre2, precio_base, capacidad }
 
 // ---- CARRITO ----
 
@@ -1280,6 +1389,13 @@ function agregarAlCarrito(id, nombre, precio, capacidad, nombre2 = '') {
         return;
     }
 
+    // Si el producto tiene variantes de tamaño → mostrar selector de variante primero
+    if (VARIANTES[id] && VARIANTES[id].length > 0) {
+        _varianteActual = { id, nombre, nombre2, precio_base: precio, capacidad };
+        abrirVariante(id, nombre);
+        return;
+    }
+
     // Si el producto tiene combo configurado → mostrar selector Solo/Combo
     if (COMBOS[id]) {
         _comboActual = { id, nombre, nombre2, precio, capacidad };
@@ -1287,8 +1403,8 @@ function agregarAlCarrito(id, nombre, precio, capacidad, nombre2 = '') {
         return;
     }
 
-    // Producto sin combo → agregar directamente como Solo
-    _agregarItem(id, nombre, nombre2, precio, capacidad, 0);
+    // Producto sin variantes ni combo → agregar directamente
+    _agregarItem(id, nombre, nombre2, precio, capacidad, 0, null, null, 1.0);
 }
 
 /**
@@ -1322,30 +1438,88 @@ function cerrarCombo() {
  */
 function elegirOpcionCombo(esCombo) {
     if (!_comboActual) return;
-    const { id, nombre, nombre2, precio, capacidad } = _comboActual;
+    const { id, nombre, nombre2, precio, capacidad,
+            varianteId = null, varianteEtiq = null, factorReceta = 1.0 } = _comboActual;
     const precioFinal = esCombo
         ? precio + (COMBOS[id]?.precio_adicional || 0)
         : precio;
 
     cerrarCombo();
-    _agregarItem(id, nombre, nombre2 || '', precioFinal, capacidad, esCombo);
+    _agregarItem(id, nombre, nombre2 || '', precioFinal, capacidad, esCombo,
+                 varianteId, varianteEtiq, factorReceta);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  VARIANTES DE TAMAÑO (migración 035)
+// ════════════════════════════════════════════════════════════════════════
+
+function abrirVariante(id, nombre) {
+    const variantes = VARIANTES[id] || [];
+    document.getElementById('variante-titulo').textContent = nombre;
+    document.getElementById('variante-sub').textContent    = 'Elige el tamaño';
+
+    const html = variantes.map(v =>
+        `<button class="variante-opt"
+                 onclick="seleccionarVariante(${id}, ${v.id}, ${JSON.stringify(v.etiqueta)}, ${v.precio_venta}, ${v.factor_receta})">
+             <span>${escHtml(v.etiqueta)}</span>
+             <span class="variante-opt-price">${formatPeso(v.precio_venta)}</span>
+         </button>`
+    ).join('');
+
+    document.getElementById('variante-options').innerHTML = html;
+    document.getElementById('variante-overlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function cerrarVariante() {
+    document.getElementById('variante-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+    _varianteActual = null;
+}
+
+function seleccionarVariante(prodId, varId, etiqueta, precio, factor) {
+    const actual = _varianteActual; // capturar antes de cerrar (que lo pone en null)
+    document.getElementById('variante-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+    _varianteActual = null;
+    if (!actual) return;
+
+    const { nombre, nombre2, capacidad } = actual;
+
+    // Si el producto también tiene combo → abrir selector combo con el precio de la variante
+    if (COMBOS[prodId]) {
+        _comboActual = { id: prodId, nombre, nombre2, precio, capacidad,
+                         varianteId: varId, varianteEtiq: etiqueta, factorReceta: factor };
+        mostrarSelectorCombo(prodId, `${nombre} (${etiqueta})`, precio);
+        return;
+    }
+
+    _agregarItem(prodId, nombre, nombre2, precio, capacidad, 0, varId, etiqueta, factor);
 }
 
 /**
  * Agrega o incrementa un ítem en el carrito.
- * @param {number} id        producto_id
- * @param {string} nombre    nombre principal del producto
- * @param {string} nombre2   subtítulo complementario (puede ser '')
- * @param {number} precio    precio ya resuelto (con o sin adicional del combo)
+ * @param {number} id             producto_id
+ * @param {string} nombre         nombre principal del producto
+ * @param {string} nombre2        subtítulo complementario (puede ser '')
+ * @param {number} precio         precio ya resuelto (precio de variante o base)
  * @param {number} capacidad
- * @param {number} esCombo   0 = solo, 1 = combo
+ * @param {number} esCombo        0 = solo, 1 = combo
+ * @param {number|null} varianteId
+ * @param {string|null} varianteEtiq
+ * @param {number} factorReceta
  */
-function _agregarItem(id, nombre, nombre2, precio, capacidad, esCombo) {
-    // Clave única por producto + modo para permitir ambos en el mismo ticket
-    const key = id + '-' + esCombo;
+function _agregarItem(id, nombre, nombre2, precio, capacidad, esCombo,
+                      varianteId = null, varianteEtiq = null, factorReceta = 1.0) {
+    // Clave única: producto + modo combo + variante → permite combinar XL solo + XL combo, etc.
+    const varKey = varianteId != null ? varianteId : 'solo';
+    const key    = id + '-' + esCombo + '-' + varKey;
     if (!carrito[key]) {
-        // nombre2 se guarda para mostrarlo en el resumen del carrito y en la confirmación
-        carrito[key] = { id, nombre, nombre2: nombre2 || '', precio, cantidad: 1, es_combo: esCombo };
+        carrito[key] = {
+            id, nombre, nombre2: nombre2 || '', precio, cantidad: 1, es_combo: esCombo,
+            variante_id: varianteId, variante_etiqueta: varianteEtiq,
+            factor_receta: factorReceta || 1.0,
+        };
     } else {
         carrito[key].cantidad++;
     }
@@ -1427,9 +1601,13 @@ function renderModalItems() {
     const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
     const html = items.map(item => {
-        const key        = item.id + '-' + item.es_combo;
+        const varKey     = item.variante_id != null ? item.variante_id : 'solo';
+        const key        = item.id + '-' + item.es_combo + '-' + varKey;
         const comboBadge = item.es_combo
             ? '<span class="badge-combo">COMBO</span>'
+            : '';
+        const varBadge   = item.variante_etiqueta
+            ? `<span class="badge-variante">${escHtml(item.variante_etiqueta)}</span>`
             : '';
         // nombre2 se muestra como subtítulo gris debajo del nombre principal
         const sub2 = item.nombre2
@@ -1437,7 +1615,7 @@ function renderModalItems() {
             : '';
         return `
         <div class="cart-item">
-            <span class="cart-item-name">${escHtml(item.nombre)}${comboBadge}${sub2}</span>
+            <span class="cart-item-name">${escHtml(item.nombre)}${varBadge}${comboBadge}${sub2}</span>
             <span class="cart-item-qty">× ${item.cantidad}</span>
             <span class="cart-item-price">${formatPeso(item.precio * item.cantidad)}</span>
             <button class="cart-item-rm" onclick="quitarDelCarrito('${key}')" title="Quitar uno">−</button>
@@ -1538,12 +1716,15 @@ async function confirmarVenta() {
     btn.disabled = true;
     btn.textContent = 'Procesando…';
 
-    // Armar carrito para enviar: incluir es_combo por ítem (migración 025)
+    // Armar carrito para enviar: incluir es_combo (mig.025) y variante (mig.035) por ítem
     const carritoArray = Object.values(carrito).map(i => ({
-        producto_id: i.id,
-        cantidad:    i.cantidad,
-        precio:      i.precio,
-        es_combo:    i.es_combo || 0,
+        producto_id:       i.id,
+        cantidad:          i.cantidad,
+        precio:            i.precio,
+        es_combo:          i.es_combo || 0,
+        variante_id:       i.variante_id       ?? null,
+        variante_etiqueta: i.variante_etiqueta ?? null,
+        factor_receta:     i.factor_receta      ?? 1.0,
     }));
 
     const fd = new FormData();

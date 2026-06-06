@@ -20,8 +20,12 @@ class VentaModel
     /**
      * Registra una venta completa: cabecera + líneas + descuento de stock/insumos + fiado.
      *
-     * @param array       $carrito       [['producto_id','cantidad','precio','es_combo'], ...]
+     * @param array       $carrito       [['producto_id','cantidad','precio','es_combo',
+     *                                     'variante_id','variante_etiqueta','factor_receta'], ...]
      *                                   es_combo: 0 = solo, 1 = combo (default 0)
+     *                                   variante_id: INT|null — ID de producto_variantes
+     *                                   variante_etiqueta: string|null — snapshot de la etiqueta
+     *                                   factor_receta: float (default 1.0) — escala los insumos
      * @param string      $metodo_pago   efectivo|nequi|daviplata|bancolombia|fiado|obsequio
      * @param int|null    $cliente_id    Requerido si metodo_pago === 'fiado'
      * @param string      $notas
@@ -96,23 +100,37 @@ class VentaModel
                 } catch (\Exception $e) { $tiene034v = false; }
             }
 
-            // INSERT de línea de detalle: incluye nombre_snap si migración 034 está aplicada
+            // Detectar migración 035 (columnas variante_id / factor_receta_snap en venta_detalles)
+            static $tiene035v = null;
+            if ($tiene035v === null) {
+                try {
+                    $tiene035v = (int)$pdo->query(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS
+                         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='venta_detalles'
+                           AND COLUMN_NAME='variante_id'"
+                    )->fetchColumn() > 0;
+                } catch (\Exception $e) { $tiene035v = false; }
+            }
+
+            // INSERT de línea de detalle: columnas adicionales según migraciones aplicadas
+            $cols035 = $tiene035v ? ', variante_id, variante_etiqueta, factor_receta_snap' : '';
+            $vals035 = $tiene035v ? ', :varid, :varetiq, :varfact' : '';
             if ($tiene034v) {
                 $stmtDetalle = $pdo->prepare(
-                    'INSERT INTO venta_detalles
+                    "INSERT INTO venta_detalles
                         (venta_id, producto_id, cantidad, precio_unitario, subtotal,
                          from_stock, es_combo, combo_id,
-                         nombre_snap, nombre2_snap,
+                         nombre_snap, nombre2_snap{$cols035},
                          created_by)
                      VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid,
-                             :nsnap, :n2snap, :uid)'
+                             :nsnap, :n2snap{$vals035}, :uid)"
                 );
             } else {
                 $stmtDetalle = $pdo->prepare(
-                    'INSERT INTO venta_detalles
+                    "INSERT INTO venta_detalles
                         (venta_id, producto_id, cantidad, precio_unitario, subtotal,
-                         from_stock, es_combo, combo_id, created_by)
-                     VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid, :uid)'
+                         from_stock, es_combo, combo_id{$cols035}, created_by)
+                     VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid{$vals035}, :uid)"
                 );
             }
 
@@ -158,10 +176,15 @@ class VentaModel
             );
 
             foreach ($carrito as $item) {
-                $pid      = (int)$item['producto_id'];
-                $cantidad = (int)$item['cantidad'];
-                $precio   = (float)$item['precio'];
-                $esCombo  = !empty($item['es_combo']) ? 1 : 0; // 1 = vendido como combo
+                $pid          = (int)$item['producto_id'];
+                $cantidad     = (int)$item['cantidad'];
+                $precio       = (float)$item['precio'];
+                $esCombo      = !empty($item['es_combo']) ? 1 : 0;
+                // Variante (migración 035) — null si no aplica o no está aplicada la migración
+                $varianteId   = isset($item['variante_id'])   ? (int)$item['variante_id']   : null;
+                $varianteEtiq = isset($item['variante_etiqueta']) ? (string)$item['variante_etiqueta'] : null;
+                // factor_receta: escala los insumos descontados en modo demanda
+                $factorReceta = max(0.001, (float)($item['factor_receta'] ?? 1.0));
 
                 // ── Lock y lectura del stock del sándwich ──────────────────────
                 $stmtProdInfo->execute([$pid]);
@@ -204,6 +227,12 @@ class VentaModel
                     $detalleParams[':nsnap']  = $nombreSnap;
                     $detalleParams[':n2snap'] = $nombre2Snap;
                 }
+                if ($tiene035v) {
+                    $detalleParams[':varid']   = $varianteId ?: null;
+                    $detalleParams[':varetiq'] = $varianteEtiq ?: null;
+                    // Solo guardamos el factor como snapshot si hay variante; sin variante = 1.0 (implícito)
+                    $detalleParams[':varfact'] = $varianteId ? round($factorReceta, 3) : null;
+                }
                 $stmtDetalle->execute($detalleParams);
 
                 // ── Descontar el sándwich ──────────────────────────────────────
@@ -216,9 +245,10 @@ class VentaModel
                 } else {
                     // Producción a demanda: descontar insumos directamente.
                     // cantidad_requerida está definida para toda la tanda; dividimos por rinde.
+                    // factor_receta escala las cantidades si es una variante de diferente tamaño.
                     $stmtReceta->execute([':pid' => $pid]);
                     foreach ($stmtReceta->fetchAll() as $ing) {
-                        $descuento = ((float)$ing['cantidad_requerida'] / $rinde) * $cantidad;
+                        $descuento = ((float)$ing['cantidad_requerida'] / $rinde) * $cantidad * $factorReceta;
 
                         $stmtDescuento->execute([
                             ':desc'  => $descuento,
@@ -332,10 +362,13 @@ class VentaModel
                 )->execute([(int)$row['total'], $uid, (int)$row['producto_id']]);
             }
 
-            // Líneas que descontaron insumos directamente → restaurar cada insumo del sándwich
+            // Líneas que descontaron insumos directamente → restaurar cada insumo del sándwich.
+            // Si hay variante (migración 035), incluir factor_receta para restaurar la cantidad
+            // correcta escalada. COALESCE garantiza factor 1.0 para ventas anteriores a migración.
             $ingLines = $pdo->prepare(
                 'SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
-                        GREATEST(p.unidades_por_receta, 1) AS rinde
+                        GREATEST(p.unidades_por_receta, 1) AS rinde,
+                        COALESCE(vd.factor_receta_snap, 1.0) AS factor_receta
                  FROM venta_detalles vd
                  JOIN recetas  r ON r.producto_id = vd.producto_id
                  JOIN productos p ON p.id = vd.producto_id
@@ -344,7 +377,8 @@ class VentaModel
             $ingLines->execute([$venta_id]);
             foreach ($ingLines->fetchAll() as $row) {
                 $devolucion = ((float)$row['cantidad_requerida'] / (int)$row['rinde'])
-                              * (int)$row['cantidad'];
+                              * (int)$row['cantidad']
+                              * (float)$row['factor_receta'];
                 $pdo->prepare(
                     'UPDATE insumos SET stock_actual = stock_actual + ?, updated_by = ? WHERE id = ?'
                 )->execute([$devolucion, $uid, (int)$row['insumo_id']]);

@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.25'); // 2026-06-06: responsive global fix + bugs fecha_cambio + migr. 032-034 APLICADAS
+define('APP_VERSION', '4.30'); // 2026-06-06: v4.3 variantes de tamaño — migración 035, picker POS, reporte, tests G23
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

@@ -569,9 +569,10 @@ async function toggleDet(id){
             h+='<tr style="color:var(--g5);font-size:11px"><th style="text-align:left;padding:3px 8px">Producto</th><th style="padding:3px 8px">Cant.</th><th style="text-align:right;padding:3px 8px">Precio</th><th style="text-align:right;padding:3px 8px">Subtotal</th></tr>';
             d.items.forEach(function(i){
                 var comboTag=i.es_combo?'<span class="badge badge-combo-item">combo</span>':'';
+                var varTag=i.variante_etiqueta?'<span class="badge" style="background:#dbeafe;color:#1e40af;margin-left:4px;font-size:9px">'+esc(i.variante_etiqueta)+'</span>':'';
                 // nombre2 se muestra como subtítulo gris debajo del nombre del producto
                 var sub2=i.nombre2?'<div style="font-size:10px;color:var(--g5)">'+esc(i.nombre2)+'</div>':'';
-                h+='<tr style="border-top:1px solid #f3f4f6"><td style="padding:4px 8px">'+esc(i.nombre)+comboTag+sub2+'</td>';
+                h+='<tr style="border-top:1px solid #f3f4f6"><td style="padding:4px 8px">'+esc(i.nombre)+varTag+comboTag+sub2+'</td>';
                 h+='<td style="text-align:center;padding:4px 8px">'+i.cantidad+'</td>';
                 h+='<td style="text-align:right;padding:4px 8px">$'+fmt(i.precio_unitario)+'</td>';
                 h+='<td style="text-align:right;padding:4px 8px;font-weight:700">$'+fmt(i.subtotal)+'</td></tr>';

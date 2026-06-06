@@ -544,19 +544,22 @@ async function toggleReceta(id, precio, rinde) {
     if (expBtn) expBtn.textContent = row.classList.contains('open') ? '▴' : '▾';
     if (!row.classList.contains('open') || cache[id]) return;
 
-    // Carga ingredientes y combo en paralelo para no bloquear la UI
-    const [r1, r2] = await Promise.all([
+    // Carga ingredientes, combo y variantes en paralelo para no bloquear la UI
+    const [r1, r2, r3] = await Promise.all([
         fetch('api/ingredientes.php?producto_id=' + id),
         fetch('api/combo_crud.php?producto_id=' + id).catch(() => null),
+        fetch('api/variantes_crud.php?producto_id=' + id).catch(() => null),
     ]);
-    const ings  = await r1.json();
-    const combo = r2 ? await r2.json().catch(() => null) : null;
+    const ings      = await r1.json();
+    const combo     = r2 ? await r2.json().catch(() => null) : null;
+    const varData   = r3 ? await r3.json().catch(() => null) : null;
+    const variantes = varData?.variantes ?? [];
     cache[id] = true;
 
-    renderReceta(id, ings, precio, rinde || 1, combo);
+    renderReceta(id, ings, precio, rinde || 1, combo, variantes);
 }
 
-function renderReceta(id, ings, precio, rinde, combo) {
+function renderReceta(id, ings, precio, rinde, combo, variantes) {
     rinde = parseInt(rinde) || 1;
     let totalIng = 0;
     const puedEdt = <?= permiso_tiene('productos','editar_existentes') ? 'true' : 'false' ?>;
@@ -618,9 +621,9 @@ function renderReceta(id, ings, precio, rinde, combo) {
         `<option value="${i.insumo_id}" data-cant="${i.cantidad_requerida}">${esc(i.nombre)} (${esc(i.unidad_medida)})</option>`
     ).join('');
 
-    // ── Sección de combo ──────────────────────────────────────────────────────
-    // Construye el HTML de la sección de combo. Solo visible si el usuario tiene permiso de editar.
-    const comboSection = puedEdt ? buildComboSection(id, precio, combo) : '';
+    // ── Secciones de combo y variantes ──────────────────────────────────────
+    const comboSection     = puedEdt ? buildComboSection(id, precio, combo) : '';
+    const variantesSection = puedEdt ? buildVariantesSection(id, variantes || []) : '';
 
     document.getElementById('rc-' + id).innerHTML = `
         <div class="rcp-grid">
@@ -661,6 +664,7 @@ function renderReceta(id, ings, precio, rinde, combo) {
                 </div>
             </div>
         </div>
+        ${variantesSection}
         ${comboSection}`;
 
     // Inicializar calculadora con 1 unidad
@@ -803,6 +807,172 @@ function buildComboSection(prodId, precioProd, combo) {
             </button>` : ''}
         </div>
     </div>`;
+}
+
+// ── Variantes de tamaño: renderizar sección ───────────────────────────────────
+
+/**
+ * Construye el HTML de la sección "Variantes de Tamaño" dentro del expandable.
+ * @param {number}   prodId    ID del producto
+ * @param {Array}    variantes Array de objetos {id, etiqueta, precio_venta, factor_receta, activo}
+ */
+function buildVariantesSection(prodId, variantes) {
+    const activas    = variantes.filter(v => v.activo == 1);
+    const inactivas  = variantes.filter(v => v.activo != 1);
+    const countBadge = activas.length > 0
+        ? `<span style="background:#dbeafe;color:#1e40af;font-size:10px;font-weight:600;padding:1px 7px;border-radius:20px;margin-left:6px">${activas.length} activa${activas.length !== 1 ? 's' : ''}</span>`
+        : `<span style="font-size:10px;color:var(--g5);margin-left:8px">Sin variantes</span>`;
+
+    const rows = variantes.map(v => {
+        const esActiva = v.activo == 1;
+        return `<tr id="var-row-${prodId}-${v.id}" style="${!esActiva ? 'opacity:.5' : ''}">
+            <td id="var-etiq-${prodId}-${v.id}" contenteditable="${esActiva}" spellcheck="false"
+                style="font-weight:600;cursor:${esActiva?'text':'default'}">${esc(v.etiqueta)}</td>
+            <td>
+                <input type="number" id="var-precio-${prodId}-${v.id}" value="${v.precio_venta}"
+                       min="1" step="500" ${!esActiva ? 'disabled' : ''}
+                       style="width:90px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px">
+            </td>
+            <td>
+                <input type="number" id="var-factor-${prodId}-${v.id}" value="${parseFloat(v.factor_receta).toFixed(3)}"
+                       min="0.001" max="10" step="0.1" ${!esActiva ? 'disabled' : ''}
+                       style="width:70px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px">
+                <span style="font-size:10px;color:var(--g5)">× receta</span>
+            </td>
+            <td style="display:flex;gap:4px;align-items:center">
+                ${esActiva ? `
+                <button class="btn-sm btn-grn" onclick="guardarVariante(${prodId},${v.id})" title="Guardar cambios">&#10003;</button>
+                <button class="btn-sm btn-red" onclick="eliminarVariante(${prodId},${v.id})" title="Desactivar">✕</button>
+                ` : `
+                <button class="btn-sm" style="background:#fef3c7;color:#92400e" onclick="reactivarVariante(${prodId},${v.id})" title="Reactivar">↩</button>
+                `}
+            </td>
+        </tr>`;
+    }).join('');
+
+    return `
+    <div class="combo-sec" id="var-sec-${prodId}">
+        <p class="combo-sec-title">Variantes de Tamaño ${countBadge}</p>
+        <p style="font-size:12px;color:var(--g5);margin-bottom:10px">
+            En el POS, si un producto tiene variantes activas, el cajero debe elegir una antes de añadir al carrito.
+            El precio de la variante reemplaza al precio base. El factor escala las cantidades de la receta
+            (ej: XL con factor 1.5 descuenta 1.5× los insumos en modo demanda).
+        </p>
+
+        ${variantes.length > 0 ? `
+        <div style="overflow-x:auto;margin-bottom:10px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead>
+                    <tr style="background:var(--g9)">
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--g5)">Etiqueta</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--g5)">Precio</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--g5)">Factor receta</th>
+                        <th style="padding:6px 8px"></th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>` : ''}
+
+        <!-- Formulario para nueva variante -->
+        <div class="combo-form-row" style="margin-top:4px">
+            <div>
+                <label>Nueva variante</label>
+                <input type="text" id="var-new-etiq-${prodId}" placeholder="XL, Regular, Familiar…"
+                       maxlength="80" style="width:130px">
+            </div>
+            <div>
+                <label>Precio ($)</label>
+                <input type="number" id="var-new-precio-${prodId}" placeholder="18000" min="1" step="500" style="width:90px">
+            </div>
+            <div>
+                <label>Factor receta</label>
+                <input type="number" id="var-new-factor-${prodId}" value="1.000" min="0.001" max="10" step="0.1" style="width:70px">
+            </div>
+            <button class="btn-sm btn-grn" style="margin-top:16px" onclick="guardarVariante(${prodId},0)">
+                + Agregar
+            </button>
+        </div>
+        <p style="font-size:11px;color:var(--g5);margin-top:4px">Factor 1.0 = misma receta. 1.5 = 50% más insumos (tamaño XL). 0.7 = 30% menos (tamaño Mini).</p>
+    </div>`;
+}
+
+/** Crea o actualiza una variante. id=0 → crear nueva */
+async function guardarVariante(prodId, varId) {
+    let etiq, precio, factor;
+    if (varId === 0) {
+        etiq   = document.getElementById('var-new-etiq-' + prodId)?.value.trim();
+        precio = parseFloat(document.getElementById('var-new-precio-' + prodId)?.value);
+        factor = parseFloat(document.getElementById('var-new-factor-' + prodId)?.value);
+    } else {
+        etiq   = document.getElementById('var-etiq-' + prodId + '-' + varId)?.innerText.trim();
+        precio = parseFloat(document.getElementById('var-precio-' + prodId + '-' + varId)?.value);
+        factor = parseFloat(document.getElementById('var-factor-' + prodId + '-' + varId)?.value);
+    }
+
+    if (!etiq)              { toast('La etiqueta no puede estar vacía', 'err'); return; }
+    if (!precio || precio <= 0) { toast('El precio debe ser mayor que 0', 'err'); return; }
+    if (!factor || factor <= 0) { toast('Factor inválido', 'err'); return; }
+
+    const fd = new FormData();
+    fd.append('csrf_token',    csrf());
+    fd.append('accion',        'guardar');
+    fd.append('producto_id',   prodId);
+    fd.append('id',            varId);
+    fd.append('etiqueta',      etiq);
+    fd.append('precio_venta',  precio);
+    fd.append('factor_receta', factor);
+
+    const r = await fetch('api/variantes_crud.php', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+        toast(d.mensaje || 'Guardado', 'ok');
+        delete cache[prodId];
+        reloadVariantes(prodId);
+    } else {
+        toast(d.error || 'Error', 'err');
+    }
+}
+
+/** Desactiva una variante (soft-delete) */
+async function eliminarVariante(prodId, varId) {
+    if (!confirm('¿Desactivar esta variante?\nLas ventas históricas con esta variante no se verán afectadas.')) return;
+    const fd = new FormData();
+    fd.append('csrf_token',   csrf());
+    fd.append('accion',       'eliminar');
+    fd.append('producto_id',  prodId);
+    fd.append('id',           varId);
+    const r = await fetch('api/variantes_crud.php', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) { toast('Variante desactivada', 'ok'); delete cache[prodId]; reloadVariantes(prodId); }
+    else toast(d.error || 'Error', 'err');
+}
+
+/** Reactiva una variante desactivada */
+async function reactivarVariante(prodId, varId) {
+    const fd = new FormData();
+    fd.append('csrf_token',   csrf());
+    fd.append('accion',       'reactivar');
+    fd.append('producto_id',  prodId);
+    fd.append('id',           varId);
+    const r = await fetch('api/variantes_crud.php', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) { toast('Variante reactivada', 'ok'); delete cache[prodId]; reloadVariantes(prodId); }
+    else toast(d.error || 'Error', 'err');
+}
+
+/** Recarga solo la sección de variantes sin colapsar la fila */
+async function reloadVariantes(prodId) {
+    try {
+        const r  = await fetch('api/variantes_crud.php?producto_id=' + prodId);
+        const d  = await r.json();
+        const sec = document.getElementById('var-sec-' + prodId);
+        if (sec) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = buildVariantesSection(prodId, d.variantes || []);
+            sec.replaceWith(tmp.firstElementChild);
+        }
+    } catch (e) { /* silencioso */ }
 }
 
 /** Actualiza el precio total mostrado al cambiar el precio adicional */

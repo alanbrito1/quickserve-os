@@ -73,12 +73,15 @@ if (!is_array($carrito) || empty($carrito)) {
 }
 
 foreach ($carrito as $item) {
-    $qty      = (int)($item['cantidad']  ?? 0);
-    $price    = (float)($item['precio'] ?? 0);
-    $es_combo = (int)($item['es_combo'] ?? 0);
-    // Validar: producto_id presente, cantidad 1-9999, precio no negativo, es_combo 0 ó 1
+    $qty           = (int)($item['cantidad']  ?? 0);
+    $price         = (float)($item['precio'] ?? 0);
+    $es_combo      = (int)($item['es_combo'] ?? 0);
+    $factor_receta = (float)($item['factor_receta'] ?? 1.0);
+    // Validar: producto_id presente, cantidad 1-9999, precio no negativo, es_combo 0 ó 1,
+    //          factor_receta en rango razonable (mig. 035 — 1.0 para ítems sin variante)
     if (empty($item['producto_id']) || $qty <= 0 || $qty > 9999
-        || $price < 0 || !in_array($es_combo, [0, 1], true)) {
+        || $price < 0 || !in_array($es_combo, [0, 1], true)
+        || $factor_receta <= 0 || $factor_receta > 10) {
         echo json_encode(['success' => false, 'error' => 'Uno o más ítems del carrito son inválidos.']);
         exit;
     }
