@@ -593,7 +593,7 @@ Exportación: `?export=1` en la URL. Herramienta: `XlsxWriter.php` (ZipArchive, 
 ## 13. MIGRACIONES — ORDEN COMPLETO
 
 ```
-schema.sql                       → Base inicial (14 tablas, 7 triggers originales)
+schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.24 (27 tablas, 9 triggers, seed data — todo en uno, sin migraciones)
 002_login_intentos.sql           → Rate limiting
 003_sprint2.sql                  → Nuevas columnas ventas/activos/nómina
 004_datos_reales.sql             → Datos reales del negocio
@@ -887,7 +887,7 @@ configuracion_app → nav.php (inyecta CSS global a todas las páginas)
 
 ### Suite de pruebas de integridad (`tests/suite.php`)
 Ejecutar como superadmin en el navegador. Valida:
-- Esquema BD (26 tablas, columnas críticas, ENUM metodo_pago con 'obsequio')
+- Esquema BD (27 tablas, columnas críticas, ENUM metodo_pago con 'obsequio')
 - Inmutabilidad de precios históricos (venta_detalles, compra_detalles, produccion_lotes)
 - Consistencia de stock (no negativos, from_stock válido)
 - Consistencia saldo_fiado de clientes

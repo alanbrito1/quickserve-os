@@ -1,516 +1,831 @@
 -- ============================================================
--- ClanDestino ERP v4.0 — Schema SQL Completo
+-- ClanDestino ERP v4.24 — Esquema de instalación completo
 -- Compatible: MySQL 5.7+ / MariaDB 10.3+
--- Hosting compartido (cPanel / phpMyAdmin)
+-- Última actualización: 2026-06-06
 -- ============================================================
--- INSTRUCCIONES DE INSTALACIÓN:
---   1. Crear base de datos: clandestino_erp (charset: utf8mb4)
---   2. Ejecutar este script completo en phpMyAdmin > SQL
---   3. Cambiar la contraseña del superadmin EN PRIMER LOGIN
---   4. Verificar que las FK están activas: SELECT @@foreign_key_checks;
+-- INSTRUCCIONES DE INSTALACIÓN (instalación desde cero):
+--   1. Crear base de datos: CREATE DATABASE clandestinoERP
+--      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+--   2. Editar la línea "USE clandestinoERP;" con el nombre real de tu DB.
+--   3. Ejecutar este script completo en phpMyAdmin > SQL.
+--   4. Cambiar la contraseña del superadmin EN EL PRIMER LOGIN.
+--
+-- NOTA: Este script incluye TODAS las tablas, triggers y datos
+--       iniciales. No es necesario ejecutar las migraciones 002-034
+--       para una instalación nueva.
+--
+-- TABLAS (27): logs_historial, login_intentos, usuarios,
+--   permisos_modulos, configuracion_negocio, configuracion_app,
+--   listas_sistema, proveedores, insumos, productos, recetas,
+--   combo_configs, combo_insumos, clientes, ventas, venta_detalles,
+--   pagos_fiado, compras, compra_detalles, empleados, registro_horas,
+--   parametros_laborales, nomina_liquidaciones, activos,
+--   costos_indirectos, produccion_lotes, ajustes_stock
+--
+-- TRIGGERS (9):
+--   trg_config_negocio_audit, trg_insumos_costo_from_presentacion_insert,
+--   trg_insumos_costo_from_presentacion_update, trg_insumos_audit,
+--   trg_productos_audit, trg_ventas_audit, trg_empleados_audit,
+--   trg_activos_deprec_insert, trg_activos_deprec_update
 -- ============================================================
 
+USE `clandestinoERP`;
+
 SET NAMES utf8mb4;
-SET time_zone = '-05:00'; -- Colombia (UTC-5)
+SET time_zone = '-05:00';
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ============================================================
--- TABLA: logs_historial
--- Propósito: Auditoría centralizada de TODOS los cambios del sistema.
--- REGLA: Esta tabla NUNCA se trunca ni se borra. Solo consulta.
+-- DROP TABLES (orden inverso a FKs para evitar errores)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `logs_historial` (
-    `id`             BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    `tabla`          VARCHAR(64)      NOT NULL  COMMENT 'Nombre de la tabla afectada',
-    `registro_id`    BIGINT UNSIGNED  NOT NULL  COMMENT 'PK del registro modificado',
-    `campo`          VARCHAR(64)      NOT NULL  COMMENT 'Nombre del campo que cambió',
-    `valor_anterior` TEXT                       COMMENT 'Valor ANTES del cambio (NULL en INSERT)',
-    `valor_nuevo`    TEXT                       COMMENT 'Valor DESPUÉS del cambio (NULL en DELETE)',
-    `accion`         ENUM('INSERT','UPDATE','DELETE') NOT NULL,
-    `usuario_id`     INT UNSIGNED               COMMENT 'ID del usuario sesión activa',
-    `ip_address`     VARCHAR(45)                COMMENT 'IP del cliente (IPv4 o IPv6)',
-    `fecha_cambio`   DATETIME         NOT NULL  DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    -- Índices para búsquedas frecuentes de auditoría
-    INDEX `idx_tabla_registro` (`tabla`, `registro_id`),
-    INDEX `idx_usuario_fecha`  (`usuario_id`, `fecha_cambio`),
-    INDEX `idx_fecha`          (`fecha_cambio`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Auditoría completa de todos los cambios. NO BORRAR REGISTROS.';
+DROP TABLE IF EXISTS `ajustes_stock`;
+DROP TABLE IF EXISTS `produccion_lotes`;
+DROP TABLE IF EXISTS `costos_indirectos`;
+DROP TABLE IF EXISTS `activos`;
+DROP TABLE IF EXISTS `nomina_liquidaciones`;
+DROP TABLE IF EXISTS `parametros_laborales`;
+DROP TABLE IF EXISTS `registro_horas`;
+DROP TABLE IF EXISTS `empleados`;
+DROP TABLE IF EXISTS `compra_detalles`;
+DROP TABLE IF EXISTS `compras`;
+DROP TABLE IF EXISTS `pagos_fiado`;
+DROP TABLE IF EXISTS `venta_detalles`;
+DROP TABLE IF EXISTS `ventas`;
+DROP TABLE IF EXISTS `clientes`;
+DROP TABLE IF EXISTS `combo_insumos`;
+DROP TABLE IF EXISTS `combo_configs`;
+DROP TABLE IF EXISTS `recetas`;
+DROP TABLE IF EXISTS `productos`;
+DROP TABLE IF EXISTS `insumos`;
+DROP TABLE IF EXISTS `proveedores`;
+DROP TABLE IF EXISTS `listas_sistema`;
+DROP TABLE IF EXISTS `configuracion_app`;
+DROP TABLE IF EXISTS `configuracion_negocio`;
+DROP TABLE IF EXISTS `permisos_modulos`;
+DROP TABLE IF EXISTS `login_intentos`;
+DROP TABLE IF EXISTS `usuarios`;
+DROP TABLE IF EXISTS `logs_historial`;
+
+-- ============================================================
+-- TABLA: logs_historial
+-- Auditoría de cambios. NUNCA truncar ni borrar registros.
+-- ============================================================
+CREATE TABLE `logs_historial` (
+    `id`             BIGINT        AUTO_INCREMENT PRIMARY KEY,
+    `tabla`          VARCHAR(60)   NOT NULL,
+    `registro_id`    BIGINT        DEFAULT NULL,
+    `campo`          VARCHAR(100)  DEFAULT NULL,
+    `valor_anterior` TEXT          DEFAULT NULL,
+    `valor_nuevo`    TEXT          DEFAULT NULL,
+    `accion`         ENUM('INSERT','UPDATE','DELETE') NOT NULL DEFAULT 'UPDATE',
+    `usuario_id`     INT           DEFAULT NULL,
+    `ip_address`     VARCHAR(45)   DEFAULT NULL,
+    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_lh_tabla_reg`  (`tabla`, `registro_id`),
+    INDEX `idx_lh_usuario`    (`usuario_id`),
+    INDEX `idx_lh_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Auditoría completa. Trigger-based + manual PHP. NO BORRAR FILAS.';
+
+
+-- ============================================================
+-- TABLA: login_intentos
+-- Rate-limiting para protección contra fuerza bruta.
+-- ============================================================
+CREATE TABLE `login_intentos` (
+    `id`         INT          AUTO_INCREMENT PRIMARY KEY,
+    `email`      VARCHAR(200) NOT NULL,
+    `ip_address` VARCHAR(45)  NOT NULL,
+    `exitoso`    TINYINT(1)   NOT NULL DEFAULT 0,
+    `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_li_email_ip` (`email`, `ip_address`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: usuarios
--- Almacena los usuarios del sistema con su rol base.
--- Los permisos detallados por módulo están en permisos_modulos.
+-- Usuarios del sistema. Rol controla acceso a Admin.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `usuarios` (
-    `id`            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    `nombre`        VARCHAR(100)  NOT NULL,
-    `email`         VARCHAR(150)  NOT NULL UNIQUE,
-    -- bcrypt hash (cost 12 mínimo). NUNCA almacenar texto plano.
-    `password_hash` VARCHAR(255)  NOT NULL,
+CREATE TABLE `usuarios` (
+    `id`            INT          AUTO_INCREMENT PRIMARY KEY,
+    `nombre`        VARCHAR(150) NOT NULL,
+    `email`         VARCHAR(200) NOT NULL,
+    `password_hash` VARCHAR(255) NOT NULL,    -- bcrypt COST=12
     `rol`           ENUM('superadmin','admin','empleado') NOT NULL DEFAULT 'empleado',
-    `activo`        TINYINT(1)    NOT NULL DEFAULT 1,
-    `ultimo_login`  DATETIME          NULL,
-    -- Metadatos de auditoría
-    `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`    INT UNSIGNED      NULL COMMENT 'superadmin que creó este usuario',
-    `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`    INT UNSIGNED      NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_email`  (`email`),
-    INDEX `idx_rol`    (`rol`),
-    INDEX `idx_activo` (`activo`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Usuarios del sistema. Roles base; permisos finos en permisos_modulos.';
+    `activo`        TINYINT(1)   NOT NULL DEFAULT 1,
+    `ultimo_login`  DATETIME     DEFAULT NULL,
+    `created_by`    INT          DEFAULT NULL,
+    `updated_by`    INT          DEFAULT NULL,
+    `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: permisos_modulos
--- Una fila por combinación usuario+módulo.
--- El middleware PHP consulta esta tabla en CADA request.
+-- Permisos granulares por usuario y módulo.
+-- Niveles: sin_acceso → solo_ver → solo_propios
+--           → editar_existentes → admin_total
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `permisos_modulos` (
-    `id`            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    `usuario_id`    INT UNSIGNED  NOT NULL,
-    `modulo`        ENUM('ventas','compras','inventario','nomina','recetario','activos','reportes') NOT NULL,
-    -- Jerarquía: sin_acceso < solo_ver < solo_propios < editar_existentes < admin_total
-    `nivel_acceso`  ENUM('sin_acceso','solo_ver','solo_propios','editar_existentes','admin_total')
-                    NOT NULL DEFAULT 'sin_acceso',
-    `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`    INT UNSIGNED      NULL,
-    `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`    INT UNSIGNED      NULL,
-    PRIMARY KEY (`id`),
-    -- Un usuario solo puede tener UN nivel por módulo
+CREATE TABLE `permisos_modulos` (
+    `id`           INT AUTO_INCREMENT PRIMARY KEY,
+    `usuario_id`   INT NOT NULL,
+    `modulo`       ENUM('ventas','compras','inventario','nomina','productos',
+                        'activos','reportes','proveedores','costos') NOT NULL,
+    `nivel_acceso` ENUM('sin_acceso','solo_ver','solo_propios',
+                        'editar_existentes','admin_total') NOT NULL DEFAULT 'sin_acceso',
     UNIQUE KEY `uk_usuario_modulo` (`usuario_id`, `modulo`),
-    FOREIGN KEY (`usuario_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Permisos granulares por módulo. Consultado en cada request del middleware.';
+    CONSTRAINT `fk_pm_usuario` FOREIGN KEY (`usuario_id`)
+        REFERENCES `usuarios`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: configuracion_negocio
--- Parámetros maestros del negocio.
--- Se actualizan cada año (decreto salario mínimo) o cuando cambian costos.
--- TODOS los cambios quedan en logs_historial via trigger.
+-- Parámetros numéricos del negocio (costos, producción).
+-- Todos los cambios quedan en logs_historial via trigger.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `configuracion_negocio` (
-    `id`          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `clave`       VARCHAR(100)    NOT NULL UNIQUE COMMENT 'Identificador programático del parámetro',
-    `valor`       DECIMAL(15,4)   NOT NULL         COMMENT 'Valor numérico en pesos o porcentaje',
-    `descripcion` VARCHAR(255)    NOT NULL,
-    `categoria`   ENUM('nomina','costos','produccion','impuestos') NOT NULL,
-    `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`  INT UNSIGNED        NULL,
-    `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`  INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_categoria` (`categoria`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Parámetros maestros del negocio (salario mínimo, porcentajes prestacionales, etc.)';
+CREATE TABLE `configuracion_negocio` (
+    `id`          INT           AUTO_INCREMENT PRIMARY KEY,
+    `clave`       VARCHAR(100)  NOT NULL,
+    `valor`       DECIMAL(15,4) DEFAULT 0,
+    `descripcion` VARCHAR(300)  DEFAULT NULL,
+    `categoria`   VARCHAR(60)   DEFAULT NULL,
+    `updated_by`  INT           DEFAULT NULL,
+    `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_cn_clave` (`clave`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: configuracion_app
+-- Parámetros de texto: tema visual, logos, tipografía.
+-- Clave primaria por nombre de clave (key-value store).
+-- ============================================================
+CREATE TABLE `configuracion_app` (
+    `clave`       VARCHAR(100) NOT NULL,
+    `valor`       TEXT         DEFAULT NULL,
+    `updated_by`  INT          DEFAULT NULL,
+    `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`clave`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Configuración visual: tema, logos, tipografía, nombre del negocio.';
+
+
+-- ============================================================
+-- TABLA: listas_sistema
+-- Catálogos configurables desde Admin → Catálogos.
+-- Tipos: presentacion, unidad_medida, categoria_insumo,
+--        categoria_producto, tamano_producto, categoria_activo,
+--        categoria_costo, categoria_proveedor
+-- ============================================================
+CREATE TABLE `listas_sistema` (
+    `id`         INT          AUTO_INCREMENT PRIMARY KEY,
+    `tipo`       VARCHAR(60)  NOT NULL,
+    `valor`      VARCHAR(100) NOT NULL,    -- clave almacenada (inmutable)
+    `etiqueta`   VARCHAR(150) NOT NULL,    -- texto visible al usuario
+    `orden`      SMALLINT     NOT NULL DEFAULT 0,
+    `activo`     TINYINT(1)   NOT NULL DEFAULT 1,
+    `created_by` INT          DEFAULT NULL,
+    UNIQUE KEY `uk_lista_tipo_valor` (`tipo`, `valor`),
+    INDEX `idx_lista_tipo` (`tipo`, `activo`, `orden`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: proveedores
+-- Directorio de proveedores. FK en insumos, compras y activos.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `proveedores` (
-    `id`        INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    `nombre`    VARCHAR(150)  NOT NULL,
-    `contacto`  VARCHAR(100)      NULL,
-    `telefono`  VARCHAR(20)       NULL,
-    `notas`     TEXT              NULL,
-    `activo`    TINYINT(1)    NOT NULL DEFAULT 1,
-    `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by` INT UNSIGNED     NULL,
-    `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by` INT UNSIGNED     NULL,
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Proveedores de insumos.';
+CREATE TABLE `proveedores` (
+    `id`         INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre`     VARCHAR(200)  NOT NULL,
+    `categoria`  VARCHAR(60)   DEFAULT NULL,   -- listas_sistema tipo='categoria_proveedor'
+    `contacto`   VARCHAR(150)  DEFAULT NULL,
+    `telefono`   VARCHAR(30)   DEFAULT NULL,
+    `email`      VARCHAR(200)  DEFAULT NULL,
+    `sitio_web`  VARCHAR(300)  DEFAULT NULL,
+    `direccion`  VARCHAR(300)  DEFAULT NULL,
+    `notas`      TEXT          DEFAULT NULL,
+    `activo`     TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by` INT           DEFAULT NULL,
+    `updated_by` INT           DEFAULT NULL,
+    `created_at` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: insumos
--- Inventario maestro de materias primas.
--- costo_actual se actualiza con cada compra y dispara recálculo de recetas.
+-- Materia prima e ingredientes. costo_actual se calcula
+-- automáticamente via triggers desde precio_presentacion.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `insumos` (
-    `id`              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `nombre`          VARCHAR(150)    NOT NULL,
-    `unidad_medida`   ENUM('kg','g','litro','ml','unidad','loncha','lata','paquete') NOT NULL,
-    -- Precio por unidad de medida. Se actualiza al registrar compras.
-    `costo_actual`    DECIMAL(12,4)   NOT NULL DEFAULT 0,
-    `stock_actual`    DECIMAL(12,4)   NOT NULL DEFAULT 0 COMMENT 'En la unidad definida',
-    -- Nivel mínimo antes de aparecer en Lista de Compras Inteligente
-    `stock_seguridad` DECIMAL(12,4)   NOT NULL DEFAULT 0,
-    `proveedor_id`    INT UNSIGNED        NULL,
-    `activo`          TINYINT(1)      NOT NULL DEFAULT 1,
-    `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`      INT UNSIGNED        NULL,
-    `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`      INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_stock_bajo` (`stock_actual`, `stock_seguridad`), -- para lista de compras
-    FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores`(`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Inventario maestro de insumos. Cambios de costo disparan recálculo de productos.';
+CREATE TABLE `insumos` (
+    `id`                    INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre`                VARCHAR(200)  NOT NULL,
+    `categoria`             VARCHAR(60)   DEFAULT NULL,   -- listas_sistema tipo='categoria_insumo'
+    -- Unidad básica de medida (stock, recetas, compras)
+    `unidad_medida`         VARCHAR(20)   NOT NULL DEFAULT 'unidad', -- listas_sistema tipo='unidad_medida'
+    -- Equivalencia física (mig. 030): para unidades no-físicas (lata, loncha, paquete…)
+    `equiv_cantidad`        DECIMAL(10,4) DEFAULT NULL,   -- ej: 1 lata = 170 g → 170
+    `equiv_unidad`          VARCHAR(10)   DEFAULT NULL,   -- unidad física: g, kg, ml, litro
+    -- Presentación de compra (mig. 010)
+    `presentacion`          VARCHAR(30)   DEFAULT NULL,   -- listas_sistema tipo='presentacion'
+    `cantidad_presentacion` DECIMAL(12,4) DEFAULT NULL,   -- unidades básicas por presentación
+    `precio_presentacion`   DECIMAL(12,2) DEFAULT NULL,   -- precio de la presentación completa
+    -- Costo calculado = precio_presentacion / cantidad_presentacion (via trigger)
+    `costo_actual`          DECIMAL(12,4) NOT NULL DEFAULT 0,
+    -- Stock
+    `stock_actual`          DECIMAL(12,4) NOT NULL DEFAULT 0,
+    `stock_seguridad`       DECIMAL(12,4) NOT NULL DEFAULT 0,
+    -- Relaciones
+    `proveedor_id`          INT           DEFAULT NULL,
+    `notas`                 TEXT          DEFAULT NULL,
+    `activo`                TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`            INT           DEFAULT NULL,
+    `updated_by`            INT           DEFAULT NULL,
+    `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_ins_proveedor` FOREIGN KEY (`proveedor_id`)
+        REFERENCES `proveedores`(`id`) ON DELETE SET NULL,
+    INDEX `idx_ins_activo`  (`activo`),
+    INDEX `idx_ins_prov`    (`proveedor_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Inventario maestro. Cambios de costo disparan recálculo de productos.';
 
 
 -- ============================================================
 -- TABLA: productos
--- Catálogo de sándwiches y combos vendibles.
--- costo_calculado se recalcula automáticamente cuando cambia el costo de un insumo.
+-- Carta de sándwiches y combos. costo_calculado se recalcula
+-- automáticamente en CompraModel y RecetaModel.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `productos` (
-    `id`               INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `nombre`           VARCHAR(150)    NOT NULL,
-    `descripcion`      TEXT                NULL,
-    `categoria`        ENUM('sandwich','combo','bebida','adicional') NOT NULL DEFAULT 'sandwich',
-    `tamano`           ENUM('XL','L','unico') NOT NULL DEFAULT 'unico',
-    `precio_venta`     DECIMAL(10,2)   NOT NULL,
-    -- Se recalcula sumando (insumo.costo_actual × receta.cantidad_requerida) por cada ingrediente
-    `costo_calculado`  DECIMAL(10,4)       NULL COMMENT 'Suma del costo de ingredientes según receta',
-    `activo`           TINYINT(1)      NOT NULL DEFAULT 1,
-    `created_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`       INT UNSIGNED        NULL,
-    `updated_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`       INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_activo_categoria` (`activo`, `categoria`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Catálogo de productos. costo_calculado refleja el costo real de ingredientes.';
+CREATE TABLE `productos` (
+    `id`                  INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre`              VARCHAR(200)  NOT NULL,
+    `nombre2`             VARCHAR(120)  DEFAULT NULL,  -- subtítulo visual (mig. 027)
+    `descripcion`         TEXT          DEFAULT NULL,
+    `categoria`           VARCHAR(60)   NOT NULL DEFAULT 'sandwich',  -- listas_sistema tipo='categoria_producto'
+    `tamano`              VARCHAR(20)   NOT NULL DEFAULT 'unico',      -- listas_sistema tipo='tamano_producto'
+    `precio_venta`        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `costo_calculado`     DECIMAL(12,4) DEFAULT 0,    -- recalculado por RecetaModel
+    `unidades_por_receta` SMALLINT      UNSIGNED NOT NULL DEFAULT 1,  -- mig. 015: unidades que produce una receta
+    `stock_disponible`    INT           NOT NULL DEFAULT 0,           -- mig. 015: stock de producto terminado
+    `stock_minimo`        INT           NOT NULL DEFAULT 0,           -- mig. 015: nivel mínimo de alerta
+    `activo`              TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`          INT           DEFAULT NULL,
+    `updated_by`          INT           DEFAULT NULL,
+    `created_at`          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_prod_activo`  (`activo`),
+    INDEX `idx_prod_cat`     (`categoria`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: recetas
--- Ingredientes requeridos por producto con sus cantidades.
--- Es_insumo_critico determina qué insumo limita la capacidad de producción.
--- Fórmula: Capacidad = stock_actual / cantidad_requerida (para el insumo crítico)
+-- Ingredientes por producto. Determina costeo y capacidad de producción.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `recetas` (
-    `id`                  INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `producto_id`         INT UNSIGNED    NOT NULL,
-    `insumo_id`           INT UNSIGNED    NOT NULL,
-    -- Ejemplo: 0.0909 kg para pollo (90.9g = 1kg/11 unidades)
-    `cantidad_requerida`  DECIMAL(12,6)   NOT NULL COMMENT 'En la unidad de medida del insumo',
-    -- Solo 1 insumo crítico por producto (el que más restringe la producción)
-    `es_insumo_critico`   TINYINT(1)      NOT NULL DEFAULT 0,
-    `created_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`          INT UNSIGNED        NULL,
-    `updated_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`          INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_producto_insumo` (`producto_id`, `insumo_id`),
-    FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`insumo_id`)   REFERENCES `insumos`(`id`)   ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Recetario: ingredientes y cantidades por producto. Base del costeo dinámico.';
+CREATE TABLE `recetas` (
+    `id`                 INT           AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`        INT           NOT NULL,
+    `insumo_id`          INT           NOT NULL,
+    `cantidad_requerida` DECIMAL(12,4) NOT NULL,  -- cantidad por TANDA (÷ unidades_por_receta = por unidad)
+    `es_insumo_critico`  TINYINT(1)    NOT NULL DEFAULT 0,  -- define capacidad máxima del POS
+    `created_by`         INT           DEFAULT NULL,
+    `updated_by`         INT           DEFAULT NULL,
+    UNIQUE KEY `uk_receta_prod_ins` (`producto_id`, `insumo_id`),
+    CONSTRAINT `fk_rec_producto` FOREIGN KEY (`producto_id`)
+        REFERENCES `productos`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_rec_insumo` FOREIGN KEY (`insumo_id`)
+        REFERENCES `insumos`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: combo_configs (mig. 025)
+-- Configuración del "combo" opcional de un producto.
+-- Un producto puede tener máximo un combo.
+-- ============================================================
+CREATE TABLE `combo_configs` (
+    `id`               INT           AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`      INT           NOT NULL,
+    `nombre`           VARCHAR(100)  NOT NULL DEFAULT 'Combo',
+    `precio_adicional` DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `activo`           TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`       INT           DEFAULT NULL,
+    `created_at`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_combo_producto` (`producto_id`),
+    CONSTRAINT `fk_cc_producto` FOREIGN KEY (`producto_id`)
+        REFERENCES `productos`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: combo_insumos (mig. 025)
+-- Insumos extra que se descuentan al vender un combo.
+-- ============================================================
+CREATE TABLE `combo_insumos` (
+    `id`        INT           AUTO_INCREMENT PRIMARY KEY,
+    `combo_id`  INT           NOT NULL,
+    `insumo_id` INT           NOT NULL,
+    `cantidad`  DECIMAL(10,4) NOT NULL,
+    UNIQUE KEY `uk_combo_insumo` (`combo_id`, `insumo_id`),
+    CONSTRAINT `fk_ci_combo`  FOREIGN KEY (`combo_id`)
+        REFERENCES `combo_configs`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ci_insumo` FOREIGN KEY (`insumo_id`)
+        REFERENCES `insumos`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: clientes
--- Clientes registrados, necesario para gestión de fiado.
--- saldo_fiado se incrementa con ventas de tipo fiado y se decrementa con pagos.
+-- Clientes del negocio. saldo_fiado se actualiza en VentaModel.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `clientes` (
-    `id`           INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `nombre`       VARCHAR(150)    NOT NULL,
-    `telefono`     VARCHAR(20)         NULL,
-    -- Saldo positivo = cliente debe dinero. NUNCA puede ser negativo.
-    `saldo_fiado`  DECIMAL(12,2)   NOT NULL DEFAULT 0 COMMENT 'Deuda acumulada pendiente',
-    `activo`       TINYINT(1)      NOT NULL DEFAULT 1,
-    `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`   INT UNSIGNED        NULL,
-    `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`   INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_nombre` (`nombre`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Clientes. saldo_fiado lleva la cuenta de deudas pendientes.';
+CREATE TABLE `clientes` (
+    `id`          INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre`      VARCHAR(100)  NOT NULL,
+    `apellido`    VARCHAR(100)  DEFAULT NULL,   -- mig. 028
+    `empresa`     VARCHAR(150)  DEFAULT NULL,   -- mig. 028
+    `telefono`    VARCHAR(30)   DEFAULT NULL,
+    `saldo_fiado` DECIMAL(12,2) NOT NULL DEFAULT 0,  -- deuda acumulada pendiente
+    `activo`      TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`  INT           DEFAULT NULL,
+    `updated_by`  INT           DEFAULT NULL,
+    `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_cli_activo` (`activo`),
+    INDEX `idx_cli_fiado`  (`saldo_fiado`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: ventas
--- Encabezado de cada transacción del POS.
--- Cada INSERT dispara descuento de stock via la capa de aplicación PHP.
+-- Cabecera de cada transacción del POS.
+-- INVARIANTE: total y metodo_pago no cambian históricos de ingreso.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `ventas` (
-    `id`            BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
-    `fecha_venta`   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- NULL = cliente mostrador / anónimo
-    `cliente_id`    INT UNSIGNED          NULL,
-    `metodo_pago`   ENUM('efectivo','nequi','daviplata','bancolombia','fiado') NOT NULL,
-    `total`         DECIMAL(12,2)     NOT NULL DEFAULT 0,
-    `notas`         TEXT                  NULL,
-    -- completada=stock ya descontado; anulada=stock revertido; pendiente_pago=fiado sin cerrar
-    `estado`        ENUM('completada','anulada','pendiente_pago') NOT NULL DEFAULT 'completada',
-    `created_at`    DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`    INT UNSIGNED          NULL COMMENT 'Empleado que registró la venta',
-    `updated_at`    DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`    INT UNSIGNED          NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_fecha`       (`fecha_venta`),
-    INDEX `idx_metodo_pago` (`metodo_pago`),
-    INDEX `idx_estado`      (`estado`),
-    FOREIGN KEY (`cliente_id`) REFERENCES `clientes`(`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Encabezado POS. Anulaciones requieren permiso admin_total y revierten stock.';
+CREATE TABLE `ventas` (
+    `id`           BIGINT        AUTO_INCREMENT PRIMARY KEY,
+    `fecha_venta`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `cliente_id`   INT           DEFAULT NULL,  -- NULL = venta mostrador
+    `metodo_pago`  ENUM('efectivo','nequi','daviplata','bancolombia','fiado','obsequio') NOT NULL,
+    -- obsequio (mig. 026): NO genera ingreso, solo descuenta stock
+    `total`        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `estado`       ENUM('completada','pendiente_pago','anulada') NOT NULL DEFAULT 'completada',
+    `notas`        VARCHAR(500)  DEFAULT NULL,
+    `fecha_pago`   DATETIME      DEFAULT NULL,   -- NULL en fiados no cobrados
+    `es_combo`     TINYINT(1)    NOT NULL DEFAULT 0,  -- 1 si algún ítem es combo (mig. 025)
+    `tipo_sandwich` VARCHAR(100) DEFAULT NULL,   -- denormalizado, legado
+    `created_by`   INT           DEFAULT NULL,
+    `updated_by`   INT           DEFAULT NULL,
+    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_v_cliente` FOREIGN KEY (`cliente_id`)
+        REFERENCES `clientes`(`id`) ON DELETE SET NULL,
+    INDEX `idx_v_fecha`   (`fecha_venta`),
+    INDEX `idx_v_estado`  (`estado`),
+    INDEX `idx_v_cliente` (`cliente_id`),
+    INDEX `idx_v_metodo`  (`metodo_pago`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: venta_detalles
--- Líneas de cada venta. Al insertar, PHP descuenta stock de insumos.
--- precio_unitario almacena el precio HISTÓRICO al momento de la venta.
+-- Líneas de cada venta.
+-- INVARIANTES (NUNCA actualizar estos campos tras el INSERT):
+--   precio_unitario → precio cobrado al momento de la venta
+--   nombre_snap     → nombre del producto al momento de la venta
+--   nombre2_snap    → subtítulo del producto al momento de la venta
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `venta_detalles` (
-    `id`              BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
-    `venta_id`        BIGINT UNSIGNED   NOT NULL,
-    `producto_id`     INT UNSIGNED      NOT NULL,
-    `cantidad`        SMALLINT UNSIGNED NOT NULL DEFAULT 1,
-    -- Precio congelado al momento de venta (no cambia si sube el precio después)
-    `precio_unitario` DECIMAL(10,2)     NOT NULL,
-    `subtotal`        DECIMAL(12,2)     NOT NULL COMMENT 'cantidad × precio_unitario',
-    `created_at`      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`      INT UNSIGNED          NULL,
-    `updated_at`      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`      INT UNSIGNED          NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_venta` (`venta_id`),
-    FOREIGN KEY (`venta_id`)    REFERENCES `ventas`(`id`)   ON DELETE CASCADE,
-    FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Líneas del POS. precio_unitario es histórico (snapshot al momento de venta).';
-
-
--- ============================================================
--- TABLA: compras
--- Encabezado de compras de insumos.
--- Al confirmar una compra, PHP actualiza insumos.costo_actual y stock_actual.
--- ============================================================
-CREATE TABLE IF NOT EXISTS `compras` (
-    `id`            INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `fecha_compra`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `proveedor_id`  INT UNSIGNED        NULL,
-    `total`         DECIMAL(12,2)   NOT NULL DEFAULT 0,
-    `notas`         TEXT                NULL,
-    `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`    INT UNSIGNED        NULL,
-    `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`    INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_fecha` (`fecha_compra`),
-    FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores`(`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Encabezado de compras. Al confirmar, actualiza costo y stock de insumos.';
-
-
--- ============================================================
--- TABLA: compra_detalles
--- Líneas de cada compra. precio_unitario aquí actualiza insumos.costo_actual.
--- ============================================================
-CREATE TABLE IF NOT EXISTS `compra_detalles` (
-    `id`              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `compra_id`       INT UNSIGNED    NOT NULL,
-    `insumo_id`       INT UNSIGNED    NOT NULL,
-    `cantidad`        DECIMAL(12,4)   NOT NULL,
-    -- Este precio se convierte en el nuevo costo_actual del insumo
-    `precio_unitario` DECIMAL(12,4)   NOT NULL,
-    `subtotal`        DECIMAL(12,2)   NOT NULL,
-    `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`      INT UNSIGNED        NULL,
-    `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`      INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    FOREIGN KEY (`compra_id`) REFERENCES `compras`(`id`)  ON DELETE CASCADE,
-    FOREIGN KEY (`insumo_id`) REFERENCES `insumos`(`id`)  ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Líneas de compra. precio_unitario propaga actualización a insumos.costo_actual.';
-
-
--- ============================================================
--- TABLA: empleados
--- Registro maestro del personal.
--- Vinculado a usuarios para quienes tienen acceso al sistema.
--- ============================================================
-CREATE TABLE IF NOT EXISTS `empleados` (
-    `id`                    INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    -- NULL si el empleado no tiene usuario en el sistema
-    `usuario_id`            INT UNSIGNED        NULL,
-    `nombre_completo`       VARCHAR(200)    NOT NULL,
-    `documento_identidad`   VARCHAR(20)         NULL UNIQUE,
-    `cargo`                 VARCHAR(100)        NULL,
-    `fecha_ingreso`         DATE            NOT NULL,
-    `salario_base`          DECIMAL(12,2)   NOT NULL,
-    -- Aplica aux. transporte si salario ≤ 2 SMLMV (verificar por ley cada año)
-    `aplica_aux_transporte` TINYINT(1)      NOT NULL DEFAULT 1,
-    `activo`                TINYINT(1)      NOT NULL DEFAULT 1,
-    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`            INT UNSIGNED        NULL,
-    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`            INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_activo` (`activo`),
-    FOREIGN KEY (`usuario_id`) REFERENCES `usuarios`(`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Personal de ClanDestino. Vinculable a usuarios del sistema.';
-
-
--- ============================================================
--- TABLA: nomina_liquidaciones
--- Una fila = una liquidación mensual por empleado.
--- Almacena cada componente de la carga prestacional para trazabilidad.
--- Fórmula total: ver claude.md sección 4.1
--- ============================================================
-CREATE TABLE IF NOT EXISTS `nomina_liquidaciones` (
-    `id`                   INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `empleado_id`          INT UNSIGNED    NOT NULL,
-    `periodo_mes`          TINYINT UNSIGNED NOT NULL  COMMENT '1=Enero ... 12=Diciembre',
-    `periodo_anio`         YEAR            NOT NULL,
-    -- Valores base del período
-    `salario_base`         DECIMAL(12,2)   NOT NULL,
-    `aux_transporte`       DECIMAL(10,2)   NOT NULL DEFAULT 0,
-    -- Aportes parafiscales a cargo del empleador
-    `salud_empleador`      DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '8.5% del salario',
-    `pension_empleador`    DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '12% del salario',
-    `arl`                  DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '0.522% del salario',
-    `caja_compensacion`    DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '4% del salario',
-    `icbf`                 DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '3% del salario',
-    `sena`                 DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '2% del salario',
-    -- Provisiones mensuales (derechos del trabajador)
-    `prima`                DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '8.33% del salario',
-    `cesantias`            DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '8.33% del salario',
-    `intereses_cesantias`  DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '1% del salario',
-    `vacaciones`           DECIMAL(10,2)   NOT NULL DEFAULT 0 COMMENT '4.17% del salario',
-    -- Totales calculados
-    `total_cargas`         DECIMAL(12,2)   NOT NULL DEFAULT 0 COMMENT 'Suma de aportes parafiscales',
-    `total_provisiones`    DECIMAL(12,2)   NOT NULL DEFAULT 0 COMMENT 'Suma de provisiones',
-    -- Lo que ClanDestino REALMENTE paga por este empleado en el período
-    `costo_total_empleador` DECIMAL(12,2)  NOT NULL DEFAULT 0,
-    `created_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`           INT UNSIGNED        NULL,
-    `updated_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`           INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    -- Un empleado tiene máximo una liquidación por período
-    UNIQUE KEY `uk_empleado_periodo` (`empleado_id`, `periodo_mes`, `periodo_anio`),
-    FOREIGN KEY (`empleado_id`) REFERENCES `empleados`(`id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Liquidaciones mensuales. costo_total_empleador refleja el costo real para ClanDestino.';
-
-
--- ============================================================
--- TABLA: activos
--- Herramientas y equipos sujetos a depreciación.
--- Depreciación diaria = (costo_inicial / vida_util_meses) / 30.4
--- ============================================================
-CREATE TABLE IF NOT EXISTS `activos` (
-    `id`                   INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `nombre`               VARCHAR(150)    NOT NULL,
-    `descripcion`          TEXT                NULL,
-    `costo_inicial`        DECIMAL(12,2)   NOT NULL,
-    `fecha_adquisicion`    DATE            NOT NULL,
-    -- Default 12 meses según spec. Configurable por activo.
-    `vida_util_meses`      TINYINT UNSIGNED NOT NULL DEFAULT 12,
-    -- Calculado al insertar/actualizar: costo_inicial / vida_util_meses
-    `depreciacion_mensual` DECIMAL(12,4)       NULL,
-    -- Calculado al insertar/actualizar: depreciacion_mensual / 30.4
-    `depreciacion_diaria`  DECIMAL(12,6)       NULL,
-    `activo`               TINYINT(1)      NOT NULL DEFAULT 1,
-    `created_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`           INT UNSIGNED        NULL,
-    `updated_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`           INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Activos fijos. Depreciación diaria suma al costo operativo diario del negocio.';
+CREATE TABLE `venta_detalles` (
+    `id`              BIGINT        AUTO_INCREMENT PRIMARY KEY,
+    `venta_id`        BIGINT        NOT NULL,
+    `producto_id`     INT           NOT NULL,
+    `cantidad`        INT           NOT NULL DEFAULT 1,
+    -- Snapshots de precio (inmutables)
+    `precio_unitario` DECIMAL(12,2) NOT NULL,
+    `precio_lista`    DECIMAL(10,2) DEFAULT NULL,  -- precio sugerido del catálogo (mig. 003)
+    `subtotal`        DECIMAL(12,2) NOT NULL,
+    -- Snapshots de nombre (mig. 034 — inmutables)
+    `nombre_snap`     VARCHAR(200)  DEFAULT NULL,
+    `nombre2_snap`    VARCHAR(120)  DEFAULT NULL,
+    -- Trazabilidad de fuente de stock
+    `from_stock`      TINYINT(1)    NOT NULL DEFAULT 0, -- 1=del stock terminado, 0=insumos directos
+    -- Información de combo (mig. 025)
+    `es_combo`        TINYINT(1)    NOT NULL DEFAULT 0,
+    `combo_id`        INT           DEFAULT NULL,        -- NULL en ventas históricas pre-025
+    `created_by`      INT           DEFAULT NULL,
+    CONSTRAINT `fk_vd_venta`    FOREIGN KEY (`venta_id`)
+        REFERENCES `ventas`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_vd_producto` FOREIGN KEY (`producto_id`)
+        REFERENCES `productos`(`id`),
+    CONSTRAINT `fk_vd_combo`    FOREIGN KEY (`combo_id`)
+        REFERENCES `combo_configs`(`id`) ON DELETE SET NULL,
+    INDEX `idx_vd_venta`    (`venta_id`),
+    INDEX `idx_vd_producto` (`producto_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================
 -- TABLA: pagos_fiado
--- Abonos a deudas existentes. Reduce clientes.saldo_fiado.
+-- Abonos a deudas de clientes.
+-- INVARIANTES (mig. 034):
+--   saldo_anterior → deuda del cliente ANTES del abono
+--   saldo_posterior → deuda del cliente DESPUÉS del abono
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `pagos_fiado` (
-    `id`           INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `cliente_id`   INT UNSIGNED    NOT NULL,
-    `monto`        DECIMAL(10,2)   NOT NULL COMMENT 'Monto abonado (positivo)',
-    `metodo_pago`  ENUM('efectivo','nequi','daviplata','bancolombia') NOT NULL DEFAULT 'efectivo',
-    `notas`        TEXT                NULL,
-    `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `created_by`   INT UNSIGNED        NULL,
-    `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `updated_by`   INT UNSIGNED        NULL,
-    PRIMARY KEY (`id`),
-    INDEX `idx_cliente` (`cliente_id`),
-    FOREIGN KEY (`cliente_id`) REFERENCES `clientes`(`id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='Abonos a deudas de fiado. Cada INSERT reduce clientes.saldo_fiado.';
+CREATE TABLE `pagos_fiado` (
+    `id`              INT           AUTO_INCREMENT PRIMARY KEY,
+    `cliente_id`      INT           NOT NULL,
+    `monto`           DECIMAL(12,2) NOT NULL,
+    `metodo_pago`     VARCHAR(30)   DEFAULT 'efectivo',
+    `notas`           VARCHAR(300)  DEFAULT NULL,
+    -- Snapshots de saldo (mig. 034)
+    `saldo_anterior`  DECIMAL(12,2) DEFAULT NULL,
+    `saldo_posterior` DECIMAL(12,2) DEFAULT NULL,
+    `created_by`      INT           DEFAULT NULL,
+    `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_pf_cliente` FOREIGN KEY (`cliente_id`)
+        REFERENCES `clientes`(`id`),
+    INDEX `idx_pf_cliente` (`cliente_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: compras
+-- Cabecera de cada compra de insumos.
+-- Al crear: actualiza costo_actual y stock de insumos → recalcula productos.
+-- ============================================================
+CREATE TABLE `compras` (
+    `id`           INT           AUTO_INCREMENT PRIMARY KEY,
+    `fecha_compra` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `proveedor_id` INT           DEFAULT NULL,
+    `lugar_compra` VARCHAR(200)  DEFAULT NULL,   -- mig. 003
+    `total`        DECIMAL(14,2) NOT NULL DEFAULT 0,
+    `notas`        TEXT          DEFAULT NULL,
+    `created_by`   INT           DEFAULT NULL,
+    `updated_by`   INT           DEFAULT NULL,
+    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_c_proveedor` FOREIGN KEY (`proveedor_id`)
+        REFERENCES `proveedores`(`id`) ON DELETE SET NULL,
+    INDEX `idx_c_fecha` (`fecha_compra`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: compra_detalles
+-- Líneas de cada compra.
+-- INVARIANTES (NUNCA actualizar tras el INSERT):
+--   precio_unitario → precio por unidad básica al comprar
+--   nombre_snap     → nombre del insumo al comprar (mig. 034)
+--   unidad_snap     → unidad del insumo al comprar (mig. 034)
+--   presentacion/precio_presentacion → contexto del empaque (mig. 032)
+-- ============================================================
+CREATE TABLE `compra_detalles` (
+    `id`              INT           AUTO_INCREMENT PRIMARY KEY,
+    `compra_id`       INT           NOT NULL,
+    `insumo_id`       INT           NOT NULL,
+    `cantidad`        DECIMAL(12,4) NOT NULL,     -- total en unidades básicas
+    `precio_unitario` DECIMAL(12,4) NOT NULL,     -- precio por unidad básica (snapshot)
+    `subtotal`        DECIMAL(14,2) NOT NULL,
+    -- Snapshots de nombre e unidad (mig. 034)
+    `nombre_snap`     VARCHAR(200)  DEFAULT NULL,
+    `unidad_snap`     VARCHAR(20)   DEFAULT NULL,
+    -- Snapshot del empaque (mig. 032)
+    -- Invariante: precio_presentacion / cantidad_presentacion = precio_unitario
+    --             cant_presentaciones × cantidad_presentacion  = cantidad
+    `presentacion`          VARCHAR(30)   DEFAULT NULL,
+    `cantidad_presentacion` DECIMAL(12,4) DEFAULT NULL,
+    `cant_presentaciones`   DECIMAL(10,4) DEFAULT NULL,
+    `precio_presentacion`   DECIMAL(12,2) DEFAULT NULL,
+    `created_by`            INT           DEFAULT NULL,
+    CONSTRAINT `fk_cd_compra` FOREIGN KEY (`compra_id`)
+        REFERENCES `compras`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_cd_insumo` FOREIGN KEY (`insumo_id`)
+        REFERENCES `insumos`(`id`),
+    INDEX `idx_cd_compra` (`compra_id`),
+    INDEX `idx_cd_insumo` (`insumo_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: empleados
+-- Personal del negocio. tipo_costo clasifica el gasto en costos.
+-- ============================================================
+CREATE TABLE `empleados` (
+    `id`                    INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre_completo`       VARCHAR(200)  NOT NULL,
+    `documento_identidad`   VARCHAR(30)   DEFAULT NULL,
+    `cargo`                 VARCHAR(100)  DEFAULT NULL,
+    `tipo_contrato`         ENUM('tiempo_completo','medio_tiempo','por_horas','por_dias','por_servicio')
+                            NOT NULL DEFAULT 'tiempo_completo',
+    `pais_laboral`          VARCHAR(60)   NOT NULL DEFAULT 'Colombia',  -- mig. 007
+    `salario_base`          DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `valor_hora`            DECIMAL(10,4) DEFAULT NULL,   -- mig. 007: tarifa para por_horas
+    `valor_proyecto`        DECIMAL(12,2) DEFAULT NULL,   -- mig. 007: pago para por_servicio
+    `horas_semana`          DECIMAL(6,2)  DEFAULT NULL,   -- mig. 009
+    `periodo_horas_emp`     ENUM('semana','mes') DEFAULT 'semana',  -- mig. 009
+    `aplica_aux_transporte` TINYINT(1)    NOT NULL DEFAULT 1,
+    `tipo_costo`            ENUM('directo','indirecto') NOT NULL DEFAULT 'directo',  -- mig. 014
+    `activo`                TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`            INT           DEFAULT NULL,
+    `updated_by`            INT           DEFAULT NULL,
+    `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_emp_documento` (`documento_identidad`),
+    INDEX `idx_emp_activo`     (`activo`),
+    INDEX `idx_emp_tipo_costo` (`tipo_costo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: registro_horas (mig. 007 + 008)
+-- Registro diario de horas trabajadas (contratos por_horas).
+-- ============================================================
+CREATE TABLE `registro_horas` (
+    `id`          INT           AUTO_INCREMENT PRIMARY KEY,
+    `empleado_id` INT           NOT NULL,
+    `fecha`       DATE          NOT NULL,
+    `horas`       DECIMAL(5,2)  NOT NULL,
+    `tipo_hora`   ENUM('ordinaria','recargo_nocturno','extra_diurna','extra_nocturna',
+                       'festiva_ordinaria','extra_festiva_diurna','extra_festiva_nocturna')
+                  NOT NULL DEFAULT 'ordinaria',  -- mig. 008
+    `es_festivo`  TINYINT(1)    NOT NULL DEFAULT 0,  -- mig. 008
+    `descripcion` VARCHAR(300)  DEFAULT NULL,
+    `created_by`  INT           DEFAULT NULL,
+    `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_rh_emp_fecha` (`empleado_id`, `fecha`),
+    CONSTRAINT `fk_rh_empleado` FOREIGN KEY (`empleado_id`)
+        REFERENCES `empleados`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: parametros_laborales (mig. 007)
+-- Porcentajes prestacionales configurables por país.
+-- ============================================================
+CREATE TABLE `parametros_laborales` (
+    `id`               INT           AUTO_INCREMENT PRIMARY KEY,
+    `pais`             VARCHAR(60)   NOT NULL DEFAULT 'Colombia',
+    `clave`            VARCHAR(100)  NOT NULL,
+    `valor`            DECIMAL(15,6) NOT NULL,
+    `tipo`             ENUM('porcentaje','monto_fijo','factor') NOT NULL,
+    `aplica_a`         ENUM('empleador','empleado','ambos') NOT NULL DEFAULT 'empleador',
+    `descripcion`      VARCHAR(300)  DEFAULT NULL,
+    `categoria`        VARCHAR(60)   DEFAULT NULL,
+    `aplica_contratos` VARCHAR(200)  DEFAULT NULL,
+    `updated_by`       INT           DEFAULT NULL,
+    `updated_at`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_pl_pais_clave` (`pais`, `clave`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: nomina_liquidaciones
+-- SNAPSHOT INMUTABLE de cada liquidación mensual.
+-- Solo pagado y fecha_pago_nomina pueden actualizarse post-INSERT.
+-- ============================================================
+CREATE TABLE `nomina_liquidaciones` (
+    `id`                    INT           AUTO_INCREMENT PRIMARY KEY,
+    `empleado_id`           INT           NOT NULL,
+    `periodo_mes`           TINYINT       NOT NULL,    -- 1-12
+    `periodo_anio`          SMALLINT      NOT NULL,
+
+    -- Snapshot del contrato al liquidar
+    `tipo_contrato`         VARCHAR(30)   DEFAULT NULL,
+    `descripcion_pago`      VARCHAR(300)  DEFAULT NULL,  -- para por_servicio
+
+    -- Snapshots de tarifa (mig. 033 — inmutables)
+    `valor_hora_snap`       DECIMAL(10,4) DEFAULT NULL,  -- tarifa/hora al liquidar
+    `valor_proyecto_snap`   DECIMAL(12,2) DEFAULT NULL,  -- valor proyecto al liquidar
+
+    -- Horas y recargos (mig. 007 + 008)
+    `horas_trabajadas`      DECIMAL(7,2)  DEFAULT NULL,
+    `horas_ordinarias`      DECIMAL(7,2)  DEFAULT 0,
+    `horas_extras`          DECIMAL(7,2)  DEFAULT 0,
+    `valor_horas_extras`    DECIMAL(12,2) DEFAULT 0,
+    `detalle_recargos`      TEXT          DEFAULT NULL,  -- JSON: desglose por tipo de hora
+
+    -- Componentes del costo (Colombia 2026)
+    `salario_base`          DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `aux_transporte`        DECIMAL(10,2) NOT NULL DEFAULT 0,
+    -- Cargas parafiscales (a cargo del empleador)
+    `salud_empleador`       DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 8.5%
+    `pension_empleador`     DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 12%
+    `arl`                   DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 0.522%
+    `caja_compensacion`     DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 4%
+    `icbf`                  DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 3%
+    `sena`                  DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 2%
+    `total_cargas`          DECIMAL(10,2) NOT NULL DEFAULT 0,
+    -- Provisiones (derechos del trabajador)
+    `prima`                 DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 8.33%
+    `cesantias`             DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 8.33%
+    `intereses_cesantias`   DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 1%
+    `vacaciones`            DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 4.17%
+    `total_provisiones`     DECIMAL(10,2) NOT NULL DEFAULT 0,
+    -- Descuentos del empleado
+    `salud_empleado`        DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 4%
+    `pension_empleado`      DECIMAL(10,2) NOT NULL DEFAULT 0,   -- 4%
+    -- Neto que recibe el empleado
+    `neto_pagado`           DECIMAL(12,2) NOT NULL DEFAULT 0,
+    -- Costo total real para el negocio
+    `costo_total_empleador` DECIMAL(12,2) NOT NULL DEFAULT 0,
+
+    -- Estado de pago (únicos campos actualizables)
+    `pagado`                TINYINT(1)    NOT NULL DEFAULT 0,
+    `fecha_pago_nomina`     DATE          DEFAULT NULL,
+    `created_by`            INT           DEFAULT NULL,
+    `updated_by`            INT           DEFAULT NULL,
+    `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY `uk_nl_emp_periodo` (`empleado_id`, `periodo_mes`, `periodo_anio`),
+    CONSTRAINT `fk_nl_empleado` FOREIGN KEY (`empleado_id`)
+        REFERENCES `empleados`(`id`),
+    INDEX `idx_nl_periodo` (`periodo_anio`, `periodo_mes`),
+    INDEX `idx_nl_pagado`  (`pagado`, `periodo_anio`, `periodo_mes`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: activos
+-- Equipos y bienes fijos. Depreciación via triggers:
+--   depreciacion_mensual = costo_inicial / vida_util_meses
+--   depreciacion_diaria  = depreciacion_mensual / 30.41666
+-- REGLA (mig. 017): sin fecha_inicio_uso → deprec = 0.
+-- ============================================================
+CREATE TABLE `activos` (
+    `id`                   INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre`               VARCHAR(200)  NOT NULL,
+    `descripcion`          TEXT          DEFAULT NULL,
+    `categoria_activo`     VARCHAR(60)   DEFAULT NULL,   -- listas_sistema tipo='categoria_activo'
+    `numero_unidades`      INT           NOT NULL DEFAULT 1,
+    `precio_unitario`      DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `costo_inicial`        DECIMAL(14,2) NOT NULL DEFAULT 0,  -- numero_unidades × precio_unitario
+    `fecha_adquisicion`    DATE          NOT NULL,
+    `fecha_inicio_uso`     DATE          DEFAULT NULL,  -- NULL → en_espera, sin depreciación
+    `garantia_hasta`       DATE          DEFAULT NULL,
+    `vida_util_meses`      SMALLINT      UNSIGNED NOT NULL DEFAULT 60,
+    `depreciacion_mensual` DECIMAL(12,4) NOT NULL DEFAULT 0,
+    `depreciacion_diaria`  DECIMAL(12,6) NOT NULL DEFAULT 0,
+    `estado_vida`          ENUM('en_espera','nuevo','medio','critico','depreciado') NOT NULL DEFAULT 'en_espera',
+    `estado_fisico`        ENUM('excelente','bueno','regular','malo') DEFAULT NULL,
+    `serial`               VARCHAR(100)  DEFAULT NULL,
+    `lugar_compra`         VARCHAR(200)  DEFAULT NULL,
+    `responsable`          VARCHAR(150)  DEFAULT NULL,
+    `foto_url`             VARCHAR(300)  DEFAULT NULL,
+    `proveedor_id`         INT           DEFAULT NULL,
+    `activo`               TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`           INT           DEFAULT NULL,
+    `updated_by`           INT           DEFAULT NULL,
+    `created_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_act_proveedor` FOREIGN KEY (`proveedor_id`)
+        REFERENCES `proveedores`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: costos_indirectos
+-- Costos fijos y variables del negocio.
+-- Cada fila ES un período de vigencia. Al cambiar valor:
+-- poner fecha_fin a la fila actual y crear una fila nueva.
+-- ============================================================
+CREATE TABLE `costos_indirectos` (
+    `id`             INT           AUTO_INCREMENT PRIMARY KEY,
+    `nombre`         VARCHAR(200)  NOT NULL,
+    `categoria`      VARCHAR(60)   DEFAULT NULL,   -- listas_sistema tipo='categoria_costo'
+    `descripcion`    TEXT          DEFAULT NULL,
+    `clasificacion`  ENUM('directo','indirecto') NOT NULL DEFAULT 'indirecto',  -- mig. 013
+    `tipo`           ENUM('fijo','variable')     NOT NULL DEFAULT 'fijo',
+    `frecuencia`     ENUM('mensual','bimestral','trimestral','semestral','anual') NOT NULL DEFAULT 'mensual',
+    `valor`          DECIMAL(14,2) NOT NULL DEFAULT 0,
+    `fecha_inicio`   DATE          NOT NULL,
+    `fecha_fin`      DATE          DEFAULT NULL,   -- NULL = vigente actualmente
+    `activo`         TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_by`     INT           DEFAULT NULL,
+    `updated_by`     INT           DEFAULT NULL,
+    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_ci_activo` (`activo`, `fecha_inicio`, `fecha_fin`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: produccion_lotes (mig. 015)
+-- Registro de cada tanda de producción.
+-- INVARIANTES: costo_unitario y nombre_snap son snapshots inmutables.
+-- ============================================================
+CREATE TABLE `produccion_lotes` (
+    `id`               INT           AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`      INT           NOT NULL,
+    `fecha_produccion` DATE          NOT NULL,
+    `cantidad`         INT           NOT NULL,
+    `costo_unitario`   DECIMAL(12,4) DEFAULT NULL,  -- snapshot de costo_calculado al producir
+    `nombre_snap`      VARCHAR(200)  DEFAULT NULL,  -- snapshot del nombre al producir (mig. 034)
+    `notas`            VARCHAR(300)  DEFAULT NULL,
+    `estado`           ENUM('activo','anulado') NOT NULL DEFAULT 'activo',
+    `created_by`       INT           DEFAULT NULL,
+    `updated_by`       INT           DEFAULT NULL,
+    `created_at`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_pl_producto` FOREIGN KEY (`producto_id`)
+        REFERENCES `productos`(`id`),
+    INDEX `idx_pl_producto_fecha` (`producto_id`, `fecha_produccion`),
+    INDEX `idx_pl_fecha`          (`fecha_produccion`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: ajustes_stock (mig. 026)
+-- Reducciones manuales de stock_disponible sin venta.
+-- NOTA: Sin FK en BD (workaround errno 121 en cPanel compartido).
+-- La integridad la garantiza ajuste_stock.php via SELECT FOR UPDATE.
+-- ============================================================
+CREATE TABLE `ajustes_stock` (
+    `id`           INT          AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`  INT          NOT NULL,
+    `cantidad`     INT          NOT NULL,
+    `tipo`         ENUM('obsequio','desecho') NOT NULL,
+    `motivo`       VARCHAR(300) DEFAULT NULL,
+    `fecha_ajuste` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_by`   INT          DEFAULT NULL,
+    INDEX `idx_as_producto` (`producto_id`),
+    INDEX `idx_as_fecha`    (`fecha_ajuste`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 
 -- ============================================================
 -- ============================================================
--- TRIGGERS DE AUDITORÍA
--- Propósito: Registrar cambios en campos sensibles de forma
--- inamovible (no se puede bypass desde la aplicación PHP).
--- NOTA: Ejecutar en MySQL client o phpMyAdmin > SQL
+-- TRIGGERS
 -- ============================================================
 -- ============================================================
-
 DELIMITER $$
 
--- ----------------------------------------------------------
--- TRIGGER: Auditoría de configuracion_negocio
--- Se dispara cuando alguien cambia un parámetro financiero.
--- Registra el valor anterior vs nuevo para detectar fraudes o errores.
--- ----------------------------------------------------------
+-- ── Insumos: costo_actual desde precio_presentacion (INSERT) ──────────────
+DROP TRIGGER IF EXISTS `trg_insumos_costo_from_presentacion_insert`$$
+CREATE TRIGGER `trg_insumos_costo_from_presentacion_insert`
+BEFORE INSERT ON `insumos`
+FOR EACH ROW
+BEGIN
+    IF NEW.precio_presentacion IS NOT NULL
+       AND NEW.cantidad_presentacion IS NOT NULL
+       AND NEW.cantidad_presentacion > 0 THEN
+        SET NEW.costo_actual = ROUND(NEW.precio_presentacion / NEW.cantidad_presentacion, 4);
+    END IF;
+END$$
+
+-- ── Insumos: costo_actual desde precio_presentacion (UPDATE) ─────────────
+DROP TRIGGER IF EXISTS `trg_insumos_costo_from_presentacion_update`$$
+CREATE TRIGGER `trg_insumos_costo_from_presentacion_update`
+BEFORE UPDATE ON `insumos`
+FOR EACH ROW
+BEGIN
+    IF NEW.precio_presentacion IS NOT NULL
+       AND NEW.cantidad_presentacion IS NOT NULL
+       AND NEW.cantidad_presentacion > 0
+       AND (NEW.precio_presentacion <> OLD.precio_presentacion
+            OR NEW.cantidad_presentacion <> OLD.cantidad_presentacion) THEN
+        SET NEW.costo_actual = ROUND(NEW.precio_presentacion / NEW.cantidad_presentacion, 4);
+    END IF;
+END$$
+
+-- ── Auditoría: configuracion_negocio ─────────────────────────────────────
 DROP TRIGGER IF EXISTS `trg_config_negocio_audit`$$
 CREATE TRIGGER `trg_config_negocio_audit`
 AFTER UPDATE ON `configuracion_negocio`
 FOR EACH ROW
 BEGIN
-    -- Solo registrar si el valor realmente cambió (evitar log de updates sin cambio)
     IF OLD.valor != NEW.valor THEN
         INSERT INTO `logs_historial`
-            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`, `fecha_cambio`)
+            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`)
         VALUES
-            ('configuracion_negocio', NEW.id, 'valor', OLD.valor, NEW.valor, 'UPDATE', NOW());
+            ('configuracion_negocio', NEW.id, 'valor', OLD.valor, NEW.valor, 'UPDATE');
     END IF;
 END$$
 
-
--- ----------------------------------------------------------
--- TRIGGER: Auditoría de insumos (costo y stock)
--- Registra cambios de precio y de stock para trazabilidad de inventario.
--- Un cambio de costo inesperado puede indicar error de captura o fraude.
--- ----------------------------------------------------------
+-- ── Auditoría: insumos (costo y stock) ───────────────────────────────────
 DROP TRIGGER IF EXISTS `trg_insumos_audit`$$
 CREATE TRIGGER `trg_insumos_audit`
 AFTER UPDATE ON `insumos`
 FOR EACH ROW
 BEGIN
-    -- Log de cambio de costo
     IF OLD.costo_actual != NEW.costo_actual THEN
         INSERT INTO `logs_historial`
-            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`, `fecha_cambio`)
+            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`)
         VALUES
-            ('insumos', NEW.id, 'costo_actual', OLD.costo_actual, NEW.costo_actual, 'UPDATE', NOW());
+            ('insumos', NEW.id, 'costo_actual', OLD.costo_actual, NEW.costo_actual, 'UPDATE');
     END IF;
-
-    -- Log de cambio de stock (permite detectar mermas o pérdidas)
     IF OLD.stock_actual != NEW.stock_actual THEN
         INSERT INTO `logs_historial`
-            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`, `fecha_cambio`)
+            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`)
         VALUES
-            ('insumos', NEW.id, 'stock_actual', OLD.stock_actual, NEW.stock_actual, 'UPDATE', NOW());
+            ('insumos', NEW.id, 'stock_actual', OLD.stock_actual, NEW.stock_actual, 'UPDATE');
     END IF;
 END$$
 
-
--- ----------------------------------------------------------
--- TRIGGER: Auditoría de productos (precio de venta)
--- Registra cada cambio de precio para análisis histórico y auditoría.
--- ----------------------------------------------------------
+-- ── Auditoría: productos (precio de venta) ───────────────────────────────
 DROP TRIGGER IF EXISTS `trg_productos_audit`$$
 CREATE TRIGGER `trg_productos_audit`
 AFTER UPDATE ON `productos`
@@ -518,18 +833,13 @@ FOR EACH ROW
 BEGIN
     IF OLD.precio_venta != NEW.precio_venta THEN
         INSERT INTO `logs_historial`
-            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`, `fecha_cambio`)
+            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`)
         VALUES
-            ('productos', NEW.id, 'precio_venta', OLD.precio_venta, NEW.precio_venta, 'UPDATE', NOW());
+            ('productos', NEW.id, 'precio_venta', OLD.precio_venta, NEW.precio_venta, 'UPDATE');
     END IF;
 END$$
 
-
--- ----------------------------------------------------------
--- TRIGGER: Auditoría de ventas (cambio de estado)
--- Registra anulaciones y cambios de estado para control de fraude.
--- Una venta anulada fraudulentamente quedaría registrada aquí.
--- ----------------------------------------------------------
+-- ── Auditoría: ventas (cambio de estado) ─────────────────────────────────
 DROP TRIGGER IF EXISTS `trg_ventas_audit`$$
 CREATE TRIGGER `trg_ventas_audit`
 AFTER UPDATE ON `ventas`
@@ -537,17 +847,13 @@ FOR EACH ROW
 BEGIN
     IF OLD.estado != NEW.estado THEN
         INSERT INTO `logs_historial`
-            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`, `fecha_cambio`)
+            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`)
         VALUES
-            ('ventas', NEW.id, 'estado', OLD.estado, NEW.estado, 'UPDATE', NOW());
+            ('ventas', NEW.id, 'estado', OLD.estado, NEW.estado, 'UPDATE');
     END IF;
 END$$
 
-
--- ----------------------------------------------------------
--- TRIGGER: Auditoría de empleados (salario)
--- Un cambio de salario no autorizado queda registrado con timestamp.
--- ----------------------------------------------------------
+-- ── Auditoría: empleados (salario) ───────────────────────────────────────
 DROP TRIGGER IF EXISTS `trg_empleados_audit`$$
 CREATE TRIGGER `trg_empleados_audit`
 AFTER UPDATE ON `empleados`
@@ -555,192 +861,270 @@ FOR EACH ROW
 BEGIN
     IF OLD.salario_base != NEW.salario_base THEN
         INSERT INTO `logs_historial`
-            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`, `fecha_cambio`)
+            (`tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `accion`)
         VALUES
-            ('empleados', NEW.id, 'salario_base', OLD.salario_base, NEW.salario_base, 'UPDATE', NOW());
+            ('empleados', NEW.id, 'salario_base', OLD.salario_base, NEW.salario_base, 'UPDATE');
     END IF;
 END$$
 
-
--- ----------------------------------------------------------
--- TRIGGER: Depreciación automática en activos
--- Calcula depreciacion_mensual y depreciacion_diaria al insertar o actualizar.
--- Evita que la capa PHP tenga que recordar la fórmula.
--- ----------------------------------------------------------
+-- ── Activos: depreciación al crear (mig. 017-018) ────────────────────────
+-- REGLA: sin fecha_inicio_uso → deprec = 0
+-- DIVISOR: 30.41666 (= 365/12, más exacto que 30.4)
 DROP TRIGGER IF EXISTS `trg_activos_deprec_insert`$$
 CREATE TRIGGER `trg_activos_deprec_insert`
 BEFORE INSERT ON `activos`
 FOR EACH ROW
 BEGIN
-    SET NEW.depreciacion_mensual = NEW.costo_inicial / NEW.vida_util_meses;
-    SET NEW.depreciacion_diaria  = (NEW.costo_inicial / NEW.vida_util_meses) / 30.4;
+    IF NEW.fecha_inicio_uso IS NOT NULL THEN
+        SET NEW.depreciacion_mensual = NEW.costo_inicial
+                                       / GREATEST(CAST(NEW.vida_util_meses AS SIGNED), 1);
+        SET NEW.depreciacion_diaria  = NEW.depreciacion_mensual / 30.41666;
+    ELSE
+        SET NEW.depreciacion_mensual = 0;
+        SET NEW.depreciacion_diaria  = 0;
+    END IF;
 END$$
 
+-- ── Activos: depreciación al actualizar (mig. 017-018) ───────────────────
 DROP TRIGGER IF EXISTS `trg_activos_deprec_update`$$
 CREATE TRIGGER `trg_activos_deprec_update`
 BEFORE UPDATE ON `activos`
 FOR EACH ROW
 BEGIN
-    IF OLD.costo_inicial != NEW.costo_inicial OR OLD.vida_util_meses != NEW.vida_util_meses THEN
-        SET NEW.depreciacion_mensual = NEW.costo_inicial / NEW.vida_util_meses;
-        SET NEW.depreciacion_diaria  = (NEW.costo_inicial / NEW.vida_util_meses) / 30.4;
+    IF NEW.fecha_inicio_uso IS NULL THEN
+        SET NEW.depreciacion_mensual = 0;
+        SET NEW.depreciacion_diaria  = 0;
+    ELSEIF OLD.costo_inicial   != NEW.costo_inicial
+        OR OLD.vida_util_meses != NEW.vida_util_meses
+        OR OLD.fecha_inicio_uso IS NULL
+    THEN
+        SET NEW.depreciacion_mensual = NEW.costo_inicial
+                                       / GREATEST(CAST(NEW.vida_util_meses AS SIGNED), 1);
+        SET NEW.depreciacion_diaria  = NEW.depreciacion_mensual / 30.41666;
     END IF;
 END$$
-
 
 DELIMITER ;
 
 
 -- ============================================================
 -- ============================================================
--- DATOS INICIALES (PRE-CARGA)
+-- DATOS INICIALES
 -- ============================================================
 -- ============================================================
 
--- ----------------------------------------------------------
--- Parámetros financieros del negocio (Decreto 2025 / Spec v4.0)
--- ----------------------------------------------------------
+-- ── configuracion_negocio ────────────────────────────────────────────────
 INSERT INTO `configuracion_negocio` (`clave`, `valor`, `descripcion`, `categoria`) VALUES
--- Nómina
-('salario_minimo',           1750905.0000, 'Salario Mínimo Legal Mensual Vigente (SMLMV) 2026',      'nomina'),
-('aux_transporte',            249095.0000, 'Auxilio de Transporte Mensual Legal 2026',               'nomina'),
--- Cargas empleador
-('pct_salud_empleador',            8.5000, 'Salud — aporte a cargo del empleador (%)',               'nomina'),
-('pct_pension_empleador',         12.0000, 'Pensión — aporte a cargo del empleador (%)',             'nomina'),
-('pct_arl',                        0.5220, 'ARL Riesgo Clase I — empleados de cocina/mostrador (%)', 'nomina'),
-('pct_caja_compensacion',          4.0000, 'Caja de Compensación Familiar (%)',                     'nomina'),
-('pct_icbf',                       3.0000, 'ICBF (%)',                                              'nomina'),
-('pct_sena',                       2.0000, 'SENA (%)',                                              'nomina'),
--- Provisiones
-('pct_prima',                      8.3300, 'Prima de Servicios — provisión mensual (%)',             'nomina'),
-('pct_cesantias',                  8.3300, 'Cesantías — provisión mensual (%)',                     'nomina'),
-('pct_intereses_cesantias',        1.0000, 'Intereses sobre Cesantías — provisión mensual (%)',      'nomina'),
-('pct_vacaciones',                 4.1700, 'Vacaciones — provisión mensual (%)',                     'nomina'),
--- Costos operativos
-('costos_fijos_mensuales',       365185.0000, 'Arriendo + servicios básicos mensuales',             'costos'),
-('produccion_estimada_mensual',    2175.0000, 'Unidades/mes para prorratear costos fijos',          'produccion');
+('salario_minimo',              1750905.0000, 'Salario Mínimo Legal Mensual Vigente (SMLMV) 2026', 'nomina'),
+('aux_transporte',               249095.0000, 'Auxilio de Transporte Mensual Legal 2026',          'nomina'),
+('pct_salud_empleador',               8.5000, 'Salud — aporte a cargo del empleador (%)',          'nomina'),
+('pct_pension_empleador',            12.0000, 'Pensión — aporte a cargo del empleador (%)',        'nomina'),
+('pct_arl',                           0.5220, 'ARL Riesgo Clase I — cocina/mostrador (%)',         'nomina'),
+('pct_caja_compensacion',             4.0000, 'Caja de Compensación Familiar (%)',                 'nomina'),
+('pct_icbf',                          3.0000, 'ICBF (%)',                                          'nomina'),
+('pct_sena',                          2.0000, 'SENA (%)',                                          'nomina'),
+('pct_prima',                         8.3300, 'Prima de Servicios — provisión mensual (%)',        'nomina'),
+('pct_cesantias',                     8.3300, 'Cesantías — provisión mensual (%)',                 'nomina'),
+('pct_intereses_cesantias',           1.0000, 'Intereses sobre Cesantías — provisión mensual (%)', 'nomina'),
+('pct_vacaciones',                    4.1700, 'Vacaciones — provisión mensual (%)',                'nomina'),
+('costos_fijos_mensuales',       365185.0000, 'Arriendo + servicios básicos mensuales',            'costos'),
+('produccion_estimada_mensual',    2175.0000, 'Unidades/mes para prorratear costos fijos',         'produccion');
 
 
--- ----------------------------------------------------------
--- Insumos base del negocio
--- Rendimiento de referencia: 1kg pollo = 11u, 1kg carne = 10u, 6 latas atún = 9u
--- ----------------------------------------------------------
-INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_actual`, `stock_actual`, `stock_seguridad`) VALUES
-('Pollo Desmechado', 'kg',      17325.0000, 0.000, 2.000),
-('Carne de Res',     'kg',      27000.0000, 0.000, 1.000),
-('Atún Lata 160g',   'lata',     2995.0000, 0.000, 6.000),
-('Jamón (loncha)',   'loncha',      0.0000, 0.000, 28.000), -- costo variable: se actualiza por compra
-('Pan',              'unidad',   1500.0000, 0.000, 50.000);
+-- ── configuracion_app ────────────────────────────────────────────────────
+INSERT IGNORE INTO `configuracion_app` (`clave`, `valor`) VALUES
+('nombre_negocio',    'ClanDestino'),
+('logo_url',          ''),
+('logo_url_login',    ''),
+('theme_brand',       '#e94f37'),
+('theme_dark',        '#111827'),
+('theme_font',        'system-ui, -apple-system, sans-serif'),
+('font_heading',      'system-ui, -apple-system, sans-serif'),
+('theme_radius',      '12'),
+('font_size_title',   '22'),
+('font_size_subtitle','15'),
+('font_size_body',    '13'),
+('font_size_small',   '11'),
+('color_text',        '#111827'),
+('color_text_sec',    '#6b7280');
 
 
--- ----------------------------------------------------------
--- Productos del catálogo
--- Tamaño XL es el sándwich grande; L es el regular
--- ----------------------------------------------------------
-INSERT INTO `productos` (`nombre`, `categoria`, `tamano`, `precio_venta`) VALUES
-('Sándwich de Pollo XL',    'sandwich', 'XL',    0.00),
-('Sándwich de Pollo L',     'sandwich', 'L',     0.00),
-('Sándwich de Carne XL',    'sandwich', 'XL',    0.00),
-('Sándwich de Carne L',     'sandwich', 'L',     0.00),
-('Sándwich de Atún XL',     'sandwich', 'XL',    0.00),
-('Sándwich de Atún L',      'sandwich', 'L',     0.00),
-('Sándwich de Jamón XL',    'sandwich', 'XL',    0.00),
-('Sándwich de Jamón L',     'sandwich', 'L',     0.00);
--- NOTA: precio_venta = 0 hasta que el administrador defina precios en el panel
+-- ── listas_sistema — presentaciones ──────────────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('presentacion', 'frasco',  'Frasco',   1),
+('presentacion', 'tarro',   'Tarro',    2),
+('presentacion', 'caja',    'Caja',     3),
+('presentacion', 'paca',    'Paca',     4),
+('presentacion', 'bolsa',   'Bolsa',    5),
+('presentacion', 'atado',   'Atado',    6),
+('presentacion', 'lata',    'Lata',     7),
+('presentacion', 'bloque',  'Bloque',   8),
+('presentacion', 'galon',   'Galón',    9),
+('presentacion', 'unidad',  'Unidad',   10),
+('presentacion', 'otra',    'Otra',     99);
+
+-- ── listas_sistema — unidades de medida ──────────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('unidad_medida', 'kg',      'Kilogramos',  1),
+('unidad_medida', 'g',       'Gramos',      2),
+('unidad_medida', 'lb',      'Libras',      3),
+('unidad_medida', 'litro',   'Litros',      4),
+('unidad_medida', 'ml',      'Mililitros',  5),
+('unidad_medida', 'unidad',  'Unidades',    6),
+('unidad_medida', 'loncha',  'Lonchas',     7),
+('unidad_medida', 'lata',    'Latas',       8),
+('unidad_medida', 'paquete', 'Paquetes',    9);
+
+-- ── listas_sistema — categorías de insumos ───────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('categoria_insumo', 'proteina',   'Proteína',   1),
+('categoria_insumo', 'lacteo',     'Lácteo',     2),
+('categoria_insumo', 'vegetal',    'Vegetal',    3),
+('categoria_insumo', 'condimento', 'Condimento', 4),
+('categoria_insumo', 'empaque',    'Empaque',    5),
+('categoria_insumo', 'grasa',      'Grasa',      6),
+('categoria_insumo', 'combo',      'Combo',      7),
+('categoria_insumo', 'otro',       'Otro',       99);
+
+-- ── listas_sistema — categorías de productos ─────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('categoria_producto', 'sandwich',  'Sándwich',  1),
+('categoria_producto', 'combo',     'Combo',     2),
+('categoria_producto', 'bebida',    'Bebida',    3),
+('categoria_producto', 'adicional', 'Adicional', 4);
+
+-- ── listas_sistema — tamaños de productos ────────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('tamano_producto', 'XL',    'XL',    1),
+('tamano_producto', 'L',     'L',     2),
+('tamano_producto', 'unico', 'Único', 3);
+
+-- ── listas_sistema — categorías de activos ───────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('categoria_activo', 'equipo_cocina',    'Equipo de cocina',   1),
+('categoria_activo', 'electrodomestico', 'Electrodoméstico',   2),
+('categoria_activo', 'herramienta',      'Herramienta',        3),
+('categoria_activo', 'utensilio',        'Utensilio',          4),
+('categoria_activo', 'mobiliario',       'Mobiliario',         5),
+('categoria_activo', 'vehiculo',         'Vehículo',           6),
+('categoria_activo', 'otro',             'Otro',               99);
+
+-- ── listas_sistema — categorías de costos ────────────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('categoria_costo', 'arriendo',           'Arriendo / Alquiler',      1),
+('categoria_costo', 'servicios_publicos', 'Servicios Públicos',       2),
+('categoria_costo', 'intereses',          'Intereses y Financiación', 3),
+('categoria_costo', 'seguros',            'Seguros',                  4),
+('categoria_costo', 'mantenimiento',      'Mantenimiento',            5),
+('categoria_costo', 'publicidad',         'Publicidad y Mercadeo',    6),
+('categoria_costo', 'bancario',           'Gastos Bancarios',         7),
+('categoria_costo', 'impuestos',          'Impuestos y Tasas',        8),
+('categoria_costo', 'administrativo',     'Personal Administrativo',  9),
+('categoria_costo', 'otro',               'Otro',                     99);
+
+-- ── listas_sistema — categorías de proveedores ───────────────────────────
+INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
+('categoria_proveedor', 'plaza',     'Plaza de mercado', 1),
+('categoria_proveedor', 'tienda',    'Tienda',           2),
+('categoria_proveedor', 'retail',    'Retail',           3),
+('categoria_proveedor', 'online',    'Online',           4),
+('categoria_proveedor', 'mayorista', 'Mayorista',        5),
+('categoria_proveedor', 'panaderia', 'Panadería',        6),
+('categoria_proveedor', 'otro',      'Otro',             99);
 
 
--- ----------------------------------------------------------
--- Recetario base
--- Cantidades en la unidad de medida del insumo.
--- Pollo:  90.9g = 0.0909 kg por sándwich (1kg rinde 11 unidades)
--- Carne: 100.0g = 0.1000 kg por sándwich (1kg rinde 10 unidades)
--- Atún:  0.6667 latas por sándwich (6 latas rinden 9 unidades = 0.6667)
--- Jamón: 2 lonchas por sándwich (14 lonchas rinden 7 unidades)
--- Pan:   1 unidad por sándwich
--- ----------------------------------------------------------
--- Sándwich de Pollo XL (id=1)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(1, 1, 0.090909, 1), -- pollo crítico
-(1, 5, 1.000000, 0); -- pan
-
--- Sándwich de Pollo L (id=2)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(2, 1, 0.090909, 1),
-(2, 5, 1.000000, 0);
-
--- Sándwich de Carne XL (id=3)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(3, 2, 0.100000, 1), -- carne crítica
-(3, 5, 1.000000, 0);
-
--- Sándwich de Carne L (id=4)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(4, 2, 0.100000, 1),
-(4, 5, 1.000000, 0);
-
--- Sándwich de Atún XL (id=5)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(5, 3, 0.666667, 1), -- atún crítico
-(5, 5, 1.000000, 0);
-
--- Sándwich de Atún L (id=6)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(6, 3, 0.666667, 1),
-(6, 5, 1.000000, 0);
-
--- Sándwich de Jamón XL (id=7)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(7, 4, 2.000000, 1), -- jamón crítico
-(7, 5, 1.000000, 0);
-
--- Sándwich de Jamón L (id=8)
-INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
-(8, 4, 2.000000, 1),
-(8, 5, 1.000000, 0);
+-- ── parametros_laborales — Colombia 2026 ─────────────────────────────────
+INSERT INTO `parametros_laborales`
+    (`pais`, `clave`, `valor`, `tipo`, `aplica_a`, `descripcion`, `categoria`, `aplica_contratos`)
+VALUES
+('Colombia', 'salario_minimo',          1750905, 'monto_fijo',   'empleador', 'SMLMV 2026',                  'base',               'tiempo_completo,medio_tiempo,por_horas,por_servicio'),
+('Colombia', 'aux_transporte',           249095, 'monto_fijo',   'empleador', 'Auxilio de transporte 2026',  'base',               'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'tope_aux_transporte_smlmv',     2, 'factor',       'empleador', 'Aux aplica si salario ≤ 2×SMLMV', 'base',           'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'horas_mes_estandar',         240, 'monto_fijo',   'empleador', 'Para calcular valor/hora',    'base',               'por_horas'),
+('Colombia', 'pct_salud_empleador',        8.5, 'porcentaje',   'empleador', '8.5% sobre salario base',     'carga_parafiscal',   'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_pension_empleador',       12, 'porcentaje',   'empleador', '12% sobre salario base',      'carga_parafiscal',   'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_arl',                  0.522, 'porcentaje',   'empleador', 'ARL Riesgo Clase I',          'carga_parafiscal',   'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_caja_compensacion',        4, 'porcentaje',   'empleador', '4% sobre salario base',       'carga_parafiscal',   'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_icbf',                     3, 'porcentaje',   'empleador', '3% sobre salario base',       'carga_parafiscal',   'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_sena',                     2, 'porcentaje',   'empleador', '2% sobre salario base',       'carga_parafiscal',   'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_prima',                 8.33, 'porcentaje',   'empleador', 'Prima de servicios 8.33%',    'provision',          'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_cesantias',             8.33, 'porcentaje',   'empleador', 'Cesantías 8.33%',             'provision',          'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_intereses_cesantias',      1, 'porcentaje',   'empleador', 'Intereses cesantías 1%',      'provision',          'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_vacaciones',            4.17, 'porcentaje',   'empleador', 'Vacaciones 4.17%',            'provision',          'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_salud_empleado',           4, 'porcentaje',   'empleado',  'Salud descuento empleado 4%', 'descuento_empleado', 'tiempo_completo,medio_tiempo,por_horas'),
+('Colombia', 'pct_pension_empleado',         4, 'porcentaje',   'empleado',  'Pensión descuento empleado 4%','descuento_empleado','tiempo_completo,medio_tiempo,por_horas');
 
 
--- ----------------------------------------------------------
--- Usuario Super Administrador inicial
+-- ── Superadministrador inicial ────────────────────────────────────────────
 -- CONTRASEÑA DEFAULT: Admin2026!
--- ACCIÓN OBLIGATORIA: Cambiar contraseña en el PRIMER login.
--- Hash bcrypt generado con cost=12. Regenerar en PHP:
---   password_hash('Admin2026!', PASSWORD_BCRYPT, ['cost' => 12])
--- ----------------------------------------------------------
+-- ACCIÓN OBLIGATORIA: Cambiar en el PRIMER login.
+-- Para regenerar el hash en PHP:
+--   echo password_hash('Admin2026!', PASSWORD_BCRYPT, ['cost' => 12]);
 INSERT INTO `usuarios` (`nombre`, `email`, `password_hash`, `rol`) VALUES
 (
     'Super Administrador',
     'admin@clandestino.local',
-    '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- placeholder hash
+    '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'superadmin'
 );
--- Asignar permisos admin_total a todos los módulos para el superadmin
+
+-- Permisos admin_total para el superadmin en todos los módulos
 INSERT INTO `permisos_modulos` (`usuario_id`, `modulo`, `nivel_acceso`) VALUES
-(1, 'ventas',      'admin_total'),
-(1, 'compras',     'admin_total'),
-(1, 'inventario',  'admin_total'),
-(1, 'nomina',      'admin_total'),
-(1, 'recetario',   'admin_total'),
-(1, 'activos',     'admin_total'),
-(1, 'reportes',    'admin_total');
+(1, 'ventas',       'admin_total'),
+(1, 'compras',      'admin_total'),
+(1, 'inventario',   'admin_total'),
+(1, 'nomina',       'admin_total'),
+(1, 'productos',    'admin_total'),
+(1, 'activos',      'admin_total'),
+(1, 'reportes',     'admin_total'),
+(1, 'proveedores',  'admin_total'),
+(1, 'costos',       'admin_total');
 
 
--- Restaurar verificación de FK
-SET FOREIGN_KEY_CHECKS = 1;
+-- ── Insumos base del negocio ──────────────────────────────────────────────
+-- Ajustar precios y stocks reales en Admin → Inventario después de instalar.
+INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_actual`, `stock_actual`, `stock_seguridad`) VALUES
+('Pollo Desmechado', 'kg',      17325.0000, 0.000, 2.000),
+('Carne de Res',     'kg',      27000.0000, 0.000, 1.000),
+('Atún Lata 160g',   'lata',     2995.0000, 0.000, 6.000),
+('Jamón (loncha)',   'loncha',      0.0000, 0.000, 28.000),
+('Pan',              'unidad',   1500.0000, 0.000, 50.000);
+
+
+-- ── Productos base del catálogo ───────────────────────────────────────────
+-- precio_venta = 0 hasta que el administrador configure precios reales.
+INSERT INTO `productos` (`nombre`, `categoria`, `tamano`, `precio_venta`) VALUES
+('Sándwich de Pollo XL',  'sandwich', 'XL',    0.00),
+('Sándwich de Pollo L',   'sandwich', 'L',     0.00),
+('Sándwich de Carne XL',  'sandwich', 'XL',    0.00),
+('Sándwich de Carne L',   'sandwich', 'L',     0.00),
+('Sándwich de Atún XL',   'sandwich', 'XL',    0.00),
+('Sándwich de Atún L',    'sandwich', 'L',     0.00),
+('Sándwich de Jamón XL',  'sandwich', 'XL',    0.00),
+('Sándwich de Jamón L',   'sandwich', 'L',     0.00);
+
+
+-- ── Recetario base ────────────────────────────────────────────────────────
+-- Pollo: 90.9g = 0.0909 kg/sándwich (1kg rinde 11 unidades)
+-- Carne: 100g  = 0.1000 kg/sándwich (1kg rinde 10 unidades)
+-- Atún:  0.6667 latas/sándwich (6 latas rinden 9 unidades)
+-- Jamón: 2 lonchas/sándwich
+-- Pan:   1 unidad/sándwich
+INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`) VALUES
+(1, 1, 0.090909, 1), (1, 5, 1.000000, 0),   -- Pollo XL
+(2, 1, 0.090909, 1), (2, 5, 1.000000, 0),   -- Pollo L
+(3, 2, 0.100000, 1), (3, 5, 1.000000, 0),   -- Carne XL
+(4, 2, 0.100000, 1), (4, 5, 1.000000, 0),   -- Carne L
+(5, 3, 0.666667, 1), (5, 5, 1.000000, 0),   -- Atún XL
+(6, 3, 0.666667, 1), (6, 5, 1.000000, 0),   -- Atún L
+(7, 4, 2.000000, 1), (7, 5, 1.000000, 0),   -- Jamón XL
+(8, 4, 2.000000, 1), (8, 5, 1.000000, 0);   -- Jamón L
 
 -- ============================================================
--- VERIFICACIÓN POST-INSTALACIÓN
--- Ejecutar estas queries para confirmar que el schema quedó correcto:
--- ============================================================
--- SELECT COUNT(*) AS tablas_creadas FROM information_schema.TABLES
---   WHERE TABLE_SCHEMA = DATABASE();
--- -- Resultado esperado: 14 tablas
---
--- SELECT COUNT(*) AS triggers_activos FROM information_schema.TRIGGERS
---   WHERE TRIGGER_SCHEMA = DATABASE();
--- -- Resultado esperado: 7 triggers
---
--- SELECT clave, valor FROM configuracion_negocio ORDER BY categoria, clave;
--- -- Resultado esperado: 14 parámetros de configuración
--- ============================================================
--- FIN DEL SCRIPT — ClanDestino ERP v4.0
+-- FIN DEL ESQUEMA v4.24
+-- Verifica la instalación:
+--   SHOW TABLES;                            -- debe mostrar 27 tablas
+--   SHOW TRIGGERS;                          -- debe mostrar 9 triggers
+--   SELECT COUNT(*) FROM listas_sistema;    -- debe ser 57
+--   SELECT COUNT(*) FROM parametros_laborales; -- debe ser 17
 -- ============================================================

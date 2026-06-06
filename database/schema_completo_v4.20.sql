@@ -1,12 +1,11 @@
 -- ============================================================
--- ClanDestino ERP v4.22 — Esquema completo de base de datos
+-- ClanDestino ERP v4.24 — Esquema completo de base de datos
 -- Estado FINAL con todas las migraciones aplicadas (001-034)
--- Última actualización: 2026-06-04
+-- Última actualización: 2026-06-06
 -- ============================================================
 -- ADVERTENCIA: Este archivo es de REFERENCIA, no es ejecutable
--- directamente. Para instalar desde cero:
---   1. Ejecutar database/schema.sql  (17 tablas base + 7 triggers)
---   2. Ejecutar migraciones en orden: 002 → 003 → ... → 034
+-- directamente. Para instalar desde cero usa database/schema.sql
+-- (script completo v4.24 con todas las tablas, triggers y datos).
 --
 -- TABLAS EN schema.sql BASE (17):
 --   logs_historial, usuarios, permisos_modulos, configuracion_negocio,
