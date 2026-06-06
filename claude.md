@@ -935,7 +935,7 @@ Uso: `<button class="btn-ajuste ic" title="..."><?= IC_EDIT ?></button>` — la 
 | `ventas/api/detalle_venta.php` | Mismo problema con nombre actual en vez de snapshot | COALESCE en SELECT de items del detalle |
 | `clientes/api/crud.php` | trim() sin re-validar nombre vacío (podría guardar ' ') | Validación explícita post-trim |
 
-### Estado al cierre de sesión 2026-06-05
+### Estado al cierre de sesión 2026-06-06
 Todo subido a GitHub. Sin pendientes de código.
 
 **Migraciones pendientes de aplicar en producción (cPanel):**
@@ -945,7 +945,7 @@ Todo subido a GitHub. Sin pendientes de código.
 
 **Próxima sesión puede continuar desde:**
 - Todo el código está en producción excepto migraciones 032-034
-- El formulario de compras con bloque de presentación ya funciona (espera migraciones para guardar snapshots)
-- Estado de cuenta de clientes (`/clientes/estado_cuenta.php`) completamente funcional
+- Phase 2 (ingrediente base + variantes) — deferred, roadmap v4.3
+- `ayuda/index.php` documentada con cambios v4.24 ✅
 
-*Última actualización: 2026-06-05 | v4.23 — Autocomplete buscable en POS, estado de cuenta cliente con impresión, 8 fixes seguridad, commits frecuentes a GitHub configurados* 6 bugs críticos corregidos (snapshot en editar_venta, compra_crud, cambiar_estado, historial COALESCE); G22 tests coherencia snapshots; validación trim en clientes CRUD; 22 grupos de tests; schema_completo y ayuda actualizados completamente*
+*Última actualización: 2026-06-06 | v4.24 — Edición insumo sin cantidad obligatoria (ajustar_stock condicional), panel informativo de presentación en compras (solo lectura), documentación ayuda actualizada.*
