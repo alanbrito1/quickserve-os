@@ -116,7 +116,27 @@ $n_anuladas_stmt = $pdo->prepare(
 $n_anuladas_stmt->execute([$fecha]);
 $n_anuladas = (int)$n_anuladas_stmt->fetchColumn();
 
-// ── 5. Nombre del negocio ─────────────────────────────────────────────────────
+// ── 5. Turno de caja (mig.037) ───────────────────────────────────────────────
+$turno = null;
+try {
+    $tiene_037 = (int)$pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='turnos_caja' AND COLUMN_NAME='id'"
+    )->fetchColumn() > 0;
+    if ($tiene_037) {
+        $st = $pdo->prepare(
+            "SELECT tc.fondo_inicial, tc.estado, tc.notas_apertura,
+                    u.nombre AS nombre_apertura, tc.fecha_apertura
+             FROM turnos_caja tc
+             LEFT JOIN usuarios u ON u.id = tc.usuario_apertura
+             WHERE tc.fecha = ? ORDER BY tc.id DESC LIMIT 1"
+        );
+        $st->execute([$fecha]);
+        $turno = $st->fetch() ?: null;
+    }
+} catch (\Exception $e) {}
+
+// ── 6. Nombre del negocio ─────────────────────────────────────────────────────
 $negocio_nombre = '';
 try {
     $negocio_nombre = (string)$pdo->query(
@@ -148,6 +168,13 @@ if ($n_ventas_total > 0) {
     if ($total_fiado > 0)    $txt_share .= "📋 Fiado: "    . fmt_cop($total_fiado)    . "\n";
     if ($total_obsequio > 0) $txt_share .= "🎁 Obsequio: " . fmt_cop($total_obsequio) . "\n";
     $txt_share .= "📊 *Total: " . fmt_cop($total_ventas) . "*\n";
+    if ($turno) {
+        $fondo_share = (float)$turno['fondo_inicial'];
+        $ef_share    = (float)($por_metodo['efectivo']['total_pesos'] ?? 0);
+        $txt_share .= str_repeat('─', 28) . "\n";
+        $txt_share .= "🏪 Fondo inicial: "  . fmt_cop($fondo_share) . "\n";
+        $txt_share .= "💵 Total en caja: *" . fmt_cop($fondo_share + $ef_share) . "*\n";
+    }
 
     if (!empty($detalle)) {
         $txt_share .= str_repeat('─', 28) . "\n";
@@ -276,6 +303,7 @@ $metodo_icons = [
         </div>
         <div class="hdr-btns">
             <a href="<?= APP_BASE ?>/ventas/historial.php" class="btn btn-sec">← Historial</a>
+            <a href="<?= APP_BASE ?>/ventas/apertura.php" class="btn btn-sec no-print">🏪 Apertura</a>
             <?php if ($n_ventas_total > 0): ?>
             <button class="btn" style="background:#25d366;color:#fff" onclick="compartir()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.104.548 4.078 1.508 5.793L.057 23.75l6.163-1.618A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.371l-.359-.213-3.713.975.992-3.62-.234-.372A9.785 9.785 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>Compartir
@@ -327,6 +355,47 @@ $metodo_icons = [
         </div>
         <?php endforeach; ?>
     </div>
+
+    <!-- Panel de fondo de caja (si hay turno registrado) -->
+    <?php if ($turno): ?>
+    <?php
+    $fondo      = (float)$turno['fondo_inicial'];
+    $ef_total   = (float)($por_metodo['efectivo']['total_pesos'] ?? 0);
+    $total_caja = $fondo + $ef_total;
+    ?>
+    <div class="totales" style="margin-bottom:12px;background:linear-gradient(135deg,#1e3a5f,#1e40af)">
+        <div class="totales-grid">
+            <div class="tot-item">
+                <div class="tot-lbl">Fondo apertura</div>
+                <div class="tot-val">$<?= number_format($fondo, 0, ',', '.') ?></div>
+            </div>
+            <div class="tot-item">
+                <div class="tot-lbl">Efectivo cobrado</div>
+                <div class="tot-val green">$<?= number_format($ef_total, 0, ',', '.') ?></div>
+            </div>
+            <div class="tot-item">
+                <div class="tot-lbl">Total en caja</div>
+                <div class="tot-val" style="font-size:22px">$<?= number_format($total_caja, 0, ',', '.') ?></div>
+            </div>
+            <div class="tot-item">
+                <div class="tot-lbl">Turno</div>
+                <div class="tot-val gray" style="font-size:12px;font-weight:500;text-align:left;padding-top:3px">
+                    <?= $turno['estado'] === 'abierto' ? '● Abierto' : '○ Cerrado' ?><br>
+                    <?= htmlspecialchars($turno['nombre_apertura'] ?? '') ?>
+                    · <?= date('H:i', strtotime($turno['fecha_apertura'])) ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php else: ?>
+    <?php if (isset($tiene_037) && $tiene_037 && $es_hoy): ?>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;
+                margin-bottom:12px;font-size:13px;color:#92400e;display:flex;gap:10px;align-items:center">
+        ⚠ Sin turno registrado.
+        <a href="<?= APP_BASE ?>/ventas/apertura.php" style="color:#92400e;font-weight:700">Abrir turno →</a>
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
 
     <!-- Totales consolidados -->
     <div class="totales">

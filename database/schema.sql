@@ -1,5 +1,5 @@
 -- ============================================================
--- ClanDestino ERP v4.30 — Esquema de instalación completo
+-- ClanDestino ERP v4.45 — Esquema de instalación completo
 -- Compatible: MySQL 5.7+ / MariaDB 10.3+
 -- Última actualización: 2026-06-06
 -- Incluye migración 035: variantes de tamaño (producto_variantes)
@@ -61,6 +61,7 @@ DROP TABLE IF EXISTS `recetas`;
 DROP TABLE IF EXISTS `productos`;
 DROP TABLE IF EXISTS `insumos`;
 DROP TABLE IF EXISTS `proveedores`;
+DROP TABLE IF EXISTS `turnos_caja`;
 DROP TABLE IF EXISTS `listas_sistema`;
 DROP TABLE IF EXISTS `configuracion_app`;
 DROP TABLE IF EXISTS `configuracion_negocio`;
@@ -1189,9 +1190,30 @@ INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_ins
 (8, 4, 2.000000, 1), (8, 5, 1.000000, 0);   -- Jamón L
 
 -- ============================================================
--- FIN DEL ESQUEMA v4.24
+-- TABLA: turnos_caja (mig. 037)
+-- Registra la apertura de cada turno con el fondo inicial en efectivo.
+-- Un día puede tener máximo un turno activo.
+-- SIN FK: consistencia con política del proyecto (errno 121 cPanel).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `turnos_caja` (
+    `id`               INT AUTO_INCREMENT PRIMARY KEY,
+    `fecha`            DATE          NOT NULL,
+    `fondo_inicial`    DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `notas_apertura`   TEXT          NULL,
+    `usuario_apertura` INT           NOT NULL,
+    `fecha_apertura`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `estado`           ENUM('abierto','cerrado') NOT NULL DEFAULT 'abierto',
+    `fecha_cierre`     DATETIME      NULL,
+    `usuario_cierre`   INT           NULL,
+    `notas_cierre`     TEXT          NULL,
+    INDEX `idx_tc_fecha`  (`fecha`),
+    INDEX `idx_tc_estado` (`estado`, `fecha`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- FIN DEL ESQUEMA v4.45
 -- Verifica la instalación:
---   SHOW TABLES;                            -- debe mostrar 27 tablas
+--   SHOW TABLES;                            -- debe mostrar 28 tablas
 --   SHOW TRIGGERS;                          -- debe mostrar 9 triggers
 --   SELECT COUNT(*) FROM listas_sistema;    -- debe ser 57
 --   SELECT COUNT(*) FROM parametros_laborales; -- debe ser 16

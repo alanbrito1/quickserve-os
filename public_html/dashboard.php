@@ -389,6 +389,39 @@ $nivel_labels = [
                 <p class="stat-value"><?= $stats['ventas_hoy'] ?></p>
                 <p class="stat-sub">$<?= number_format($stats['ventas_total'], 0, ',', '.') ?> &middot; <span style="color:var(--brand)">Cierre →</span></p>
             </div>
+            <?php
+            // Turno de caja (mig.037)
+            $turno_dashboard = null;
+            $tiene_tc_db = false;
+            try {
+                $tiene_tc_db = (int)db()->query(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='turnos_caja' AND COLUMN_NAME='id'"
+                )->fetchColumn() > 0;
+                if ($tiene_tc_db) {
+                    $st_tc = db()->prepare(
+                        "SELECT estado, fondo_inicial FROM turnos_caja WHERE fecha=? ORDER BY id DESC LIMIT 1"
+                    );
+                    $st_tc->execute([date('Y-m-d')]);
+                    $turno_dashboard = $st_tc->fetch();
+                }
+            } catch (\Exception $e) {}
+            ?>
+            <?php if ($tiene_tc_db): ?>
+            <div class="stat-card" style="cursor:pointer" onclick="location.href='<?= APP_BASE ?>/ventas/apertura.php'">
+                <p class="stat-label">Turno de caja</p>
+                <?php if ($turno_dashboard && $turno_dashboard['estado'] === 'abierto'): ?>
+                <p class="stat-value" style="font-size:18px;color:var(--green)">● Abierto</p>
+                <p class="stat-sub">Fondo: $<?= number_format((float)$turno_dashboard['fondo_inicial'], 0, ',', '.') ?> &middot; <span style="color:var(--brand)">Ver →</span></p>
+                <?php elseif ($turno_dashboard): ?>
+                <p class="stat-value" style="font-size:18px;color:var(--g5)">Cerrado</p>
+                <p class="stat-sub"><span style="color:var(--brand)">Ver historial →</span></p>
+                <?php else: ?>
+                <p class="stat-value" style="font-size:18px;color:#d97706">Sin apertura</p>
+                <p class="stat-sub"><span style="color:var(--brand)">Abrir turno →</span></p>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <?php endif; ?>
 
             <?php if (permiso_tiene('productos', 'solo_ver') && $stats['produccion_hoy'] > 0): ?>
