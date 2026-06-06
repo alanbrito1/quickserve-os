@@ -160,6 +160,21 @@ foreach ($productos as $prod) {
         /* Empty */
         .empty { text-align: center; padding: 36px; color: var(--g5); }
 
+        /* Responsive */
+        @media (max-width: 639px) {
+            .main { padding: 12px 10px 60px; }
+            .page-title { font-size: 18px; }
+            .kpi-val { font-size: 20px; }
+            .stock-val { font-size: 22px; }
+            .stock-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+        }
+        @media (max-width: 479px) {
+            .hide-xs { display: none !important; }
+            .hdr-btns { width: 100%; }
+            .hdr-btns .btn-primary, .hdr-btns .btn-sec { flex: 1; text-align: center; }
+            .stock-grid { grid-template-columns: 1fr 1fr; }
+        }
+
         /* Toast */
         .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); padding: 10px 20px; border-radius: 24px; font-size: 14px; font-weight: 600; opacity: 0; transition: .25s; z-index: 999; pointer-events: none; }
         .toast.on  { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -271,10 +286,10 @@ foreach ($productos as $prod) {
                     <th>#</th>
                     <th>Producto</th>
                     <th>Cantidad</th>
-                    <th>Costo/u (al producir)</th>
+                    <th class="hide-xs">Costo/u (al producir)</th>
                     <th>Hora</th>
-                    <th>Registrado por</th>
-                    <th>Notas</th>
+                    <th class="hide-xs">Registrado por</th>
+                    <th class="hide-xs">Notas</th>
                     <th>Estado</th>
                     <?php if (permiso_tiene('productos', 'editar_existentes')): ?>
                     <th></th>
@@ -292,7 +307,7 @@ foreach ($productos as $prod) {
                         <?php endif; ?>
                     </td>
                     <td><strong><?= (int)$l['cantidad'] ?></strong> unidades</td>
-                    <td>
+                    <td class="hide-xs">
                         <?php if ($l['costo_unitario']): ?>
                         $<?= number_format((float)$l['costo_unitario'], 0, ',', '.') ?>
                         <?php else: ?>
@@ -300,9 +315,9 @@ foreach ($productos as $prod) {
                         <?php endif; ?>
                     </td>
                     <td style="color:var(--g5);font-size:12px"><?= date('H:i', strtotime($l['created_at'])) ?></td>
-                    <td style="font-size:12px"><?= htmlspecialchars($l['usuario_nombre'] ?? '—') ?></td>
-                    <td style="font-size:12px;color:var(--g5)"><?= htmlspecialchars($l['notas'] ?? '') ?></td>
-                    <td><span class="badge badge-<?= $l['estado'] ?>"><?= ucfirst($l['estado']) ?></span></td>
+                    <td class="hide-xs" style="font-size:12px"><?= htmlspecialchars($l['usuario_nombre'] ?? '—') ?></td>
+                    <td class="hide-xs" style="font-size:12px;color:var(--g5)"><?= htmlspecialchars($l['notas'] ?? '') ?></td>
+                    <td><span class="badge badge-<?= htmlspecialchars($l['estado']) ?>"><?= htmlspecialchars(ucfirst($l['estado'])) ?></span></td>
                     <?php if (permiso_tiene('productos', 'editar_existentes')): ?>
                     <td>
                         <?php if ($l['estado'] === 'activo'): ?>
