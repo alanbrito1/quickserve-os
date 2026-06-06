@@ -677,7 +677,7 @@ Cada transacción registra **tanto el precio como el contexto completo** (nombre
 Una **corrección por mala digitación** usa flujo DELETE+INSERT (no UPDATE del precio). Documentado con comentario en `editar_venta.php` y `CompraModel::editar()`.
 
 ### Detección dinámica de migraciones
-Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si las columnas de snapshot existen antes de intentar guardarlas. Esto garantiza retrocompatibilidad si las migraciones 032-034 aún no se han ejecutado.
+Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si las columnas de snapshot existen antes de intentar guardarlas. Retrocompatibilidad heredada — en producción todas las columnas (032-034) están aplicadas.
 
 ### Lo que cambia (y debe cambiar)
 - `insumos.costo_actual` → se actualiza en cada compra (es el costo **actual** de referencia para nuevas producciones)
@@ -936,16 +936,15 @@ Uso: `<button class="btn-ajuste ic" title="..."><?= IC_EDIT ?></button>` — la 
 | `clientes/api/crud.php` | trim() sin re-validar nombre vacío (podría guardar ' ') | Validación explícita post-trim |
 
 ### Estado al cierre de sesión 2026-06-06
-Todo subido a GitHub. Sin pendientes de código.
+Todo subido a GitHub. Sin pendientes de código ni migraciones.
 
-**Migraciones pendientes de aplicar en producción (cPanel):**
-- `032_compra_detalles_presentacion.sql`
-- `033_nomina_snapshots.sql`
-- `034_snapshots_nombres_y_saldo.sql`
+**✅ Código y base de datos 100% sincronizados:**
+- Migraciones 032, 033, 034 confirmadas como ya aplicadas en producción (verificado con dump 2026-06-06)
+- `database/schema.sql` reescrito y sincronizado con la estructura real de producción (dump 2026-06-06)
+- Diferencias corregidas en schema.sql vs versión anterior: `logs_historial.fecha_cambio`, `empleados.usuario_id`, `registro_horas.aprobado`, `activos` sin `estado_vida`, `parametros_laborales` con `nombre`/`activo`/`orden`, `configuracion_negocio.categoria` como ENUM, y más
 
 **Próxima sesión puede continuar desde:**
-- Todo el código está en producción excepto migraciones 032-034
 - Phase 2 (ingrediente base + variantes) — deferred, roadmap v4.3
 - `ayuda/index.php` documentada con cambios v4.24 ✅
 
-*Última actualización: 2026-06-06 | v4.24 — Edición insumo sin cantidad obligatoria (ajustar_stock condicional), panel informativo de presentación en compras (solo lectura), documentación ayuda actualizada.*
+*Última actualización: 2026-06-06 | v4.24 — schema.sql sincronizado con producción; todas las migraciones 002-034 aplicadas.*
