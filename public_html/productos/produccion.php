@@ -54,6 +54,88 @@ $stocks_insumos = db()->query(
     "SELECT id, nombre, stock_actual, unidad_medida FROM insumos WHERE activo = 1"
 )->fetchAll(PDO::FETCH_UNIQUE);
 
+// ── Sugerencia de producción — promedio últimos 14 días ──────────────────────
+$dias_analisis = 14;
+
+// Ventas diarias promedio por producto (excluye hoy para no sesgar con datos parciales)
+$stmt_avg = db()->prepare(
+    "SELECT vd.producto_id,
+            SUM(vd.cantidad)                          AS total_vendidas,
+            COUNT(DISTINCT DATE(v.fecha_venta))       AS dias_activos
+     FROM venta_detalles vd
+     JOIN ventas v ON v.id = vd.venta_id
+     WHERE v.fecha_venta >= DATE_SUB(CURDATE(), INTERVAL :dias DAY)
+       AND DATE(v.fecha_venta) < CURDATE()
+       AND v.estado != 'anulada'
+     GROUP BY vd.producto_id"
+);
+$stmt_avg->execute([':dias' => $dias_analisis]);
+$ventas_avg = [];
+foreach ($stmt_avg->fetchAll() as $row) {
+    $ventas_avg[(int)$row['producto_id']] = [
+        'total' => (int)$row['total_vendidas'],
+        'dias'  => (int)$row['dias_activos'],
+        'avg'   => round((float)$row['total_vendidas'] / $dias_analisis, 1),
+    ];
+}
+
+// Variante más vendida por producto (si mig. 035 existe)
+$variante_top = [];
+$tiene_035p = false;
+try {
+    $tiene_035p = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='venta_detalles'
+           AND COLUMN_NAME='variante_etiqueta'"
+    )->fetchColumn() > 0;
+} catch (Exception $e) {}
+if ($tiene_035p) {
+    $stmt_var = db()->prepare(
+        "SELECT vd.producto_id, vd.variante_etiqueta, SUM(vd.cantidad) AS total
+         FROM venta_detalles vd
+         JOIN ventas v ON v.id = vd.venta_id
+         WHERE v.fecha_venta >= DATE_SUB(CURDATE(), INTERVAL :dias DAY)
+           AND DATE(v.fecha_venta) < CURDATE()
+           AND v.estado != 'anulada'
+           AND vd.variante_etiqueta IS NOT NULL
+         GROUP BY vd.producto_id, vd.variante_etiqueta
+         ORDER BY vd.producto_id, total DESC"
+    );
+    $stmt_var->execute([':dias' => $dias_analisis]);
+    $var_all = [];
+    foreach ($stmt_var->fetchAll() as $r) {
+        $pid = (int)$r['producto_id'];
+        $var_all[$pid][] = ['etiqueta' => $r['variante_etiqueta'], 'total' => (int)$r['total']];
+    }
+    foreach ($var_all as $pid => $vars) {
+        $total_pid = array_sum(array_column($vars, 'total'));
+        $top = $vars[0]; // ORDER BY total DESC → primer elemento es el más vendido
+        $pct = $total_pid > 0 ? round($top['total'] / $total_pid * 100) : 0;
+        $variante_top[$pid] = ['etiqueta' => $top['etiqueta'], 'pct' => $pct];
+    }
+}
+
+// Armar tabla de sugerencias: solo productos con historial de ventas
+$sugerencias = [];
+foreach ($productos as $p) {
+    $pid = (int)$p['id'];
+    $avg = $ventas_avg[$pid]['avg'] ?? 0.0;
+    if ($avg <= 0) continue;
+    $stock    = (int)$p['stock_disponible'];
+    $sugerido = max(0, (int)ceil($avg) - $stock);
+    $sugerencias[] = [
+        'id'       => $pid,
+        'nombre'   => $p['nombre'],
+        'avg'      => $avg,
+        'stock'    => $stock,
+        'minimo'   => (int)$p['stock_minimo'],
+        'sugerido' => $sugerido,
+        'variante' => $variante_top[$pid] ?? null,
+    ];
+}
+// Mayor sugerido primero, luego mayor promedio
+usort($sugerencias, fn($a, $b) => $b['sugerido'] <=> $a['sugerido'] ?: $b['avg'] <=> $a['avg']);
+
 // Construir datos de recetas para el preview de insumos en el modal
 // El stock real se lee de $stocks_insumos y se pasa como STOCKS al JS
 $recetas_js = [];
@@ -180,6 +262,27 @@ foreach ($productos as $prod) {
         .toast.on  { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast-ok  { background: #065f46; color: #d1fae5; }
         .toast-err { background: #991b1b; color: #fee2e2; }
+
+        /* Sugerencia de producción */
+        .sug-panel { background: var(--white); border: 1px solid var(--g8); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+        .sug-panel summary { list-style: none; cursor: pointer; padding: 14px 16px;
+                             display: flex; align-items: center; gap: 8px;
+                             font-size: 14px; font-weight: 700; user-select: none; }
+        .sug-panel summary::-webkit-details-marker { display: none; }
+        .sug-panel summary .sug-chevron { margin-left: auto; font-size: 12px; color: var(--g5); transition: transform .2s; }
+        .sug-panel[open] summary .sug-chevron { transform: rotate(180deg); }
+        .sug-panel summary .sug-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+        .sug-table-wrap { overflow-x: auto; }
+        .sug-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .sug-table th { background: var(--g9); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 9px 14px; text-align: left; color: var(--g5); }
+        .sug-table td { padding: 10px 14px; border-top: 1px solid var(--g9); vertical-align: middle; }
+        .sug-table tr:first-child td { border-top: none; }
+        .sug-sugerido { font-size: 18px; font-weight: 800; }
+        .sug-sugerido.ok { color: var(--green); }
+        .sug-sugerido.urgente { color: var(--brand); }
+        .sug-sugerido.cero { color: var(--g5); font-size: 14px; }
+        .sug-footer { padding: 10px 16px; font-size: 11px; color: var(--g5); border-top: 1px solid var(--g9); }
+        .badge-var { background: #dbeafe; color: #1e40af; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -234,6 +337,75 @@ foreach ($productos as $prod) {
             <div class="kpi-lbl">Productos con stock bajo</div>
         </div>
     </div>
+
+    <!-- Sugerencia de producción diaria -->
+    <?php if (!empty($sugerencias)): ?>
+    <?php
+    $hay_urgente = !empty(array_filter($sugerencias, fn($s) => $s['sugerido'] >= 5));
+    $total_sugerido = array_sum(array_column($sugerencias, 'sugerido'));
+    ?>
+    <details class="sug-panel" <?= ($total_sugerido > 0 || $fecha === date('Y-m-d')) ? 'open' : '' ?>>
+        <summary>
+            <span>📊</span>
+            <span>Sugerencia de producción — últimos <?= $dias_analisis ?> días</span>
+            <?php if ($total_sugerido > 0): ?>
+            <span class="sug-badge" style="background:#fef3c7;color:#92400e">
+                +<?= $total_sugerido ?> a producir
+            </span>
+            <?php else: ?>
+            <span class="sug-badge" style="background:#d1fae5;color:#065f46">Stock OK</span>
+            <?php endif; ?>
+            <span class="sug-chevron">▼</span>
+        </summary>
+        <div class="sug-table-wrap">
+            <table class="sug-table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th style="text-align:right">Prom./día</th>
+                        <th style="text-align:right">Stock actual</th>
+                        <th style="text-align:right">Sugerido producir</th>
+                        <?php if (!empty($variante_top)): ?>
+                        <th>Variante más vendida</th>
+                        <?php endif; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($sugerencias as $s): ?>
+                <?php
+                $sugerido = (int)$s['sugerido'];
+                $clsSug = $sugerido === 0 ? 'cero' : ($sugerido >= 5 ? 'urgente' : 'ok');
+                $clsStock = ($s['minimo'] > 0 && $s['stock'] < $s['minimo']) ? 'color:#dc2626;font-weight:700' : '';
+                ?>
+                <tr>
+                    <td style="font-weight:600"><?= htmlspecialchars($s['nombre']) ?></td>
+                    <td style="text-align:right;color:var(--g5)"><?= number_format($s['avg'], 1) ?></td>
+                    <td style="text-align:right;<?= $clsStock ?>"><?= $s['stock'] ?></td>
+                    <td style="text-align:right">
+                        <span class="sug-sugerido <?= $clsSug ?>">
+                            <?= $sugerido > 0 ? '+' . $sugerido : '—' ?>
+                        </span>
+                    </td>
+                    <?php if (!empty($variante_top)): ?>
+                    <td>
+                        <?php if (isset($s['variante'])): ?>
+                        <span class="badge-var"><?= htmlspecialchars($s['variante']['etiqueta']) ?></span>
+                        <span style="font-size:11px;color:var(--g5);margin-left:3px"><?= $s['variante']['pct'] ?>%</span>
+                        <?php else: ?>
+                        <span style="font-size:11px;color:var(--g5)">Sin variante</span>
+                        <?php endif; ?>
+                    </td>
+                    <?php endif; ?>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="sug-footer">
+            Sugerido = ceil(promedio/día) − stock actual. Datos de ventas completadas desde <?= date('d/m/Y', strtotime("-{$dias_analisis} days")) ?> (excluye hoy). Productos sin historial de ventas no se muestran.
+        </div>
+    </details>
+    <?php endif; ?>
 
     <!-- Stock de producto terminado por producto -->
     <p class="section-title">Stock de Producto Terminado</p>

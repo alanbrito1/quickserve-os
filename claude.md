@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.40 — Memoria de Sesión
+# ClanDestino ERP v4.41 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1046,8 +1046,27 @@ Todo subido a GitHub. Sin pendientes de código ni migraciones.
 ### Limitación conocida (aceptada)
 Si `es_base` se cambia en una receta después de realizar ventas, la restauración de stock en ventas antiguas usará el valor actual, no el histórico (no hay snapshot de `es_base` en `venta_detalles`). Configurar antes de comenzar a vender.
 
+---
+
+## Estado v4.41 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/productos/produccion.php` | Panel `<details>` colapsable "Sugerencia de producción — últimos 14 días": promedio ventas/día, stock actual, cuánto producir, variante más vendida |
+| `public_html/app/config/app.php` | APP_VERSION → 4.41 |
+
+### Lógica de la sugerencia
+- Promedio = `SUM(cantidad_vendida) / 14` (últimos 14 días, excluyendo hoy)
+- Sugerido = `max(0, ceil(promedio) - stock_actual)`
+- Solo aparecen productos con historial de ventas en el período
+- Si mig.035 existe, muestra variante más vendida (la de mayor volumen) con % del total
+- Panel abierto automáticamente cuando `total_sugerido > 0` o es día actual
+- Ordenado: mayor sugerido primero, desempate por mayor promedio
+
 **Próxima sesión puede continuar desde:**
-- Considerar: sugerencia de producción diaria basada en variante más vendida
 - Posible herramienta de consolidación: migrar "Pollo XL" + "Pollo Regular" (productos separados) → un solo "Pollo" con variantes
+- Ajuste del período de análisis (14d hardcodeado, podría ser configurable)
 
 *Última actualización: 2026-06-06 | v4.30 — variantes completo incluyendo docs, schema.sql y ayuda.*
