@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.42 — Memoria de Sesión
+# ClanDestino ERP v4.43 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1088,9 +1088,32 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - Factor calculado = `qty_critica(fuente) / qty_critica(base)` usando el ingrediente es_insumo_critico=1
 - ON DUPLICATE KEY UPDATE en INSERT de variante: si la etiqueta ya existe en ese producto, actualiza precio/factor
 
+---
+
+## Estado v4.43 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/ventas/cierre.php` | Nueva página: cierre de caja diario, selector de fecha, print-ready |
+| `public_html/ventas/historial.php` | Botón "🧾 Cierre de caja" en el header junto al "Ir al POS" |
+| `public_html/dashboard.php` | Tarjeta "Ventas hoy" clickeable → cierre.php |
+| `public_html/app/config/app.php` | APP_VERSION → 4.43 |
+
+### Funcionalidad de cierre.php
+- Detecta mig.034 (nombre_snap) y mig.035 (variante_etiqueta) para queries adaptivas
+- Resumen por método de pago: cards individuales con total y número de ventas
+- Panel totales oscuro: cobrado, fiado pendiente, obsequios, total del día
+- Detalle por producto: agrupado por producto_id + variante, con badges de variante inline
+- Lista de fiados del día con estado (pagado / pendiente)
+- Contador de ventas anuladas (excluidas del total, informativas)
+- Botón "🖨 Imprimir" con CSS @media print (oculta nav, selector fecha, botones)
+- Selector de fecha con `max=hoy` para navegar días anteriores
+
 **Próxima sesión puede continuar desde:**
 - Ajuste del período de análisis en produccion.php (14d hardcodeado, podría ser un selector 7/14/30)
-- Mejora del consolidar.php: mostrar las columnas de `es_base` del ingrediente crítico en el preview
-- Dashboard: widget de variantes más vendidas del día
+- Exportar cierre.php como PDF o compartir por WhatsApp (via navigator.share() en mobile)
+- Mejora del consolidar.php: mostrar factores de es_base en el preview de ingredientes
 
 *Última actualización: 2026-06-06 | v4.30 — variantes completo incluyendo docs, schema.sql y ayuda.*

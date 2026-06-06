@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.42'); // 2026-06-06: v4.42 herramienta consolidar productos (wizard 3 pasos: selección → preview → ejecutar)
+define('APP_VERSION', '4.43'); // 2026-06-06: v4.43 cierre de caja diario (ventas/cierre.php) con desglose variantes + print
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

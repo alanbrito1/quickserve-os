@@ -384,10 +384,10 @@ $nivel_labels = [
         <div class="stats-grid">
 
             <?php if (permiso_tiene('ventas', 'solo_ver')): ?>
-            <div class="stat-card">
+            <div class="stat-card" style="cursor:pointer" onclick="location.href='<?= APP_BASE ?>/ventas/cierre.php'">
                 <p class="stat-label">Ventas hoy</p>
                 <p class="stat-value"><?= $stats['ventas_hoy'] ?></p>
-                <p class="stat-sub">$<?= number_format($stats['ventas_total'], 0, ',', '.') ?></p>
+                <p class="stat-sub">$<?= number_format($stats['ventas_total'], 0, ',', '.') ?> &middot; <span style="color:var(--brand)">Cierre →</span></p>
             </div>
             <?php endif; ?>
 

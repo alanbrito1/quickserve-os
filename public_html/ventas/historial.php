@@ -301,10 +301,16 @@ foreach ($ventas as $v) {
                 &middot; <?= $kpi['n'] ?> venta<?= $kpi['n'] !== 1 ? 's' : '' ?>
             </p>
         </div>
-        <a href="<?= APP_BASE ?>/ventas/"
-           style="background:var(--brand);color:#fff;text-decoration:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700">
-            Ir al POS
-        </a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="<?= APP_BASE ?>/ventas/cierre.php"
+               style="background:var(--dark);color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600">
+                🧾 Cierre de caja
+            </a>
+            <a href="<?= APP_BASE ?>/ventas/"
+               style="background:var(--brand);color:#fff;text-decoration:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700">
+                Ir al POS
+            </a>
+        </div>
     </div>
 
     <?php if ($cliente_filtrado): ?>
