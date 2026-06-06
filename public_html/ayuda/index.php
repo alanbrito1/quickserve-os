@@ -286,7 +286,7 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">ClanDestino ERP — Visión General</div>
-                    <div class="section-badge">v4.40 · Colombia</div>
+                    <div class="section-badge">v4.44 · Colombia</div>
                 </div>
             </div>
             <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
@@ -643,6 +643,23 @@ Para cada ítem en el carrito con <span class="var">es_combo = 1</span>:
                 <span class="int-badge arrow">Clientes (fiado)</span>
                 <span class="int-badge arrow">Productos (capacidad POS + combo config)</span>
             </div>
+
+            <div class="sub-title">Cierre de caja — v4.43</div>
+            <p><strong>Ventas → Cierre de caja</strong> (<code>ventas/cierre.php</code>) genera el resumen diario de ingresos. Accesible desde el historial (botón "🧾 Cierre de caja") o desde la tarjeta "Ventas hoy" del dashboard.</p>
+            <table class="data-table">
+                <thead><tr><th>Sección</th><th>Descripción</th></tr></thead>
+                <tbody>
+                    <tr><td>Selector de fecha</td><td>Navega cualquier día anterior. Predeterminado: hoy. No permite fechas futuras.</td></tr>
+                    <tr><td>Resumen por método de pago</td><td>Cards individuales: efectivo, transferencia, fiado, obsequio — con total y número de ventas.</td></tr>
+                    <tr><td>Panel de totales</td><td>Cobrado (sin fiado), fiado pendiente del día, obsequios, total general.</td></tr>
+                    <tr><td>Detalle por producto</td><td>Unidades y pesos por producto + variante. Usa snapshots de nombre si mig.034 está aplicada.</td></tr>
+                    <tr><td>Fiados del día</td><td>Lista de ventas pendientes de cobro con estado (pagado / pendiente).</td></tr>
+                    <tr><td>Ventas anuladas</td><td>Contador informativo — excluidas del total.</td></tr>
+                    <tr><td>Imprimir</td><td>CSS @media print oculta navegación, selector y botones. Queda solo el resumen limpio.</td></tr>
+                    <tr><td>Compartir por WhatsApp</td><td>Botón verde "Compartir". En móvil usa la API nativa <code>navigator.share()</code>; en escritorio abre WhatsApp Web con el texto prellenado.</td></tr>
+                </tbody>
+            </table>
+            <div class="ok"><strong>Texto compartido:</strong> Incluye nombre del negocio, fecha, totales por método de pago y detalle de productos con variantes. Formato <em>Markdown</em> compatible con WhatsApp (negritas con <code>*asteriscos*</code>).</div>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
@@ -717,6 +734,23 @@ los productos que usan ese insumo.</span></div>
                 <span class="int-badge arrow">Productos (costo_calculado)</span>
                 <span class="int-badge arrow">Reportes (stock report)</span>
             </div>
+
+            <div class="sub-title">Conteo rápido de stock — v4.44</div>
+            <p><strong>Inventario → Conteo rápido</strong> (<code>inventario/conteo.php</code>) permite actualizar el stock real de todos los insumos en una sola pantalla, ideal para cierres de turno o auditorías sin editar insumo por insumo.</p>
+            <table class="data-table">
+                <thead><tr><th>Elemento</th><th>Descripción</th></tr></thead>
+                <tbody>
+                    <tr><td>Filtro por categoría</td><td>Chips en la barra superior para ver solo un grupo (proteína, lácteo, vegetal…).</td></tr>
+                    <tr><td>Buscador</td><td>Filtra insumos por nombre en tiempo real.</td></tr>
+                    <tr><td>Tarjeta de insumo</td><td>Muestra nombre, estado (OK / bajo / agotado) y stock actual. El campo de entrada usa el stock actual como placeholder.</td></tr>
+                    <tr><td>Resaltado en rojo</td><td>La tarjeta se bordea en rojo al ingresar un valor diferente al stock actual.</td></tr>
+                    <tr><td>Barra flotante</td><td>Fija en la parte inferior: contador "X / N insumos" + botones <em>Limpiar</em> y <em>Guardar conteo</em>.</td></tr>
+                    <tr><td>Solo guarda cambios</td><td>El sistema omite los insumos cuyo valor ingresado coincide con el stock actual — no genera registros de auditoría innecesarios.</td></tr>
+                    <tr><td>Atajo teclado</td><td><kbd>Enter</kbd> avanza al siguiente insumo visible, útil con tablet en mano durante el conteo físico.</td></tr>
+                </tbody>
+            </table>
+            <div class="ok"><strong>Flujo recomendado:</strong> Al abrir el negocio o al cerrar turno, cuenta físicamente cada insumo, escribe el valor en la tarjeta correspondiente y pulsa <em>Guardar conteo</em>. Cada cambio queda registrado en el historial de auditoría con motivo <code>conteo_rapido</code>.</div>
+            <div class="warn"><strong>Importante:</strong> El conteo rápido <em>reemplaza</em> el stock actual — no suma ni resta. Si ingresas 5 kg donde había 8 kg, el sistema registra el ajuste de −3 kg. Úsalo cuando tienes la cantidad real frente a ti.</div>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
@@ -1577,6 +1611,7 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     <tr><td>G07 Combos</td><td>combo_configs e integridad de venta_detalles.</td></tr>
                     <tr><td>G23 Variantes 035</td><td>producto_variantes y columnas venta_detalles (variante_id, factor_receta_snap). Factor en rango, precios positivos, sin duplicados, coherencia NULL.</td></tr>
                     <tr><td>G24 Ingrediente Base 036</td><td>recetas.es_base solo 0 o 1. Ningún ingrediente es crítico Y base a la vez. Productos con factor≠1 tienen al menos un ingrediente escalable.</td></tr>
+                    <tr><td>G25 Conteo Rápido</td><td>Endpoint conteo_guardar.php accesible solo con permiso editar_existentes. Stock no negativo tras conteo. Cada cambio registra entrada en logs_historial.</td></tr>
                     <tr><td>G08 Clientes</td><td>Campos mig. 028, saldos, FKs del módulo de fusión.</td></tr>
                     <tr><td>G09 Producción</td><td>Lotes activos con costo coherente. FK sin huérfanos.</td></tr>
                     <tr><td>G10 Activos</td><td>Sin fecha_inicio_uso → depreciación = 0. Divisor 30.41666.</td></tr>

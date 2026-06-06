@@ -27,6 +27,7 @@
  *   G22  Snapshots 032-034   — coherencia de empaque, nómina, nombres y saldos
  *   G23  Variantes 035       — tabla producto_variantes, columnas venta_detalles, coherencia
  *   G24  Ingrediente Base 036 — columna es_base en recetas, coherencia con variantes
+ *   G25  Conteo Rápido       — endpoint y página existen, stock no negativo, logs coherentes
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1214,6 +1215,50 @@ if ($tiene_es_base) {
         $prod_sin_escala > 0);
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+//  G25 — CONTEO RÁPIDO DE STOCK
+//  Verifica que el endpoint y los registros de auditoría sean coherentes.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G25 Conteo Rápido';
+
+// Test 1: El archivo del endpoint existe
+$conteo_api = BASE_PATH . '/inventario/api/conteo_guardar.php';
+t($G, "Endpoint conteo_guardar.php existe",
+    file_exists($conteo_api),
+    "Falta public_html/inventario/api/conteo_guardar.php");
+
+// Test 2: La página de conteo existe
+$conteo_page = BASE_PATH . '/inventario/conteo.php';
+t($G, "Página inventario/conteo.php existe",
+    file_exists($conteo_page),
+    "Falta public_html/inventario/conteo.php");
+
+// Test 3: Ningún insumo tiene stock negativo (el conteo no debe permitirlo)
+$neg_stock = (int)scalar($pdo,
+    "SELECT COUNT(*) FROM insumos WHERE stock_actual < 0 AND activo = 1");
+t($G, "Ningún insumo activo tiene stock negativo",
+    $neg_stock === 0,
+    $neg_stock > 0 ? "{$neg_stock} insumos con stock negativo." : '',
+    $neg_stock > 0);
+
+// Test 4: Los registros de conteo_rapido en logs_historial tienen valores numéricos coherentes
+$col_fecha_log = 'fecha_cambio'; // nombre real según dump producción
+try {
+    $logs_conteo = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM logs_historial WHERE accion = 'conteo_rapido'");
+    $logs_invalidos = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM logs_historial
+         WHERE accion = 'conteo_rapido'
+           AND (valor_nuevo IS NULL OR valor_nuevo = '')");
+    t($G, "Registros de conteo_rapido en logs_historial tienen valor_nuevo válido",
+        $logs_invalidos === 0,
+        $logs_invalidos > 0 ? "{$logs_invalidos} registros sin valor_nuevo." : "({$logs_conteo} registros de conteo encontrados)",
+        false);
+} catch (\Exception $e) {
+    t($G, "Logs de conteo_rapido verificados", false, "Error: " . $e->getMessage());
+}
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -1272,7 +1317,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    24 grupos
+    25 grupos
 </p>
 
 <!-- Resumen global -->

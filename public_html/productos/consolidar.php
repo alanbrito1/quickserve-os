@@ -194,10 +194,37 @@ if ($accion === 'preview' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$resultad
         $base->execute([$base_id]);
         $base_info = $base->fetch();
 
+        // Detectar es_base (mig.036) para mostrar en la comparativa de ingredientes
+        $tiene_036 = (int)$pdo->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recetas'
+               AND COLUMN_NAME='es_base'"
+        )->fetchColumn() > 0;
+        $col_base = $tiene_036 ? 'r.es_base' : '0 AS es_base';
+
+        // Ingredientes del producto base para comparación
+        $stmt_ing = $pdo->prepare(
+            "SELECT i.nombre AS insumo, r.cantidad_requerida, r.es_insumo_critico, {$col_base}
+             FROM recetas r JOIN insumos i ON i.id = r.insumo_id
+             WHERE r.producto_id = ? ORDER BY r.es_insumo_critico DESC, i.nombre"
+        );
+        $stmt_ing->execute([$base_id]);
+        $ing_base_list = $stmt_ing->fetchAll();
+
+        // Ingredientes de cada fuente
+        $ing_fuentes = [];
+        foreach ($fuentes_ids as $fid) {
+            $stmt_ing->execute([$fid]);
+            $ing_fuentes[$fid] = $stmt_ing->fetchAll();
+        }
+
         $preview = [
-            'base_id'   => $base_id,
-            'base_info' => $base_info,
-            'filas'     => $filas,
+            'base_id'       => $base_id,
+            'base_info'     => $base_info,
+            'filas'         => $filas,
+            'ing_base_list' => $ing_base_list,
+            'ing_fuentes'   => $ing_fuentes,
+            'tiene_036'     => $tiene_036,
         ];
     }
 }
@@ -390,6 +417,87 @@ if ($accion === 'preview' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$resultad
             </table>
             </div>
         </div>
+
+        <?php if (!empty($preview['ing_base_list'])): ?>
+        <div class="card" style="padding:16px 20px">
+            <div class="card-title" style="margin-bottom:10px;font-size:13px">
+                📋 Comparativa de ingredientes
+                <span style="font-size:11px;font-weight:400;color:var(--g5);margin-left:8px">
+                    Ingr. base (🔒) = cantidad fija; escalable = multiplica por factor de variante
+                </span>
+            </div>
+            <?php
+            // Construir mapa insumo→cantidad del base para comparar
+            $map_base = [];
+            foreach ($preview['ing_base_list'] as $r) {
+                $map_base[$r['insumo']] = $r;
+            }
+            ?>
+            <?php foreach ($preview['filas'] as $fid => $f): ?>
+            <details style="margin-bottom:10px" <?= count($preview['filas']) <= 2 ? 'open' : '' ?>>
+                <summary style="font-size:12px;font-weight:700;cursor:pointer;padding:4px 0;color:var(--g2)">
+                    <?= htmlspecialchars($f['nombre']) ?> — vs Producto base
+                </summary>
+                <div style="overflow-x:auto;margin-top:8px">
+                <table style="width:100%;font-size:11px;border-collapse:collapse">
+                    <thead>
+                        <tr style="background:var(--g9)">
+                            <th style="padding:5px 8px;text-align:left;color:var(--g5)">Ingrediente</th>
+                            <th style="padding:5px 8px;text-align:right;color:var(--g5)">Base (=<?= htmlspecialchars($preview['base_info']['nombre']) ?>)</th>
+                            <th style="padding:5px 8px;text-align:right;color:var(--g5)"><?= htmlspecialchars($f['nombre']) ?></th>
+                            <th style="padding:5px 8px;text-align:center;color:var(--g5)">Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    // Fusionar listas por nombre de insumo
+                    $map_fid = [];
+                    foreach ($preview['ing_fuentes'][$fid] as $r) {
+                        $map_fid[$r['insumo']] = $r;
+                    }
+                    $all_insumos = array_unique(array_merge(array_keys($map_base), array_keys($map_fid)));
+                    sort($all_insumos);
+                    foreach ($all_insumos as $insumo_nombre):
+                        $rb = $map_base[$insumo_nombre] ?? null;
+                        $rf = $map_fid[$insumo_nombre]  ?? null;
+                        $es_critico = ($rb['es_insumo_critico'] ?? $rf['es_insumo_critico'] ?? 0);
+                        $es_base_ing = ($rb['es_base'] ?? $rf['es_base'] ?? 0);
+                    ?>
+                    <tr style="border-top:1px solid var(--g9)">
+                        <td style="padding:5px 8px">
+                            <?= htmlspecialchars($insumo_nombre) ?>
+                            <?php if ($es_critico): ?>
+                            <span style="background:#fef3c7;color:#92400e;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px">⭐crítico</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="padding:5px 8px;text-align:right;font-weight:700">
+                            <?= $rb ? number_format((float)$rb['cantidad_requerida'], 3) : '<span style="color:var(--g5)">—</span>' ?>
+                        </td>
+                        <td style="padding:5px 8px;text-align:right;font-weight:700">
+                            <?= $rf ? number_format((float)$rf['cantidad_requerida'], 3) : '<span style="color:var(--g5)">—</span>' ?>
+                        </td>
+                        <td style="padding:5px 8px;text-align:center">
+                            <?php if ($es_base_ing): ?>
+                            <span style="background:#d1fae5;color:#065f46;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px">🔒base</span>
+                            <?php else: ?>
+                            <span style="background:#eff6ff;color:#1e40af;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px">× factor</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+                <?php if ($f['factor_auto']): ?>
+                <div class="tip" style="margin-top:6px">
+                    Factor calculado = <?= $f['factor_calc'] ?> (ingrediente crítico fuente ÷ ingrediente crítico base).
+                    Los ingredientes 🔒base siempre usan factor 1.0 independientemente de este valor.
+                </div>
+                <?php endif; ?>
+            </details>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
 
         <div class="card">
             <div class="card-title">
