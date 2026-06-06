@@ -1191,6 +1191,24 @@ $nav_activo = 'ventas';
                    placeholder="Instrucciones especiales, sin picante, etc.">
         </div>
 
+        <?php if (permiso_tiene('ventas', 'editar_existentes')): ?>
+        <!-- Descuento (solo para usuarios con permiso editar_existentes o superior) -->
+        <div class="sheet-section" id="descuento-section">
+            <p class="sheet-section-title">Descuento (%)</p>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="descuento-input" value="0"
+                       min="0" max="50" step="1" inputmode="numeric"
+                       style="padding:8px 10px;border:1px solid var(--g8);border-radius:8px;
+                              font-size:15px;font-weight:700;width:90px;color:var(--dark)"
+                       oninput="actualizarDescuento()">
+                <span style="font-size:13px;color:var(--g5)">máx. 50%</span>
+                <span id="descuento-display" style="font-size:13px;font-weight:700;color:#dc2626;margin-left:auto;display:none">
+                    −$<span id="descuento-monto">0</span>
+                </span>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- CSRF token (enviado con FormData en cada submit) -->
         <input type="hidden" id="csrf-token" value="<?= htmlspecialchars(csrf_token()) ?>">
 
@@ -1581,6 +1599,8 @@ function quitarDelCarrito(key) {
 
 function limpiarCarrito() {
     carrito = {};
+    const inp = document.getElementById('descuento-input');
+    if (inp) { inp.value = 0; actualizarDescuento(); }
     actualizarUI();
 }
 
@@ -1614,6 +1634,24 @@ function actualizarUI() {
             card?.classList.remove('en-carrito');
         }
     });
+}
+
+// ---- DESCUENTO ----
+
+function actualizarDescuento() {
+    const inp = document.getElementById('descuento-input');
+    if (!inp) return;
+    let pct = Math.max(0, Math.min(50, parseFloat(inp.value) || 0));
+    inp.value = pct;
+    const items = Object.values(carrito);
+    const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
+    const monto = total * pct / 100;
+    const disp  = document.getElementById('descuento-display');
+    const mon   = document.getElementById('descuento-monto');
+    if (disp && mon) {
+        disp.style.display = pct > 0 ? 'inline' : 'none';
+        mon.textContent = formatPeso(monto).replace('$', '');
+    }
 }
 
 // ---- MODAL ----
@@ -1767,12 +1805,13 @@ async function confirmarVenta() {
     }));
 
     const fd = new FormData();
-    fd.append('csrf_token',   document.getElementById('csrf-token').value);
-    fd.append('metodo_pago',  metodoPago);
-    fd.append('cliente_id',   clienteSeleccionado || '');
-    fd.append('notas',        document.getElementById('notas-input').value.trim());
-    fd.append('fecha_venta',  document.getElementById('fecha-venta-input').value || '');
-    fd.append('carrito',      JSON.stringify(carritoArray));
+    fd.append('csrf_token',    document.getElementById('csrf-token').value);
+    fd.append('metodo_pago',   metodoPago);
+    fd.append('cliente_id',    clienteSeleccionado || '');
+    fd.append('notas',         document.getElementById('notas-input').value.trim());
+    fd.append('fecha_venta',   document.getElementById('fecha-venta-input').value || '');
+    fd.append('descuento_pct', document.getElementById('descuento-input')?.value || '0');
+    fd.append('carrito',       JSON.stringify(carritoArray));
 
     try {
         const resp = await fetch('api/procesar_venta.php', { method: 'POST', body: fd });

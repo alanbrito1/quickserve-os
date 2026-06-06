@@ -1,8 +1,10 @@
 -- ============================================================
--- ClanDestino ERP v4.45 — Esquema de instalación completo
+-- ClanDestino ERP v4.46 — Esquema de instalación completo
 -- Compatible: MySQL 5.7+ / MariaDB 10.3+
 -- Última actualización: 2026-06-06
 -- Incluye migración 035: variantes de tamaño (producto_variantes)
+--              mig. 037: tabla turnos_caja
+--              mig. 038: columnas descuento_pct / descuento_valor en ventas
 -- ============================================================
 -- INSTRUCCIONES DE INSTALACIÓN (instalación desde cero):
 --   1. Crear base de datos: CREATE DATABASE clandestinoERP
@@ -410,6 +412,9 @@ CREATE TABLE `ventas` (
     `es_combo`     TINYINT(1)      NOT NULL DEFAULT 0,  -- 1 si algún ítem es combo (mig. 025)
     `tipo_sandwich` VARCHAR(100)   DEFAULT NULL,   -- denormalizado, legado
     `estado`       ENUM('completada','anulada','pendiente_pago') NOT NULL DEFAULT 'completada',
+    -- Descuento en el POS (mig.038) — retrocompatible: DEFAULT 0 para filas anteriores
+    `descuento_pct`   DECIMAL(5,2)  NOT NULL DEFAULT 0 COMMENT 'Porcentaje de descuento aplicado (0-50)',
+    `descuento_valor` DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Valor monetario del descuento — snapshot inmutable',
     `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `created_by`   INT UNSIGNED    DEFAULT NULL,
     `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

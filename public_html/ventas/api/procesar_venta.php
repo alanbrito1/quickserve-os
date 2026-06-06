@@ -42,6 +42,17 @@ $cliente_id    = !empty($_POST['cliente_id']) ? (int)$_POST['cliente_id'] : null
 $notas         = substr(trim($_POST['notas'] ?? ''), 0, 500); // limitar largo para evitar abuso
 $fecha_pago    = trim($_POST['fecha_pago']    ?? '') ?: null;
 
+// Descuento: solo usuarios con permiso editar_existentes o admin pueden aplicarlo
+$descuento_pct = 0.0;
+$rawDescuento  = (float)($_POST['descuento_pct'] ?? 0);
+if ($rawDescuento > 0) {
+    if (!permiso_tiene('ventas', 'editar_existentes')) {
+        echo json_encode(['success' => false, 'error' => 'Sin permiso para aplicar descuentos.']);
+        exit;
+    }
+    $descuento_pct = max(0.0, min(50.0, $rawDescuento)); // clamped 0-50%
+}
+
 // Fecha de la venta: acepta YYYY-MM-DD; convierte a YYYY-MM-DD HH:MM:SS con hora actual.
 // Se rechaza cualquier fecha futura para evitar registros antedatados hacia adelante.
 $fecha_venta_raw = trim($_POST['fecha_venta'] ?? '');
@@ -92,7 +103,8 @@ try {
     // es_combo ya no es parámetro global: viene dentro de cada ítem del carrito
     $venta_id = VentaModel::crear(
         $carrito, $metodo_pago, $cliente_id,
-        $notas, $fecha_pago, $tipo_sandwich, $fecha_venta
+        $notas, $fecha_pago, $tipo_sandwich, $fecha_venta,
+        $descuento_pct
     );
     echo json_encode(['success' => true, 'venta_id' => $venta_id]);
 

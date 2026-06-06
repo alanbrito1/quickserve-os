@@ -136,7 +136,29 @@ try {
     }
 } catch (\Exception $e) {}
 
-// ── 6. Nombre del negocio ─────────────────────────────────────────────────────
+// ── 6. Descuentos del día (mig.038) ──────────────────────────────────────────
+$total_descuentos = 0.0;
+$n_descuentos     = 0;
+try {
+    $tiene_038c = (int)$pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+           AND COLUMN_NAME='descuento_pct'"
+    )->fetchColumn() > 0;
+    if ($tiene_038c) {
+        $st_desc = $pdo->prepare(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(descuento_valor), 0) AS total_dto
+             FROM ventas
+             WHERE DATE(fecha_venta) = ? AND estado != 'anulada' AND descuento_pct > 0"
+        );
+        $st_desc->execute([$fecha]);
+        $row_desc         = $st_desc->fetch();
+        $n_descuentos     = (int)$row_desc['n'];
+        $total_descuentos = (float)$row_desc['total_dto'];
+    }
+} catch (\Exception $e) {}
+
+// ── 7. Nombre del negocio ─────────────────────────────────────────────────────
 $negocio_nombre = '';
 try {
     $negocio_nombre = (string)$pdo->query(
@@ -168,6 +190,9 @@ if ($n_ventas_total > 0) {
     if ($total_fiado > 0)    $txt_share .= "📋 Fiado: "    . fmt_cop($total_fiado)    . "\n";
     if ($total_obsequio > 0) $txt_share .= "🎁 Obsequio: " . fmt_cop($total_obsequio) . "\n";
     $txt_share .= "📊 *Total: " . fmt_cop($total_ventas) . "*\n";
+    if ($total_descuentos > 0) {
+        $txt_share .= "🏷 Descuentos: −" . fmt_cop($total_descuentos) . " ({$n_descuentos} ventas)\n";
+    }
     if ($turno) {
         $fondo_share = (float)$turno['fondo_inicial'];
         $ef_share    = (float)($por_metodo['efectivo']['total_pesos'] ?? 0);
@@ -421,6 +446,13 @@ $metodo_icons = [
         <hr class="tot-sep">
         <p style="font-size:12px;color:#9ca3af">
             <?= $n_anuladas ?> venta<?= $n_anuladas != 1 ? 's' : '' ?> anulada<?= $n_anuladas != 1 ? 's' : '' ?> (excluidas del total)
+        </p>
+        <?php endif; ?>
+        <?php if ($total_descuentos > 0): ?>
+        <hr class="tot-sep">
+        <p style="font-size:12px;color:#9ca3af">
+            🏷 <?= $n_descuentos ?> venta<?= $n_descuentos != 1 ? 's' : '' ?> con descuento — total descontado:
+            <strong style="color:#92400e">−$<?= number_format($total_descuentos, 0, ',', '.') ?></strong>
         </p>
         <?php endif; ?>
     </div>

@@ -30,7 +30,9 @@ class VentaModel
      * @param int|null    $cliente_id    Requerido si metodo_pago === 'fiado'
      * @param string      $notas
      * @param string|null $fecha_pago    NULL = pendiente cobro. ISO date si ya se pagó.
-     * @param string      $tipo_sandwich Etiqueta heredada (denormalizada, para legado)
+     * @param string      $tipo_sandwich  Etiqueta heredada (denormalizada, para legado)
+     * @param string|null $fecha_venta    Fecha de la venta (YYYY-MM-DD HH:MM:SS); NULL = NOW()
+     * @param float       $descuento_pct  Porcentaje de descuento 0-50; sólo si mig.038 aplicada
      * @return int  ID de la venta creada
      * @throws RuntimeException si stock insuficiente, cliente ausente en fiado, etc.
      */
@@ -41,7 +43,8 @@ class VentaModel
         string  $notas          = '',
         ?string $fecha_pago     = null,
         string  $tipo_sandwich  = '',
-        ?string $fecha_venta    = null
+        ?string $fecha_venta    = null,
+        float   $descuento_pct  = 0.0
     ): int {
         if (empty($carrito)) {
             throw new RuntimeException('El carrito no puede estar vacío.');
@@ -53,7 +56,7 @@ class VentaModel
         $pdo = db();
         $uid = (int)($_SESSION['usuario_id'] ?? 0);
 
-        $total = array_reduce($carrito, static function (float $suma, array $item): float {
+        $total_bruto = array_reduce($carrito, static function (float $suma, array $item): float {
             return $suma + ((float)$item['precio'] * (int)$item['cantidad']);
         }, 0.0);
 
@@ -65,15 +68,25 @@ class VentaModel
 
         $pdo->beginTransaction();
         try {
+            // Detectar migración 038 (descuento_pct / descuento_valor en ventas)
+            static $tiene038v = null;
+            if ($tiene038v === null) {
+                try {
+                    $tiene038v = (int)$pdo->query(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS
+                         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+                           AND COLUMN_NAME='descuento_pct'"
+                    )->fetchColumn() > 0;
+                } catch (\Exception $e) { $tiene038v = false; }
+            }
+            $descuento_pct   = $tiene038v ? max(0.0, min(50.0, $descuento_pct)) : 0.0;
+            $descuento_valor = round($total_bruto * $descuento_pct / 100, 2);
+            $total           = round($total_bruto - $descuento_valor, 2);
+
             // ---- 1. Cabecera de venta ----
-            $pdo->prepare(
-                "INSERT INTO ventas
-                    (cliente_id, metodo_pago, total, notas, estado,
-                     fecha_pago, es_combo, tipo_sandwich, fecha_venta, created_by)
-                 VALUES
-                    (:cid, :metodo, :total, :notas, :estado,
-                     :fpago, :combo, :tipo, COALESCE(:fventa, NOW()), :uid)"
-            )->execute([
+            $colDesc038  = $tiene038v ? ', descuento_pct, descuento_valor' : '';
+            $valDesc038  = $tiene038v ? ', :dpct, :dval'                   : '';
+            $execParams  = [
                 ':cid'    => $cliente_id,
                 ':metodo' => $metodo_pago,
                 ':total'  => $total,
@@ -84,7 +97,19 @@ class VentaModel
                 ':tipo'   => $tipo_sandwich ?: null,
                 ':fventa' => $fecha_venta,
                 ':uid'    => $uid,
-            ]);
+            ];
+            if ($tiene038v) {
+                $execParams[':dpct'] = $descuento_pct;
+                $execParams[':dval'] = $descuento_valor;
+            }
+            $pdo->prepare(
+                "INSERT INTO ventas
+                    (cliente_id, metodo_pago, total, notas, estado,
+                     fecha_pago, es_combo, tipo_sandwich, fecha_venta, created_by{$colDesc038})
+                 VALUES
+                    (:cid, :metodo, :total, :notas, :estado,
+                     :fpago, :combo, :tipo, COALESCE(:fventa, NOW()), :uid{$valDesc038})"
+            )->execute($execParams);
             $venta_id = (int)$pdo->lastInsertId();
 
             // ---- 2. Líneas de detalle + descuento de stock o insumos ----

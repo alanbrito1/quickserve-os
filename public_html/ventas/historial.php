@@ -52,9 +52,20 @@ if ($filtro_cli > 0) {
     $params[':cli'] = $filtro_cli;
 }
 
+// Detectar migración 038 (descuento_pct en ventas)
+$tiene_038h = false;
+try {
+    $tiene_038h = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+           AND COLUMN_NAME='descuento_pct'"
+    )->fetchColumn() > 0;
+} catch (\Exception $e) {}
+$col_desc038h = $tiene_038h ? 'v.descuento_pct,' : '0 AS descuento_pct,';
+
 $stmt = db()->prepare(
     "SELECT v.id, v.fecha_venta, v.metodo_pago, v.total, v.estado, v.notas,
-            v.fecha_pago, v.es_combo,
+            v.fecha_pago, v.es_combo, {$col_desc038h}
             IFNULL(c.nombre, 'Mostrador') AS cliente_nombre,
             u.nombre                       AS cajero_nombre,
             -- Usar nombre_snap si existe (migración 034); si no, usar nombre actual del producto
@@ -431,7 +442,12 @@ foreach ($ventas as $v) {
                     <?php endif; ?>
                 </td>
                 <td><span class="badge badge-<?= htmlspecialchars($v['metodo_pago']) ?>"><?= htmlspecialchars(ucfirst($v['metodo_pago'])) ?></span></td>
-                <td class="r"><strong>$<?= number_format((float)$v['total'],0,',','.') ?></strong></td>
+                <td class="r">
+                    <strong>$<?= number_format((float)$v['total'],0,',','.') ?></strong>
+                    <?php if ((float)($v['descuento_pct'] ?? 0) > 0): ?>
+                    <br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px">−<?= number_format((float)$v['descuento_pct'],0) ?>% dto</span>
+                    <?php endif; ?>
+                </td>
                 <td>
                     <span class="badge badge-<?= $estBadge ?>"><?= $estLabel ?></span>
                     <?php if ($v['fecha_pago']): ?>

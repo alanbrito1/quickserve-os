@@ -29,6 +29,7 @@
  *   G24  Ingrediente Base 036 — columna es_base en recetas, coherencia con variantes
  *   G25  Conteo Rápido       — endpoint y página existen, stock no negativo, logs coherentes
  *   G26  Turnos de Caja 037  — tabla existe, columnas, estado válido, sin duplicados abiertos, fondo≥0
+ *   G27  Descuentos 038      — columnas existen, pct en 0-50, valor≥0, coherencia pct/valor, total≤bruto
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1325,6 +1326,62 @@ if ($tiene_tc) {
     t($G, "usuario_apertura sin huérfanos en usuarios",
         $huerfanos === 0,
         $huerfanos > 0 ? "{$huerfanos} registros con usuario_apertura inexistente." : '');
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+//  G27 — DESCUENTOS EN VENTAS (migración 038)
+//  Verifica coherencia de descuento_pct / descuento_valor en ventas.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G27 Descuentos en Ventas 038';
+
+$tiene_038 = false;
+try {
+    $tiene_038 = (int)$pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+           AND COLUMN_NAME='descuento_pct'"
+    )->fetchColumn() > 0;
+} catch (\Exception $e) {}
+
+t($G, "Columnas descuento_pct / descuento_valor existen en ventas (mig.038)",
+    $tiene_038,
+    "Aplicar 038_descuento_venta.sql",
+    !$tiene_038);
+
+if ($tiene_038) {
+    // Test: descuento_pct en rango 0-50
+    $fueraRango = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM ventas WHERE descuento_pct < 0 OR descuento_pct > 50");
+    t($G, "descuento_pct siempre en rango 0-50%",
+        $fueraRango === 0,
+        $fueraRango > 0 ? "{$fueraRango} ventas con descuento fuera de rango." : '');
+
+    // Test: descuento_valor no negativo
+    $descNeg = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM ventas WHERE descuento_valor < 0");
+    t($G, "descuento_valor nunca negativo",
+        $descNeg === 0,
+        $descNeg > 0 ? "{$descNeg} ventas con descuento_valor negativo." : '');
+
+    // Test: coherencia pct ↔ valor (ambos cero o ambos positivos)
+    $incoherentes = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM ventas
+         WHERE (descuento_pct = 0 AND descuento_valor != 0)
+            OR (descuento_pct > 0 AND descuento_valor = 0)");
+    t($G, "descuento_pct y descuento_valor coherentes entre sí",
+        $incoherentes === 0,
+        $incoherentes > 0 ? "{$incoherentes} ventas con pct/valor incoherentes." : '');
+
+    // Test: ventas con descuento tienen total ≤ suma de detalles (el descuento reduce el total)
+    $totalMayorQueDetalle = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM ventas v
+         JOIN (SELECT venta_id, SUM(subtotal) AS sub FROM venta_detalles GROUP BY venta_id) d
+           ON d.venta_id = v.id
+         WHERE v.descuento_pct > 0 AND v.total > d.sub");
+    t($G, "Total con descuento ≤ suma bruta de detalles",
+        $totalMayorQueDetalle === 0,
+        $totalMayorQueDetalle > 0 ? "{$totalMayorQueDetalle} ventas con total > bruto (incoherente)." : '');
 }
 
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────

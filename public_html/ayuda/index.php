@@ -286,7 +286,7 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">ClanDestino ERP — Visión General</div>
-                    <div class="section-badge">v4.44 · Colombia</div>
+                    <div class="section-badge">v4.46 · Colombia</div>
                 </div>
             </div>
             <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
@@ -683,6 +683,26 @@ Para cada ítem en el carrito con <span class="var">es_combo = 1</span>:
             </table>
             <div class="ok"><strong>Integración con cierre.php:</strong> Cuando hay turno registrado para la fecha seleccionada, el cierre muestra un panel azul oscuro con Fondo apertura / Efectivo cobrado / Total en caja. Si es hoy y no hay turno, aparece una alerta con link directo para abrirlo.</div>
             <div class="warn"><strong>Nota:</strong> Un día puede tener máximo un turno activo. La tabla <code>turnos_caja</code> no tiene FK (política del proyecto — cPanel errno 121). La integridad la garantiza la validación en <code>apertura.php</code> antes de insertar.</div>
+
+            <div class="sub-title">Descuentos en el POS — v4.46</div>
+            <p>El POS (<code>ventas/index.php</code>) permite aplicar un descuento porcentual a toda la venta antes de confirmarla. Requiere migración 038 y permiso <strong>editar_existentes</strong> en el módulo <em>ventas</em>. Los cajeros sin ese permiso no ven el campo.</p>
+            <table class="data-table">
+                <thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+                <tbody>
+                    <tr><td>Descuento (%)</td><td>Porcentaje entero de 0 a 50. Al escribirlo aparece el monto descontado junto al campo. Al limpiar el carrito se resetea a 0.</td></tr>
+                    <tr><td>descuento_pct</td><td>Guardado en <code>ventas</code>. Snapshot inmutable del porcentaje aplicado.</td></tr>
+                    <tr><td>descuento_valor</td><td>Monto monetario descontado = total_bruto × pct / 100. Snapshot inmutable calculado en <code>VentaModel::crear()</code>.</td></tr>
+                    <tr><td>total en ventas</td><td>= total_bruto − descuento_valor (el neto real pagado por el cliente).</td></tr>
+                </tbody>
+            </table>
+            <table class="data-table" style="margin-top:10px">
+                <thead><tr><th>Vista</th><th>Qué muestra</th></tr></thead>
+                <tbody>
+                    <tr><td>Historial de ventas</td><td>Badge amarillo "−X% dto" debajo del total en ventas con descuento.</td></tr>
+                    <tr><td>Cierre de caja</td><td>Nota al pie del panel de totales: n ventas con descuento — total descontado: −$X. También aparece en el texto de WhatsApp.</td></tr>
+                </tbody>
+            </table>
+            <div class="warn"><strong>Alcance del descuento:</strong> Se aplica al total de la venta, no por ítem. Las cantidades en <code>venta_detalles</code> (y por tanto el descuento de stock/insumos) no se modifican — el descuento es solo financiero. Solo usuarios con permiso <em>editar_existentes</em> o superior pueden aplicar descuentos; la validación ocurre en el servidor (<code>procesar_venta.php</code>).</div>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
@@ -1636,6 +1656,7 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     <tr><td>G24 Ingrediente Base 036</td><td>recetas.es_base solo 0 o 1. Ningún ingrediente es crítico Y base a la vez. Productos con factor≠1 tienen al menos un ingrediente escalable.</td></tr>
                     <tr><td>G25 Conteo Rápido</td><td>Endpoint conteo_guardar.php accesible solo con permiso editar_existentes. Stock no negativo tras conteo. Cada cambio registra entrada en logs_historial.</td></tr>
                     <tr><td>G26 Turnos de Caja 037</td><td>Tabla turnos_caja existe. Columnas requeridas. Estado solo 'abierto'/'cerrado'. Máximo 1 turno abierto por fecha. Fondo ≥ 0. Turnos cerrados con fecha_cierre. Sin huérfanos en usuarios.</td></tr>
+                    <tr><td>G27 Descuentos 038</td><td>Columnas descuento_pct / descuento_valor en ventas. pct en rango 0-50. valor ≥ 0. Coherencia pct ↔ valor. Total con descuento ≤ suma bruta de detalles.</td></tr>
                     <tr><td>G08 Clientes</td><td>Campos mig. 028, saldos, FKs del módulo de fusión.</td></tr>
                     <tr><td>G09 Producción</td><td>Lotes activos con costo coherente. FK sin huérfanos.</td></tr>
                     <tr><td>G10 Activos</td><td>Sin fecha_inicio_uso → depreciación = 0. Divisor 30.41666.</td></tr>
