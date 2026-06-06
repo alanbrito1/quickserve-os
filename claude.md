@@ -801,6 +801,8 @@ Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si 
 | `nomina/index.php` y `nomina/empleados.php` sin `$nav_activo` | El tab Nómina no se resaltaba en estas dos páginas (la corrección anterior solo cubrió horas.php y parametros.php) | Añadido `$nav_activo = 'nomina'; $nav_sub = 'nomina'/'empleados';` |
 | `inventario/index.php` modal ajuste no guardaba sin cantidad | Validación JS `cantidad===0 && tipo!=='correccion'` bloqueaba guardar presentación/costo cuando no había movimiento de stock | Eliminada la restricción; el llamado a `ajustar_stock.php` ahora es condicional (`if cantidad !== 0`) |
 | `inventario/compras.php` campos de presentación no mostraban contexto | El formulario solo mostraba Cantidad/Precio/Total sin ninguna referencia al tipo de empaque del insumo | Reemplazado bloque editable `pres-grid` por panel informativo de solo lectura: badge de tipo + unidad + cant/empaque + equivalencia física + hint dinámico de total físico al tipear cantidad |
+| `ventas/api/editar_venta.php` reversa de insumos ignoraba factor variante | Paso 2b usaba `(cantidad_req/rinde)×cantidad` sin `factor_receta_snap` → restauraba cantidad incorrecta en ventas con variante XL/etc. | `COALESCE(vd.factor_receta_snap, 1.0)` en la query; multiplicado en el cálculo de devolución |
+| `ventas/api/editar_venta.php` INSERT paso 4 sin columnas mig.035 | Al re-insertar líneas tras edición, faltaban `variante_id/variante_etiqueta/factor_receta_snap` → error si mig.035 aplicada | Detecta mig.035 con `information_schema`; añade `NULL, NULL, NULL` para las tres columnas |
 
 ---
 

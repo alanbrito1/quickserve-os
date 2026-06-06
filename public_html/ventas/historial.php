@@ -688,8 +688,14 @@ function agregarItemFila(item) {
     var precio  = item ? parseFloat(item.precio_unitario) : 0;
     var cant    = item ? parseInt(item.cantidad) : 1;
     var checked = (item && item.es_combo) ? ' checked' : '';
+    // Muestra la variante original como referencia visual (solo informativo — al guardar la edición
+    // se resetea a NULL porque el modal de edición no tiene picker de variante)
+    var varTag  = (item && item.variante_etiqueta)
+        ? '<br><span style="font-size:9px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:10px;font-weight:700">'
+          + esc(item.variante_etiqueta) + ' (original)</span>'
+        : '';
 
-    tr.innerHTML = '<td>' + selHtml + '</td>'
+    tr.innerHTML = '<td>' + selHtml + varTag + '</td>'
         + '<td><input type="number" min="1" step="1" value="' + cant + '" style="width:58px" oninput="recalcRow(this)"></td>'
         + '<td><input type="number" min="0" step="100" value="' + precio + '" style="width:86px" oninput="recalcRow(this)"></td>'
         + '<td style="text-align:center"><input type="checkbox"' + checked + '></td>'

@@ -41,13 +41,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $items = $pdo->prepare(
         'SELECT vd.id, vd.producto_id, p.nombre AS producto_nombre,
-                vd.cantidad, vd.precio_unitario, vd.es_combo
+                vd.cantidad, vd.precio_unitario, vd.es_combo,
+                vd.variante_etiqueta
          FROM venta_detalles vd
          JOIN productos p ON p.id = vd.producto_id
          WHERE vd.venta_id = ?
          ORDER BY p.nombre'
     );
-    $items->execute([$id]);
+    // Si la columna variante_etiqueta no existe (mig. 035 no aplicada), se ignora silenciosamente
+    try {
+        $items->execute([$id]);
+    } catch (\Exception $e) {
+        // Fallback sin variante_etiqueta (mig. 035 no aplicada)
+        $items = $pdo->prepare(
+            'SELECT vd.id, vd.producto_id, p.nombre AS producto_nombre,
+                    vd.cantidad, vd.precio_unitario, vd.es_combo,
+                    NULL AS variante_etiqueta
+             FROM venta_detalles vd
+             JOIN productos p ON p.id = vd.producto_id
+             WHERE vd.venta_id = ?
+             ORDER BY p.nombre'
+        );
+        $items->execute([$id]);
+    }
 
     $clientes = $pdo->query(
         "SELECT id, nombre FROM clientes WHERE activo = 1 ORDER BY nombre"
@@ -175,10 +191,13 @@ try {
         )->execute([(int)$row['total'], $uid, (int)$row['producto_id']]);
     }
 
-    // 2b. Líneas from_stock=0 → restaurar insumos vía receta
+    // 2b. Líneas from_stock=0 → restaurar insumos vía receta.
+    // COALESCE(vd.factor_receta_snap, 1.0): si la venta fue con variante, se restaura
+    // la cantidad escalada que se descontó originalmente (mig. 035).
     $oldIng = $pdo->prepare(
         'SELECT vd.cantidad, r.insumo_id, r.cantidad_requerida,
-                GREATEST(p.unidades_por_receta, 1) AS rinde
+                GREATEST(p.unidades_por_receta, 1)       AS rinde,
+                COALESCE(vd.factor_receta_snap, 1.0)     AS factor_receta
          FROM venta_detalles vd
          JOIN recetas r ON r.producto_id = vd.producto_id
          JOIN productos p ON p.id = vd.producto_id
@@ -186,7 +205,9 @@ try {
     );
     $oldIng->execute([$id]);
     foreach ($oldIng->fetchAll() as $row) {
-        $devolucion = ((float)$row['cantidad_requerida'] / (int)$row['rinde']) * (int)$row['cantidad'];
+        $devolucion = ((float)$row['cantidad_requerida'] / (int)$row['rinde'])
+                    * (int)$row['cantidad']
+                    * (float)$row['factor_receta'];
         $pdo->prepare(
             'UPDATE insumos SET stock_actual = stock_actual + ?, updated_by = ? WHERE id = ?'
         )->execute([$devolucion, $uid, (int)$row['insumo_id']]);
@@ -236,24 +257,40 @@ try {
         } catch (\Exception $e) { $tiene034ev = false; }
     }
 
-    // Al re-insertar, incluir nombre_snap para preservar el nombre histórico
-    // aunque el producto sea renombrado en el futuro (política de inmutabilidad)
+    // Detectar migración 035 (variante_id, factor_receta_snap en venta_detalles)
+    static $tiene035ev = null;
+    if ($tiene035ev === null) {
+        try {
+            $tiene035ev = (int)$pdo->query(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='venta_detalles'
+                   AND COLUMN_NAME='variante_id'"
+            )->fetchColumn() > 0;
+        } catch (\Exception $e) { $tiene035ev = false; }
+    }
+
+    // Al re-insertar, incluir snapshots activos (mig. 034 y 035).
+    // El editor de ventas no soporta picker de variante → variante_id = NULL en la re-edición.
+    // factor_receta_snap = NULL indica "sin variante", igual que una venta nueva sin variante.
+    $cols035 = $tiene035ev ? ', variante_id, variante_etiqueta, factor_receta_snap' : '';
+    $vals035 = $tiene035ev ? ', NULL, NULL, NULL' : '';
+
     if ($tiene034ev) {
         $stmtDetalle = $pdo->prepare(
-            'INSERT INTO venta_detalles
+            "INSERT INTO venta_detalles
                 (venta_id, producto_id, cantidad, precio_unitario, subtotal,
                  from_stock, es_combo, combo_id,
                  nombre_snap, nombre2_snap,
-                 created_by)
+                 created_by{$cols035})
              VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid,
-                     :nsnap, :n2snap, :uid)'
+                     :nsnap, :n2snap, :uid{$vals035})"
         );
     } else {
         $stmtDetalle = $pdo->prepare(
-            'INSERT INTO venta_detalles
+            "INSERT INTO venta_detalles
                 (venta_id, producto_id, cantidad, precio_unitario, subtotal,
-                 from_stock, es_combo, combo_id, created_by)
-             VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid, :uid)'
+                 from_stock, es_combo, combo_id, created_by{$cols035})
+             VALUES (:vid, :pid, :cant, :precio, :sub, :fs, :ec, :cid, :uid{$vals035})"
         );
     }
 

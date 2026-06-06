@@ -223,6 +223,26 @@ $nav_activo = 'ventas';
             letter-spacing: .3px;
             white-space: nowrap;
         }
+        /* Badge azul si el producto tiene variantes de tamaño configuradas */
+        .prod-variante {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 20px;
+            background: #dbeafe;
+            color: #1e40af;
+            letter-spacing: .3px;
+            white-space: nowrap;
+        }
+        /* Precio "Desde" en tarjeta con variantes */
+        .prod-desde {
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--g5);
+            display: block;
+            margin-bottom: 1px;
+        }
         .prod-nombre {
             font-size: 14px;
             font-weight: 700;
@@ -955,16 +975,30 @@ $nav_activo = 'ventas';
             <!-- Badge de carrito (aparece al añadir el producto) -->
             <span class="prod-qty-badge" id="qty-<?= $p['id'] ?>">1</span>
 
-            <!-- Fila de etiquetas: Tamaño + Combo/Sencillo -->
+            <?php
+            // Variantes activas del producto (si las hay)
+            $variantesCard = $variantes_map[$p['id']] ?? [];
+            $tieneVariantes = !empty($variantesCard);
+            // Precio mínimo de variante para mostrar "Desde $X"
+            $precioDesde = $tieneVariantes ? $variantesCard[0]['precio_venta'] : null;
+            $numVariantes = count($variantesCard);
+            ?>
+            <!-- Fila de etiquetas: Tamaño + Variante/Combo/Sencillo -->
             <div class="prod-meta">
                 <?php if ($p['tamano'] !== 'unico'): ?>
                 <span class="prod-tamano">Tam. <?= htmlspecialchars($p['tamano']) ?></span>
                 <?php endif; ?>
+                <?php if ($tieneVariantes): ?>
+                <!-- Producto tiene variantes → indicar al cajero que deberá elegir talla -->
+                <span class="prod-variante"><?= $numVariantes ?> talla<?= $numVariantes > 1 ? 's' : '' ?> ▾</span>
                 <?php if (isset($combo_map[$p['id']])): ?>
-                <!-- Producto tiene configuración de combo activa → indicar al cajero -->
+                <span class="prod-combo">+ Combo</span>
+                <?php endif; ?>
+                <?php elseif (isset($combo_map[$p['id']])): ?>
+                <!-- Producto con combo pero sin variantes -->
                 <span class="prod-combo">+ Combo</span>
                 <?php else: ?>
-                <!-- Sin combo: solo versión sencilla -->
+                <!-- Sin variantes ni combo -->
                 <span class="prod-sencillo">Sencillo</span>
                 <?php endif; ?>
             </div>
@@ -975,7 +1009,12 @@ $nav_activo = 'ventas';
             <?php if (!empty($p['nombre2'])): ?>
             <div class="prod-sub"><?= htmlspecialchars($p['nombre2']) ?></div>
             <?php endif; ?>
+            <?php if ($tieneVariantes && $precioDesde !== null): ?>
+            <span class="prod-desde">Desde</span>
+            <div class="prod-precio">$<?= number_format($precioDesde, 0, ',', '.') ?></div>
+            <?php else: ?>
             <div class="prod-precio">$<?= number_format($precio, 0, ',', '.') ?></div>
+            <?php endif; ?>
             <span class="prod-capacidad <?= $cap_class ?>" id="cap-<?= $p['id'] ?>">
                 <?= $cap_txt ?>
             </span>
