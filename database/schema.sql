@@ -1,8 +1,9 @@
 -- ============================================================
--- ClanDestino ERP v4.46 — Esquema de instalación completo
+-- ClanDestino ERP v4.74 — Esquema de instalación completo
 -- Compatible: MySQL 5.7+ / MariaDB 10.3+
 -- Última actualización: 2026-06-06
 -- Incluye migración 035: variantes de tamaño (producto_variantes)
+--              mig. 036: recetas.es_base (ingrediente que no escala con factor_receta)
 --              mig. 037: tabla turnos_caja
 --              mig. 038: columnas descuento_pct / descuento_valor en ventas
 -- ============================================================
@@ -14,17 +15,17 @@
 --   4. Cambiar la contraseña del superadmin EN EL PRIMER LOGIN.
 --
 -- NOTA: Este script incluye TODAS las tablas, triggers y datos
---       iniciales. No es necesario ejecutar las migraciones 002-034
+--       iniciales. No es necesario ejecutar las migraciones 002-038
 --       para una instalación nueva.
 --
--- TABLAS (28): logs_historial, login_intentos, usuarios,
+-- TABLAS (29): logs_historial, login_intentos, usuarios,
 --   permisos_modulos, configuracion_negocio, configuracion_app,
 --   listas_sistema, proveedores, insumos, productos, recetas,
 --   combo_configs, combo_insumos, clientes, ventas, venta_detalles,
 --   pagos_fiado, compras, compra_detalles, empleados, registro_horas,
 --   parametros_laborales, nomina_liquidaciones, activos,
 --   costos_indirectos, produccion_lotes, ajustes_stock,
---   producto_variantes (mig. 035)
+--   producto_variantes (mig. 035), turnos_caja (mig. 037)
 --
 -- TRIGGERS (9):
 --   trg_config_negocio_audit, trg_insumos_costo_from_presentacion_insert,
@@ -1216,10 +1217,10 @@ CREATE TABLE IF NOT EXISTS `turnos_caja` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
--- FIN DEL ESQUEMA v4.45
+-- FIN DEL ESQUEMA v4.74
 -- Verifica la instalación:
---   SHOW TABLES;                            -- debe mostrar 28 tablas
+--   SHOW TABLES;                            -- debe mostrar 29 tablas
 --   SHOW TRIGGERS;                          -- debe mostrar 9 triggers
---   SELECT COUNT(*) FROM listas_sistema;    -- debe ser 57
+--   SELECT COUNT(*) FROM listas_sistema;    -- debe ser 59
 --   SELECT COUNT(*) FROM parametros_laborales; -- debe ser 16
 -- ============================================================

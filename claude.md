@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.74 — Memoria de Sesión
+# ClanDestino ERP v4.75 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1883,3 +1883,56 @@ ClanDestino tiene un sistema de diseño responsive **notablemente maduro, consis
 | `public_html/app/config/app.php` | APP_VERSION → 4.74 |
 
 *Última actualización: 2026-06-06 | v4.74 — auditoría responsive móvil + TV/pantallas grandes: confirma sistema maduro y consistente (viewport 100%, breakpoints 359px-1920px, touch targets 44px, grids auto-adaptables, tablas con scroll), documenta 1 hallazgo cosmético menor (font-size inline en 7 tarjetas del dashboard no escala en TV) sin corregir por imposibilidad de verificación visual. Próximo ciclo: v4.75 (sincronizar schema.sql + revisión final claude.md + verificación GitHub).*
+
+## Estado v4.75 (2026-06-06)
+
+### Sincronización de schema.sql + revisión final — quinto y último ciclo de la mejora grande
+
+Cierre del plan de 5 ciclos (v4.71 permisos → v4.72 seguridad → v4.73 código obsoleto → v4.74 responsive → **v4.75 schema/documentación/sync**). Se auditó `database/schema.sql` contra las 37 migraciones (002-038) y contra el propio `claude.md`, y se verificó que todo el trabajo de la sesión esté efectivamente subido a GitHub.
+
+### 🔴 Inconsistencias encontradas y corregidas en `database/schema.sql`
+
+El esquema ya contenía estructuralmente las tablas/columnas de las migraciones 035-038 (mantenido al día en v4.30/v4.40/v4.45/v4.46), pero su **documentación interna había quedado desfasada** — un caso clásico de "el código está bien, el comentario miente":
+
+| Problema | Antes | Corregido a |
+|---|---|---|
+| Título del encabezado vs. pie de página inconsistentes entre sí | Encabezado decía `v4.46`, pie de página decía `v4.45` (dos versiones distintas en el mismo archivo) | Ambos unificados a `v4.74` → ahora `v4.75` (versión de la sesión que sincronizó el archivo) |
+| Conteo de tablas desactualizado | Comentario decía "TABLAS (28)" y el `SHOW TABLES` esperado decía "28 tablas" | Recontadas: **29** `CREATE TABLE` = **29** `DROP TABLE IF EXISTS` (balance verificado) → ambos lugares corregidos a 29 |
+| `turnos_caja` (mig. 037) faltaba en el listado enumerado de tablas | La tabla existía en el script (con `CREATE TABLE IF NOT EXISTS`) pero no aparecía en el comentario que enumera las 28/29 tablas | Agregada al final de la lista: `producto_variantes (mig. 035), turnos_caja (mig. 037)` |
+| Migración 036 (`recetas.es_base`) no mencionada en el resumen de migraciones incluidas | El encabezado solo mencionaba mig. 035, 037 y 038 — la columna `es_base` (con su comentario `-- cantidad fija, no escala con factor_receta (mig. 036)`) sí estaba en el `CREATE TABLE recetas`, pero invisible en el resumen | Agregada línea: `mig. 036: recetas.es_base (ingrediente que no escala con factor_receta)` |
+| Conteo de seed `listas_sistema` desactualizado | Verificación esperada decía "debe ser 57" | Recontado por categoría (`presentacion`=11, `categoria_costo`=10, `categoria_insumo`=8, `unidad_medida`=9, `categoria_activo`=7, `categoria_proveedor`=7, `categoria_producto`=4, `tamano_producto`=3) = **59** filas reales → corregido a 59 (el valor 57 quedó obsoleto desde que mig. 029b agregó las categorías `categoria_producto`/`tamano_producto`) |
+| Rango de migraciones cubiertas | Decía "no es necesario ejecutar las migraciones 002-034" (desactualizado — el script ya incluye hasta 038) | Corregido a "002-038" |
+
+### ✅ Revisión final de `claude.md`
+
+- Verificado que las 4 migraciones más recientes (035, 036, 037, 038) están documentadas en la sección 13 (tabla de migraciones) — ✅ las 4 presentes con su descripción.
+- Verificado que el número de versión en el título (`v4.75`) coincide con `APP_VERSION` en `app.php` (`'4.75'`) — ✅ sincronizado.
+- Confirmado que las 11 secciones "Estado v4.6X/v4.7X" de esta sesión están todas presentes y en orden cronológico (v4.62 → v4.75, sin huecos) — ✅.
+
+### ✅ Verificación de sincronía con GitHub
+
+```
+git log origin/master..HEAD --oneline   →  (vacío = todo sincronizado)
+git status --short                       →  solo schema.sql modificado (este ciclo, recién comiteado)
+```
+
+Todos los commits de la sesión (v4.71 a v4.75) están confirmados en `origin/master`. No hay trabajo pendiente de subir.
+
+### Cierre del plan de 5 ciclos — resumen ejecutivo
+
+| Ciclo | Versión | Resultado |
+|---|---|---|
+| 1 — Roles y permisos | v4.71 | Sistema de permisos confirmado completo; documentadas 3 excepciones (Clientes/Admin-Ayuda/tarjetas sensibles) que antes no estaban explicadas |
+| 2 — Seguridad/vulnerabilidades | v4.72 | 2 vulnerabilidades reales corregidas (open redirect CWE-601, zip-slip CWE-22); 4 endpoints reforzados con try/catch; 6 categorías OWASP confirmadas limpias |
+| 3 — Código obsoleto/comentarios | v4.73 | 2 piezas de código muerto eliminadas; 2 funciones huérfanas activadas (en vez de borradas, por ser seguras y útiles) |
+| 4 — Responsive móvil/TV | v4.74 | Sistema responsive confirmado maduro y consistente; 1 hallazgo cosmético menor documentado (sin corregir por imposibilidad de verificación visual) |
+| 5 — Schema SQL + documentación | v4.75 | `schema.sql` recontado y corregido (29 tablas, 59 seeds, mig. 036 visible, versión unificada); `claude.md` verificado completo; GitHub 100% sincronizado |
+
+### Cambios de versión
+
+| Archivo | Cambio |
+|---------|--------|
+| `database/schema.sql` | Encabezado/pie unificados a v4.75; conteo de tablas 28→29 (+ `turnos_caja` en la lista); mención de mig. 036 agregada; conteo `listas_sistema` 57→59; rango de migraciones 002-034→002-038 |
+| `public_html/app/config/app.php` | APP_VERSION → 4.75 |
+
+*Última actualización: 2026-06-06 | v4.75 — cierre del plan de 5 ciclos: schema.sql recontado y corregido (29 tablas, 59 seeds, versiones unificadas), claude.md verificado completo, GitHub 100% sincronizado. Sistema en estado estable, sin pendientes de código, documentación o sincronización.*

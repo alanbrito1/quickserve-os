@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.74'); // 2026-06-06: v4.74 auditoría responsive móvil + TV/pantallas grandes — confirma sistema maduro, documenta 1 hallazgo cosmético menor
+define('APP_VERSION', '4.75'); // 2026-06-06: v4.75 sincroniza schema.sql (29 tablas, mig.036/037/038), revisión final claude.md, verifica sync GitHub
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
