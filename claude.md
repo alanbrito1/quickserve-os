@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.53 — Memoria de Sesión
+# ClanDestino ERP v4.54 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1368,3 +1368,22 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - **Tests G28 (nuevo)**: agregado a `tests/suite.php` — valida que `pagos_fiado` tenga las columnas snapshot de la migración 034, que `monto`/`saldo_anterior`/`saldo_posterior` sean coherentes y no negativos, que `saldo_posterior = saldo_anterior − monto`, que `metodo_pago` esté en el catálogo válido, que `notas` no exceda 255 caracteres, y una alerta (warning) si el `saldo_fiado` actual de un cliente quedó por debajo de lo esperado tras su último abono (señal de condición de carrera).
 
 *Última actualización: 2026-06-06 | v4.53 — modernizar ventas/fiado.php con abonos AJAX, notas, recordatorio WhatsApp y tests G28.*
+
+---
+
+## Estado v4.54 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/proveedores/index.php` | Agrega enlace verde "WA" (`IC_WA`) junto al teléfono de cada proveedor en el directorio — abre chat de WhatsApp directo (sin mensaje predefinido, a diferencia del recordatorio de fiado); usa la misma normalización de número colombiano (10 dígitos que empiezan en 3 → prefijo 57) que `clientes/index.php` (v4.51) |
+| `public_html/app/config/app.php` | APP_VERSION → 4.54 |
+
+### Funcionalidad v4.54
+
+- **Contacto rápido por WhatsApp con proveedores**: desde el directorio (`proveedores/index.php`), cada tarjeta con teléfono registrado muestra un enlace "WA" que abre directamente una conversación de WhatsApp con ese proveedor — útil para consultar disponibilidad, negociar precios o coordinar entregas sin salir del ERP.
+- A diferencia del recordatorio de pago a clientes (v4.51), este enlace **no** incluye un mensaje predefinido — es solo un acceso directo al chat, ya que el contexto de cada conversación con proveedores varía (pedido, cotización, reclamo, etc.).
+- No requiere migración: `proveedores.telefono` ya existía en el esquema original.
+
+*Última actualización: 2026-06-06 | v4.54 — contacto rápido por WhatsApp en directorio de proveedores.*

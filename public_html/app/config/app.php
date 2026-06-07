@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.53'); // 2026-06-06: v4.53 modernizar ventas/fiado.php — abonos vía AJAX con notas + recordatorio WhatsApp
+define('APP_VERSION', '4.54'); // 2026-06-06: v4.54 contacto rápido por WhatsApp en directorio de proveedores
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

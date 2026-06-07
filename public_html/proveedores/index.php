@@ -148,8 +148,20 @@ $CAT_COLORS = [
                 <?php if (!empty($p['contacto'])): ?>
                 <div><strong>Contacto:</strong> <?= htmlspecialchars($p['contacto']) ?></div>
                 <?php endif; ?>
-                <?php if (!empty($p['telefono'])): ?>
-                <div><strong>Tel:</strong> <?= htmlspecialchars($p['telefono']) ?></div>
+                <?php if (!empty($p['telefono'])):
+                    $tel_pn = preg_replace('/[^0-9]/', '', $p['telefono']);
+                    $tel_pw = (strlen($tel_pn) === 10 && str_starts_with($tel_pn, '3')) ? '57'.$tel_pn : $tel_pn;
+                ?>
+                <div>
+                    <strong>Tel:</strong> <?= htmlspecialchars($p['telefono']) ?>
+                    <?php if ($tel_pw): ?>
+                    &nbsp;<a href="https://wa.me/<?= $tel_pw ?>" target="_blank" rel="noopener noreferrer"
+                             title="Contactar por WhatsApp"
+                             style="color:#25d366;font-weight:700;text-decoration:none;font-size:11px;display:inline-flex;align-items:center;gap:2px;vertical-align:middle">
+                        <?= IC_WA ?> WA
+                    </a>
+                    <?php endif; ?>
+                </div>
                 <?php endif; ?>
                 <?php if ($tieneEmail && !empty($p['email'])): ?>
                 <div><strong>Email:</strong> <?= htmlspecialchars($p['email']) ?></div>
