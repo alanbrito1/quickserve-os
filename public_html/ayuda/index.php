@@ -1471,6 +1471,25 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
 
             <div class="tip"><strong>Rol Superadmin:</strong> Bypassa toda la tabla de permisos. Tiene admin_total en todos los módulos automáticamente, sin necesidad de registros en permisos_modulos.</div>
 
+            <div class="sub-title">Los 9 módulos configurables (matriz de permisos)</div>
+            <p>La matriz de Admin → Usuarios permite asignar, <strong>por usuario individual</strong>, uno de los 5 niveles de la tabla anterior para cada uno de estos módulos (columna <code>modulo</code> de <code>permisos_modulos</code>, ENUM de 9 valores):</p>
+            <p style="font-size:13px;line-height:1.8">
+                <code>ventas</code> · <code>inventario</code> · <code>proveedores</code> · <code>compras</code> ·
+                <code>productos</code> · <code>nomina</code> · <code>activos</code> · <code>costos</code> · <code>reportes</code>
+            </p>
+
+            <div class="sub-title">Casos especiales — fuera de la matriz</div>
+            <p>No todo el sistema se controla mediante <code>permisos_modulos</code>. Tres excepciones documentadas:</p>
+            <table class="data-table">
+                <thead><tr><th>Caso</th><th>Cómo se controla</th><th>Por qué</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Clientes</strong></td><td>Comparte el permiso de <code>ventas</code> (no tiene fila ni ENUM propio)</td><td>El módulo de clientes nació como una extensión natural del flujo de ventas/fiado — separar su permiso duplicaría configuración sin necesidad real</td></tr>
+                    <tr><td><strong>Admin / Ayuda</strong></td><td>Verificación directa de <code>$_SESSION['usuario_rol']</code> (solo <code>admin</code>/<code>superadmin</code> entran a Admin; Ayuda es para todos los autenticados)</td><td>Son paneles de configuración del sistema y documentación — no datos operativos del negocio que ameriten gradación por niveles</td></tr>
+                    <tr><td><strong>Tarjetas sensibles del Dashboard</strong><br>("Rendimiento de Cajeros" v4.59, "Productos Más Rentables" v4.68)</td><td>Verificación directa de rol — visibles <strong>solo</strong> para <code>admin</code>/<code>superadmin</code>, sin importar el nivel asignado en la matriz para ventas/productos</td><td>Comparar el desempeño de compañeros o exponer márgenes de ganancia (<code>costo_calculado</code>) es información financiera y de personal sensible que no debería filtrarse al personal operativo aunque tenga <code>admin_total</code> en su módulo</td></tr>
+                </tbody>
+            </table>
+            <div class="warn"><strong>Importante al auditar permisos:</strong> un usuario con <code>admin_total</code> en "ventas" o "productos" <em>no</em> verá automáticamente las tarjetas de Cajeros o Rentabilidad en el Dashboard — esas dos requieren además el <em>rol</em> <code>admin</code>/<code>superadmin</code>. Si necesitas que un empleado de confianza vea esos datos, la única forma es asignarle el rol "Admin" desde Usuarios (lo cual le da además acceso al panel de Administración completo).</div>
+
             <div class="sub-title">Catálogos configurables (Admin → Catálogos)</div>
             <p>Permite agregar, editar y desactivar las opciones que aparecen en los desplegables de los módulos sin necesidad de modificar código.</p>
             <table class="data-table">

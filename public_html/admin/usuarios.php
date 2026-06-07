@@ -276,6 +276,14 @@ foreach ($permisos_todos as $p) {
     </div>
 
     <p class="form-section">Permisos por módulo</p>
+    <div style="background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:12px;font-size:12px;color:var(--g2);line-height:1.6">
+        <strong>Casos especiales que NO se controlan desde esta matriz:</strong>
+        <ul style="margin:6px 0 0;padding-left:18px">
+            <li><strong>Clientes</strong> usa el permiso de <strong>Ventas</strong> (no tiene fila propia).</li>
+            <li><strong>Admin</strong> y <strong>Ayuda</strong> dependen solo del <em>rol</em> (admin/superadmin) — no de esta matriz.</li>
+            <li>En el <strong>Dashboard</strong>, "Rendimiento de Cajeros" y "Productos Más Rentables" son visibles solo para <em>admin/superadmin</em> sin importar el nivel asignado aquí (datos financieros y de personal sensibles).</li>
+        </ul>
+    </div>
     <div id="mu-permisos-wrap">
         <table class="perm-matrix">
             <thead>
