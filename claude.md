@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.72 — Memoria de Sesión
+# ClanDestino ERP v4.73 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1793,3 +1793,53 @@ Sin este cambio, una excepción de `PDOException` (con `PDO::ERRMODE_EXCEPTION` 
 | `public_html/app/config/app.php` | APP_VERSION → 4.72 |
 
 *Última actualización: 2026-06-06 | v4.72 — auditoría de seguridad: corrige open redirect (CWE-601) y zip-slip/path traversal (CWE-22), añade manejo de errores try/catch a 4 endpoints JSON. Próximo ciclo: v4.73 (código obsoleto + comentarios).*
+
+## Estado v4.73 (2026-06-06)
+
+### Auditoría de código obsoleto y comentarios — tercer ciclo de la mejora grande
+
+Se rastrearon en los 94 archivos PHP de `public_html/`: marcadores `TODO/FIXME/DEPRECATED`, bloques de código comentado, archivos huérfanos (sin referencias), funciones de helpers/modelos nunca invocadas, y restos de depuración (`var_dump`/`print_r`). Resultado: **2 piezas de código muerto eliminadas, 2 funciones huérfanas activadas (en vez de borradas, porque ya eran seguras y útiles), y el resto del código confirmado limpio**.
+
+### 🗑️ Código muerto eliminado
+
+| Archivo | Por qué se eliminó |
+|---------|--------------------|
+| `inventario/api/proveedor_crud.php` | *Shim* de compatibilidad que solo hacía `require` al endpoint consolidado `proveedores/api/crud.php`. Se confirmó con `grep` en todo el proyecto (PHP + JS) que **ninguna** llamada lo referencia — el "código existente" que decía proteger ya no existe. |
+| `app\models\ClienteModel::historial_fiado()` | Método que devolvía ventas a fiado + abonos de un cliente, presente desde el commit inicial (v4.0) pero **nunca invocado** (verificado con `git log -S` en todo el historial). Quedó completamente superado por la implementación más completa y específica en `clientes/estado_cuenta.php` (que además agrega filtro por fechas y saldo corriente acumulado). |
+
+### ⚙️ Funciones huérfanas activadas (en vez de eliminarlas)
+
+Estas dos ya eran código **seguro, completo y bien escrito** — simplemente nunca se conectaron a la interfaz. Conectarlas aporta más valor que borrarlas:
+
+| Función / endpoint | Dónde estaba "huérfana" | Qué se hizo |
+|---|---|---|
+| `productos/api/recalcular.php` (`RecetaModel::recalcular_todos()`) | Endpoint JSON completo (auth + permiso + CSRF + try/catch) que existe desde v4.0 pero **ningún botón lo llamaba** — el recálculo automático solo ocurre como efecto secundario al guardar un producto | Se agregó el botón **"↻ Recalcular costos"** junto al banner de "Capacidad instalada" en `productos/index.php` (visible solo con permiso `editar_existentes`+), con confirmación y tooltip explicando cuándo usarlo: tras editar precios de insumos en lote o aplicar migraciones |
+| `permiso_limpiar_cache()` (`PermisosHelper.php`) | Función documentada como "llamar cuando se cambian los permisos de un usuario en la misma sesión", pero **nunca se llamaba** desde `admin/api/usuario_crud.php`, donde se guardan los permisos | Se agregó la llamada en la rama `editar` cuando `$id === $uid` (un admin edita su propia cuenta): así su sesión no queda con el nivel de acceso cacheado y desactualizado hasta el próximo login — corrige un *bug* latente de caché obsoleta |
+
+### ✅ Categorías auditadas sin hallazgos
+
+| Categoría | Resultado |
+|-----------|-----------|
+| Marcadores `TODO/FIXME/XXX/HACK/DEPRECATED` | Cero — solo coincidencias falsas de la palabra "TODOS" (plural de "todo" en español) |
+| Bloques de código comentado (HTML/JS/PHP/SQL) | Cero — no hay funciones, `<div>`, `<table>` ni reglas CSS comentadas como código muerto |
+| Restos de depuración (`var_dump`, `print_r`, `console.log` de prueba) | Cero en `public_html/` (fuera de `tests/`) |
+| Archivos sueltos de prueba/backup (`.bak`, `.old`, `*test*`, `*debug*`, `*temp*`) | Cero fuera del directorio oficial `tests/` |
+| Comentarios "legacy" encontrados (`compras.php` `calcSubtotal`, `inventario/index.php` listas de respaldo, `costos/index.php` reglas CSS responsive, `$costos_fijos_legacy`) | Los 5 son **intencionales y bien documentados** — wrappers de compatibilidad, *fallbacks* defensivos o puentes de migración de configuración. Ninguno es código muerto; se dejaron tal cual |
+| Credenciales hardcodeadas en archivos públicos | Cero — las dos coincidencias de `Admin2026!`/`admin@clandestino.local` son: (1) en `ayuda/index.php`, solo se muestra el *email* con instrucción de cambiar la contraseña; (2) en `tests/suite.php`, se usa la contraseña de ejemplo como valor de comparación para **verificar que el superadmin YA NO la use** (prueba de seguridad, no una fuga) |
+| Numeración de migraciones (`019`-`024` ausentes) | Hueco preexistente del desarrollo temprano (antes de formalizar el sistema de migraciones numeradas) — no se renombran archivos ya aplicados en producción para no romper el historial; cada migración tiene sus propias guardas idempotentes vía `information_schema` |
+
+### Conclusión
+
+El código de ClanDestino está, en términos generales, **limpio de residuos** — no había bloques comentados ni `TODOs` olvidados. Los únicos hallazgos reales fueron dos piezas de código verdaderamente muertas (eliminadas) y dos funciones bien construidas que simplemente nunca llegaron a conectarse con la interfaz (ahora activas y útiles). El nivel de comentarios explicativos ya es alto en los módulos críticos (helpers de permisos, modelos, validaciones de seguridad) — se documenta el *porqué* de las decisiones no obvias, no el *qué* del código.
+
+### Cambios de versión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/inventario/api/proveedor_crud.php` | **Eliminado** — shim de compatibilidad sin referencias |
+| `public_html/app/models/ClienteModel.php` | **Eliminado** método `historial_fiado()` — nunca usado, superado por `estado_cuenta.php` |
+| `public_html/productos/index.php` | + botón "↻ Recalcular costos" y función JS `recalcularCostos()` |
+| `public_html/admin/api/usuario_crud.php` | + llamada a `permiso_limpiar_cache()` al editar la propia cuenta (corrige caché de permisos obsoleta) |
+| `public_html/app/config/app.php` | APP_VERSION → 4.73 |
+
+*Última actualización: 2026-06-06 | v4.73 — auditoría de código obsoleto: elimina 2 piezas de código muerto (shim de proveedores, método ClienteModel::historial_fiado), activa 2 funciones huérfanas (botón recalcular costos, limpieza de caché de permisos al auto-editarse). Próximo ciclo: v4.74 (revisión responsive móvil + TV/pantallas grandes).*

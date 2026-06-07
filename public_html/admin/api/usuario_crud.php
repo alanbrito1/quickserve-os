@@ -130,6 +130,13 @@ try {
                 guardarPermisos($id, $_POST, $MODULOS_OK, $NIVELES_OK, $uid);
             }
 
+            // Si el admin edita su propia cuenta, su sesión tiene los permisos en caché
+            // (perm_ventas, perm_productos, ...) — invalidarla para que el cambio aplique
+            // de inmediato y no quede con valores desactualizados hasta el próximo login.
+            if ($id === $uid) {
+                permiso_limpiar_cache();
+            }
+
             log_registrar('usuarios', $id, 'nombre', null, $nombre, 'UPDATE');
             echo json_encode(['success'=>true]);
             break;

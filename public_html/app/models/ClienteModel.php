@@ -361,34 +361,4 @@ class ClienteModel
         }
     }
 
-    /**
-     * Retorna el historial de ventas a fiado y abonos de un cliente específico.
-     */
-    public static function historial_fiado(int $cliente_id): array
-    {
-        $pdo = db();
-
-        $ventas = $pdo->prepare(
-            "SELECT v.id, v.fecha_venta, v.total, v.estado
-             FROM ventas v
-             WHERE v.cliente_id = ? AND v.metodo_pago = 'fiado'
-             ORDER BY v.fecha_venta DESC
-             LIMIT 50"
-        );
-        $ventas->execute([$cliente_id]);
-
-        $abonos = $pdo->prepare(
-            'SELECT pf.created_at, pf.monto, pf.metodo_pago
-             FROM pagos_fiado pf
-             WHERE pf.cliente_id = ?
-             ORDER BY pf.created_at DESC
-             LIMIT 50'
-        );
-        $abonos->execute([$cliente_id]);
-
-        return [
-            'ventas' => $ventas->fetchAll(),
-            'abonos' => $abonos->fetchAll(),
-        ];
-    }
 }

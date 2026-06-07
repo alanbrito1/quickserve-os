@@ -300,11 +300,18 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
                 Actualizar y recalcular
             </button>
         </div>
-        <span style="font-size:12px;color:var(--g5);margin-left:auto">
+        <span style="font-size:12px;color:var(--g5);margin-left:auto;display:flex;align-items:center;gap:10px">
             Producción diaria estimada: <strong><?= (int)$prod_dia ?> u/día</strong>
             · <a href="<?= APP_BASE ?>/productos/analisis.php" style="color:var(--brand);text-decoration:none;font-weight:700">
                 Ver análisis y punto de equilibrio →
             </a>
+            <?php if (permiso_tiene('productos', 'editar_existentes')): ?>
+            · <button onclick="recalcularCostos()"
+                    title="Recalcula costo_calculado de todos los productos a partir de las recetas e insumos actuales — útil tras editar precios de insumos en lote o aplicar migraciones"
+                    style="padding:4px 10px;background:#fff;color:var(--brand);border:1px solid var(--brand);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+                ↻ Recalcular costos
+            </button>
+            <?php endif; ?>
         </span>
     </div>
 
@@ -1264,6 +1271,19 @@ async function actualizarCapacidad() {
         const r = await fetch('api/guardar_producto.php', {method:'POST',body:fd});
         const d = await r.json();
         if (d.success) { toast('Capacidad actualizada — recargando…', 'ok'); setTimeout(()=>location.reload(),900); }
+        else toast(d.error||'Error','err');
+    } catch(e){ toast('Error de conexión','err'); }
+}
+
+/* ── Recalcular costo_calculado de todos los productos (recetas + insumos) ── */
+async function recalcularCostos() {
+    if (!confirm('¿Recalcular el costo de todos los productos a partir de las recetas e insumos actuales?')) return;
+    const fd = new FormData();
+    fd.append('csrf_token', csrf());
+    try {
+        const r = await fetch('api/recalcular.php', {method:'POST', body:fd});
+        const d = await r.json();
+        if (d.success) { toast(`${d.actualizados} producto(s) recalculados — recargando…`, 'ok'); setTimeout(()=>location.reload(),900); }
         else toast(d.error||'Error','err');
     } catch(e){ toast('Error de conexión','err'); }
 }
