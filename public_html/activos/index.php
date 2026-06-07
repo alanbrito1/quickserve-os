@@ -132,7 +132,9 @@ $VIDA_ESTADO = [
         .ctrl-lbl { font-size:11px; color:var(--g5); font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
         .btn-ord { padding:6px 12px; border:2px solid var(--g8); background:var(--white); border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; color:var(--g5); text-decoration:none; transition:.15s; }
         .btn-ord:hover,.btn-ord.act { border-color:var(--brand); color:var(--brand); }
-        .btn-nuevo { padding:9px 18px; background:var(--brand); color:var(--white); border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; margin-left:auto; }
+        .btn-nuevo { padding:9px 18px; background:var(--brand); color:var(--white); border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; }
+        .btn-excel { padding:9px 16px; background:#16a34a; color:var(--white); border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; margin-left:auto; }
+        .btn-excel:hover { background:#15803d; }
         /* Tabla */
         .card { background:var(--white); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; margin-bottom:16px; overflow-x:auto; }
         table { width:100%; border-collapse:collapse; min-width:800px; }
@@ -366,6 +368,8 @@ $VIDA_ESTADO = [
         <a href="?orden=lugar"    class="btn-ord <?= $orden==='lugar'    ?'act':'' ?>">Lugar</a>
         <?php endif; ?>
         <?php if (permiso_tiene('activos','editar_existentes')): ?>
+        <a href="<?= APP_BASE ?>/activos/exportar.php" class="btn-excel"
+           title="Descargar inventario de activos como Excel">📊 Excel</a>
         <button class="btn-nuevo" onclick="abrirModal('modal-nuevo')">+ Nuevo activo</button>
         <?php endif; ?>
     </div>
