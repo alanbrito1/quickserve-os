@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.52 — Memoria de Sesión
+# ClanDestino ERP v4.53 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1345,3 +1345,24 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - Requiere `ventas:editar_existentes` — protege datos financieros y de contacto de los clientes.
 
 *Última actualización: 2026-06-06 | v4.52 — exportar clientes a Excel.*
+
+---
+
+## Estado v4.53 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/ventas/fiado.php` | Modernizado: el formulario de abono ahora envía vía AJAX a `clientes/api/registrar_abono.php` (con SELECT FOR UPDATE y snapshots de saldo) en lugar del antiguo `ClienteModel::registrar_abono()`; agrega campo de notas, preview de saldo en tiempo real, botón "Abonar" con `IC_CASH`, enlace "Recordar" por WhatsApp (`IC_WA`) junto al botón "Extracto"; agrega toast de confirmación |
+| `public_html/app/config/app.php` | APP_VERSION → 4.53 |
+
+### Funcionalidad v4.53
+
+- **Abonos consistentes**: `ventas/fiado.php` ahora usa el mismo endpoint AJAX que `clientes/index.php` (v4.50), con bloqueo `SELECT ... FOR UPDATE` para evitar condiciones de carrera y registro de `saldo_anterior`/`saldo_posterior` en `pagos_fiado` para auditoría.
+- **Notas en abonos**: campo opcional de hasta 255 caracteres (ej. "pago parcial en efectivo").
+- **Preview de saldo**: al escribir el monto se muestra "Saldo actual → Nuevo saldo" en tiempo real.
+- **Recordatorio WhatsApp**: enlace verde `wa.me` junto a cada cliente con teléfono y deuda, mismo mensaje y normalización de número (Colombia, prefijo 57) que en `clientes/index.php` y el dashboard.
+- El antiguo `ClienteModel::registrar_abono()` queda sin usar desde la UI (se mantiene por compatibilidad con pruebas existentes que lo invocan directamente).
+
+*Última actualización: 2026-06-06 | v4.53 — modernizar ventas/fiado.php con abonos AJAX, notas y recordatorio WhatsApp.*

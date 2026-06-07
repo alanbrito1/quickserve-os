@@ -14,25 +14,14 @@ permiso_requerir('ventas', 'editar_existentes');
 $msg_ok  = '';
 $msg_err = '';
 
-// ---- Procesar abono ----
+// ---- Procesar formularios POST ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
     if (!csrf_verificar()) {
         $msg_err = 'Token de seguridad inválido.';
     } else {
         $accion = $_POST['accion'];
 
-        if ($accion === 'abonar') {
-            try {
-                $cliente_id = (int)($_POST['cliente_id'] ?? 0);
-                $monto      = (float)str_replace(['.', ','], ['', '.'], $_POST['monto'] ?? '0');
-                $metodo     = $_POST['metodo_pago'] ?? 'efectivo';
-                ClienteModel::registrar_abono($cliente_id, $monto, $metodo);
-                $msg_ok = 'Abono de $' . number_format($monto, 0, ',', '.') . ' registrado correctamente.';
-            } catch (RuntimeException $e) {
-                $msg_err = $e->getMessage();
-            }
-
-        } elseif ($accion === 'nuevo_cliente') {
+        if ($accion === 'nuevo_cliente') {
             try {
                 $id = ClienteModel::crear($_POST['nombre'] ?? '', $_POST['telefono'] ?? '');
                 $msg_ok = 'Cliente creado con ID #' . $id;
@@ -102,13 +91,25 @@ $total_fiado = array_sum(array_column($clientes_fiado, 'saldo_fiado'));
         .btn-abonar { padding:10px 20px; background:var(--brand); color:var(--white); border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
         .btn-abonar:hover { background:#c73d28; }
         .btn-ghost { padding:10px 14px; background:var(--g8); color:var(--g2); border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; }
-        .btn-open { padding:6px 14px; background:var(--g9); color:var(--brand); border:1px solid var(--brand); border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
+        .btn-open { padding:6px 14px; background:var(--g9); color:var(--brand); border:1px solid var(--brand); border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+        .btn-open svg { width:14px; height:14px; }
         .btn-open:hover { background:#fef2f0; }
 
         /* Alertas */
         .alert { padding:12px 14px; border-radius:10px; font-size:14px; margin-bottom:14px; }
         .alert-ok  { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7; }
         .alert-err { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
+
+        /* Toast — confirmación de abono vía AJAX */
+        .toast {
+            position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
+            background:var(--dark); color:var(--white); padding:10px 20px;
+            border-radius:30px; font-size:13px; font-weight:600;
+            transition:transform .25s; z-index:9999; pointer-events:none;
+        }
+        .toast.ok  { background:#16a34a; }
+        .toast.err { background:#dc2626; }
+        .toast.show { transform:translateX(-50%) translateY(0); }
 
         .empty-state { text-align:center; padding:40px 0; color:var(--g5); }
 
@@ -157,30 +158,39 @@ $total_fiado = array_sum(array_column($clientes_fiado, 'saldo_fiado'));
                     <div style="text-align:right">
                         <div class="cliente-saldo">$<?= number_format($c['saldo_fiado'], 0, ',', '.') ?></div>
                         <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
-                            <button class="btn-open" onclick="toggleAbono(<?= $c['id'] ?>)">Registrar abono</button>
+                            <button class="btn-open" onclick="toggleAbono(<?= $c['id'] ?>)"><?= IC_CASH ?> Abonar</button>
                             <!-- Estado de cuenta: ver historial completo de cargos y abonos -->
                             <a href="<?= APP_BASE ?>/clientes/estado_cuenta.php?id=<?= (int)$c['id'] ?>"
                                style="padding:6px 12px;background:#1e3a5f;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">
                                 📋 Extracto
                             </a>
+                            <?php if (!empty($c['telefono'])):
+                                $tel_f  = preg_replace('/[^0-9]/', '', $c['telefono']);
+                                $tel_wf = (strlen($tel_f) === 10 && str_starts_with($tel_f, '3')) ? '57'.$tel_f : $tel_f;
+                                $sf_f   = number_format((float)$c['saldo_fiado'], 0, ',', '.');
+                                $msg_wf = rawurlencode("Hola {$c['nombre']}, te recordamos que tienes un saldo pendiente de \${$sf_f} en " . APP_NAME . ". ¿Cuándo podemos acordar el pago? ¡Gracias! 🙏");
+                            ?>
+                            <a href="https://wa.me/<?= $tel_wf ?>?text=<?= $msg_wf ?>" target="_blank" rel="noopener noreferrer"
+                               style="padding:6px 12px;background:#25d366;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">
+                                <?= IC_WA ?> Recordar
+                            </a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
 
-                <!-- Formulario de abono (oculto por default) -->
-                <form class="abono-form" id="form-<?= $c['id'] ?>" method="POST">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                    <input type="hidden" name="accion"     value="abonar">
-                    <input type="hidden" name="cliente_id" value="<?= $c['id'] ?>">
+                <!-- Formulario de abono (oculto por default, envío vía AJAX) -->
+                <div class="abono-form" id="form-<?= $c['id'] ?>" data-id="<?= $c['id'] ?>" data-saldo="<?= $c['saldo_fiado'] ?>" data-nombre="<?= htmlspecialchars($c['nombre'], ENT_QUOTES) ?>">
                     <div class="form-row">
                         <div class="form-group">
                             <span class="lbl">Monto abono ($)</span>
-                            <input type="number" name="monto" placeholder="0"
-                                   min="1" max="<?= $c['saldo_fiado'] ?>" step="100" required>
+                            <input type="number" class="ab-monto" placeholder="0"
+                                   min="1" max="<?= $c['saldo_fiado'] ?>" step="100" required
+                                   oninput="actualizarSaldoFiadoPreview(<?= $c['id'] ?>)">
                         </div>
                         <div class="form-group">
                             <span class="lbl">Método</span>
-                            <select name="metodo_pago">
+                            <select class="ab-metodo">
                                 <option value="efectivo">Efectivo</option>
                                 <option value="nequi">Nequi</option>
                                 <option value="daviplata">Daviplata</option>
@@ -188,11 +198,20 @@ $total_fiado = array_sum(array_column($clientes_fiado, 'saldo_fiado'));
                             </select>
                         </div>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <span class="lbl">Notas (opcional)</span>
+                            <input type="text" class="ab-notas" placeholder="Ej: pago parcial en efectivo" maxlength="255">
+                        </div>
+                    </div>
+                    <p class="ab-preview" id="preview-<?= $c['id'] ?>" style="font-size:12px;color:var(--g5);margin-bottom:8px">
+                        Saldo actual: $<?= number_format($c['saldo_fiado'], 0, ',', '.') ?>
+                    </p>
                     <div style="display:flex; gap:8px;">
-                        <button type="submit" class="btn-abonar">Confirmar Abono</button>
+                        <button type="button" class="btn-abonar" onclick="confirmarAbonoFiado(<?= $c['id'] ?>)">Confirmar Abono</button>
                         <button type="button" class="btn-ghost" onclick="toggleAbono(<?= $c['id'] ?>)">Cancelar</button>
                     </div>
-                </form>
+                </div>
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -220,12 +239,81 @@ $total_fiado = array_sum(array_column($clientes_fiado, 'saldo_fiado'));
 
 </main>
 
+<!-- Token CSRF para las peticiones fetch -->
+<input type="hidden" id="csrf-tk" value="<?= htmlspecialchars(csrf_token()) ?>">
+<div class="toast" id="toast"></div>
+
 <script>
+const csrf = () => document.getElementById('csrf-tk').value;
+
+function toast(msg, tipo) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = 'toast ' + (tipo || '');
+    void t.offsetWidth;
+    t.classList.add('show');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
 function toggleAbono(id) {
     const form = document.getElementById('form-' + id);
     form.classList.toggle('open');
     if (form.classList.contains('open')) {
-        form.querySelector('input[name="monto"]').focus();
+        form.querySelector('.ab-monto').focus();
+    }
+}
+
+function actualizarSaldoFiadoPreview(id) {
+    const form    = document.getElementById('form-' + id);
+    const saldo   = parseFloat(form.dataset.saldo) || 0;
+    const monto   = parseFloat(form.querySelector('.ab-monto').value) || 0;
+    const preview = document.getElementById('preview-' + id);
+    const fmt     = n => '$' + n.toLocaleString('es-CO', {maximumFractionDigits: 0});
+    if (monto > 0) {
+        const nuevo = Math.max(0, saldo - monto);
+        preview.textContent = 'Saldo actual: ' + fmt(saldo) + '  →  Nuevo saldo: ' + fmt(nuevo);
+    } else {
+        preview.textContent = 'Saldo actual: ' + fmt(saldo);
+    }
+}
+
+async function confirmarAbonoFiado(id) {
+    const form   = document.getElementById('form-' + id);
+    const monto  = parseFloat(form.querySelector('.ab-monto').value);
+    const metodo = form.querySelector('.ab-metodo').value;
+    const notas  = form.querySelector('.ab-notas').value.trim();
+
+    if (!monto || monto <= 0) { toast('Ingresa un monto válido', 'err'); return; }
+
+    const btn = form.querySelector('.btn-abonar');
+    const txt = btn.textContent;
+    btn.disabled    = true;
+    btn.textContent = 'Guardando…';
+
+    const fd = new FormData();
+    fd.append('csrf_token',  csrf());
+    fd.append('cliente_id',  id);
+    fd.append('monto',       monto);
+    fd.append('metodo_pago', metodo);
+    fd.append('notas',       notas);
+
+    try {
+        const resp = await fetch('<?= APP_BASE ?>/clientes/api/registrar_abono.php', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            const fmt = monto.toLocaleString('es-CO', {maximumFractionDigits: 0});
+            toast('Abono de $' + fmt + ' registrado ✓', 'ok');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            toast(data.error || 'Error al registrar el abono', 'err');
+            btn.disabled    = false;
+            btn.textContent = txt;
+        }
+    } catch (e) {
+        toast('Error de red. Intenta de nuevo.', 'err');
+        btn.disabled    = false;
+        btn.textContent = txt;
     }
 }
 </script>
