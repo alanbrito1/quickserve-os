@@ -121,6 +121,37 @@ try {
     }
 } catch (\Exception $e) {}
 
+// Abonos a fiado recibidos en el período (mig.034 — saldo_anterior/saldo_posterior)
+$abonos_lista          = []; // filas completas con cliente/cajero (para hoja Excel)
+$tiene034r             = false;
+$total_abonos_periodo  = 0.0;
+$n_abonos_periodo      = 0;
+try {
+    $tiene034r = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pagos_fiado'
+           AND COLUMN_NAME='saldo_anterior'"
+    )->fetchColumn() > 0;
+
+    $st = db()->prepare(
+        "SELECT pf.id, pf.created_at, pf.monto, pf.metodo_pago, pf.notas,
+                pf.saldo_anterior, pf.saldo_posterior,
+                IFNULL(c.nombre, 'Cliente eliminado') AS cliente,
+                u.nombre AS registrado_por
+         FROM pagos_fiado pf
+         LEFT JOIN clientes c ON c.id = pf.cliente_id
+         LEFT JOIN usuarios u ON u.id = pf.created_by
+         WHERE DATE(pf.created_at) BETWEEN :desde AND :hasta
+         ORDER BY pf.created_at DESC"
+    );
+    $st->execute([':desde' => $desde, ':hasta' => $hasta]);
+    foreach ($st->fetchAll() as $a) {
+        $abonos_lista[]        = $a;
+        $total_abonos_periodo += (float)$a['monto'];
+        $n_abonos_periodo++;
+    }
+} catch (\Exception $e) {}
+
 // ── EXPORTAR EXCEL ──────────────────────────────────────────────────────────
 if (isset($_GET['export'])) {
     $w = new XlsxWriter();
@@ -238,6 +269,37 @@ if (isset($_GET['export'])) {
         }
         $w->addEmptyRow();
         $w->addRow(['', '', 'TOTAL DESCONTADO', '', '', $total_descuentos_periodo, '', ''], false, true);
+    }
+
+    // ── Hoja: Abonos a Fiado (solo si hay abonos en el período) ────────────────
+    if (!empty($abonos_lista)) {
+        $w->setSheet('Abonos a Fiado');
+        $w->addRow(['ClanDestino ERP — Abonos a Fiado del Período'], true);
+        $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
+        $w->addEmptyRow();
+        $cols034h = $tiene034r ? ['Saldo Antes', 'Saldo Después'] : [];
+        $w->addRow(array_merge(['#', 'Fecha', 'Cliente', 'Monto', 'Método'], $cols034h, ['Notas', 'Registrado por']), true);
+        foreach ($abonos_lista as $a) {
+            $row034 = $tiene034r
+                ? [
+                    $a['saldo_anterior']  !== null ? (float)$a['saldo_anterior']  : '',
+                    $a['saldo_posterior'] !== null ? (float)$a['saldo_posterior'] : '',
+                  ]
+                : [];
+            $w->addRow(array_merge([
+                $a['id'],
+                date('d/m/Y H:i', strtotime($a['created_at'])),
+                $a['cliente'],
+                (float)$a['monto'],
+                $metodo_label[$a['metodo_pago']] ?? $a['metodo_pago'],
+            ], $row034, [
+                $a['notas'] ?? '',
+                $a['registrado_por'] ?? '',
+            ]));
+        }
+        $w->addEmptyRow();
+        $blank034 = $tiene034r ? ['', ''] : [];
+        $w->addRow(array_merge(['', '', 'TOTAL RECAUDADO (' . $n_abonos_periodo . ' abonos)', $total_abonos_periodo, ''], $blank034, ['', '']), false, true);
     }
 
     $w->download('ClanDestino_Ventas_' . $desde . '_' . $hasta . '.xlsx');
@@ -390,6 +452,16 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
         en este período — total descontado:
         <strong style="color:#92400e">−$<?= number_format($total_descuentos_periodo,0,',','.') ?></strong>
         <span style="color:var(--g5)">(incluido en el Excel → hoja "Descuentos")</span></span>
+    </div>
+    <?php endif; ?>
+    <?php if ($n_abonos_periodo > 0): ?>
+    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:12px;padding:12px 16px;
+                margin-bottom:16px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:18px">💰</span>
+        <span><strong><?= $n_abonos_periodo ?> abono<?= $n_abonos_periodo>1?'s':'' ?> a fiado</strong>
+        recibido<?= $n_abonos_periodo>1?'s':'' ?> en este período — total recaudado:
+        <strong style="color:#065f46">$<?= number_format($total_abonos_periodo,0,',','.') ?></strong>
+        <span style="color:var(--g5)">(incluido en el Excel → hoja "Abonos a Fiado")</span></span>
     </div>
     <?php endif; ?>
 

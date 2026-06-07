@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.55 — Memoria de Sesión
+# ClanDestino ERP v4.56 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1405,3 +1405,23 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - Si el insumo no tiene proveedor asociado o el proveedor no tiene teléfono válido, simplemente no se muestra el enlace (sin romper el layout).
 
 *Última actualización: 2026-06-06 | v4.55 — pedido rápido por WhatsApp al proveedor desde alerta de insumos bajos.*
+
+---
+
+## Estado v4.56 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/reportes/ventas.php` | Agrega consulta de `pagos_fiado` filtrada por el rango de fechas del reporte (con detección de mig. 034 para columnas `saldo_anterior`/`saldo_posterior`); banner verde "💰 N abonos a fiado recibidos — total recaudado: $X" junto a los de obsequios/descuentos; nueva hoja "Abonos a Fiado" en el Excel exportado con columnas #, Fecha, Cliente, Monto, Método, Saldo Antes/Después, Notas, Registrado por, y fila TOTAL RECAUDADO |
+| `public_html/app/config/app.php` | APP_VERSION → 4.56 |
+
+### Funcionalidad v4.56
+
+- **Trazabilidad de cobranza**: el reporte de ventas (`reportes/ventas.php`) ahora también informa cuánto se recaudó en abonos a fiado durante el período filtrado — útil para que el dueño vea de un vistazo no solo lo vendido sino lo efectivamente cobrado de deudas pendientes.
+- **Hoja "Abonos a Fiado" en Excel**: lista cada abono con cliente, monto, método de pago, saldo antes/después (snapshot de auditoría de la mig. 034) y quién lo registró — complementa la hoja "Descuentos" ya existente y reutiliza el mismo patrón de hojas condicionales.
+- Sigue el mismo patrón visual que los banners de obsequios (v4.4x) y descuentos (v4.47): aparece solo si hay abonos en el rango seleccionado, sin alterar el layout cuando no los hay.
+- No requiere migración nueva — usa las columnas de snapshot ya agregadas en la migración 034 y validadas por los tests G28 (v4.53).
+
+*Última actualización: 2026-06-06 | v4.56 — hoja "Abonos a Fiado" en el reporte de ventas + banner de recaudo del período.*

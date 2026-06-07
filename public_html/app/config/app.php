@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.55'); // 2026-06-06: v4.55 pedido rápido por WhatsApp al proveedor desde alerta de insumos bajos
+define('APP_VERSION', '4.56'); // 2026-06-06: v4.56 hoja "Abonos a Fiado" en el reporte de ventas + banner de recaudo del período
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
