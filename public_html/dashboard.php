@@ -225,6 +225,24 @@ if (permiso_tiene('ventas', 'solo_ver')) {
         )->fetchAll();
     } catch (\Exception $e) {}
 
+    // Productos más rentables — mejor margen porcentual (solo admin/superadmin — información financiera sensible)
+    $productos_rentables = [];
+    if (in_array($_SESSION['usuario_rol'] ?? '', ['admin','superadmin'], true)) {
+        try {
+            $productos_rentables = db()->query(
+                "SELECT id, nombre, nombre2, precio_venta, costo_calculado,
+                        (precio_venta - costo_calculado) AS margen_unitario,
+                        CASE WHEN precio_venta > 0
+                             THEN ROUND((precio_venta - costo_calculado) / precio_venta * 100, 1)
+                             ELSE 0 END AS margen_pct
+                 FROM productos
+                 WHERE activo = 1 AND precio_venta > 0
+                 ORDER BY margen_pct DESC
+                 LIMIT 5"
+            )->fetchAll();
+        } catch (\Exception $e) {}
+    }
+
     // Rendimiento de cajeros del mes (solo admin/superadmin — datos de desempeño del personal)
     $top_cajeros = [];
     if (in_array($_SESSION['usuario_rol'] ?? '', ['admin','superadmin'], true)) {
@@ -253,6 +271,7 @@ if (permiso_tiene('ventas', 'solo_ver')) {
     $clientes_reactivar = [];
     $clientes_aniversario = [];
     $horas_pico = [];
+    $productos_rentables = [];
     $meses_es = [1=>'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
                  'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 }
@@ -1065,6 +1084,41 @@ $nivel_labels = [
             </div>
             <?php endforeach; ?>
             <p style="font-size:11px;color:var(--gray-5);margin:8px 0 0">💡 Útil para planear turnos de personal y producción según la demanda real del día.</p>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($productos_rentables)): ?>
+        <div class="meta-card">
+            <div class="meta-header">
+                <span class="meta-lbl">💰 Productos Más Rentables</span>
+                <span style="font-size:11px;font-weight:400;color:var(--gray-5)">por margen %</span>
+            </div>
+            <?php
+            $n_pr = count($productos_rentables);
+            foreach ($productos_rentables as $i => $pr):
+                $margen_pct = (float)$pr['margen_pct'];
+                $mrg_bg  = $margen_pct >= 50 ? '#d1fae5' : ($margen_pct >= 30 ? '#fef3c7' : '#fee2e2');
+                $mrg_txt = $margen_pct >= 50 ? '#065f46' : ($margen_pct >= 30 ? '#92400e' : '#991b1b');
+            ?>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;<?= $i < $n_pr - 1 ? 'border-bottom:1px solid var(--gray-9)' : '' ?>">
+                <div>
+                    <strong style="font-size:13px"><?= htmlspecialchars($pr['nombre']) ?></strong>
+                    <?php if (!empty($pr['nombre2'])): ?>
+                    <div class="alerta-sub"><?= htmlspecialchars($pr['nombre2']) ?></div>
+                    <?php endif; ?>
+                    <div style="font-size:11px;color:var(--gray-5)">
+                        Venta: $<?= number_format($pr['precio_venta'], 0, ',', '.') ?> · Costo: $<?= number_format($pr['costo_calculado'], 0, ',', '.') ?>
+                    </div>
+                </div>
+                <div style="text-align:right">
+                    <span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:<?= $mrg_bg ?>;color:<?= $mrg_txt ?>">
+                        <?= number_format($margen_pct, 1) ?>%
+                    </span>
+                    <div style="font-size:11px;color:var(--gray-5);margin-top:3px">+$<?= number_format($pr['margen_unitario'], 0, ',', '.') ?> c/u</div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <p style="font-size:11px;color:var(--gray-5);margin:8px 0 0">🔒 Visible solo para administradores · margen = (precio venta − costo calculado) / precio venta</p>
         </div>
         <?php endif; ?>
 

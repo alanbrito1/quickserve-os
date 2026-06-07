@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.67 — Memoria de Sesión
+# ClanDestino ERP v4.68 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1643,3 +1643,23 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - No requiere migración: usa `ventas.fecha_venta/total/estado/metodo_pago` ya existentes (`fecha_venta` es `DATETIME`, por lo que `HOUR()` está disponible de forma nativa).
 
 *Última actualización: 2026-06-06 | v4.67 — tarjeta "Horas Pico de Ventas" (analítica de franjas horarias) en el dashboard.*
+
+---
+
+## Estado v4.68 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/dashboard.php` | Nueva consulta `$productos_rentables` (solo admin/superadmin — información financiera sensible): calcula `margen_unitario` (`precio_venta - costo_calculado`) y `margen_pct` (`ROUND((precio_venta - costo_calculado)/precio_venta*100, 1)`) para productos activos con precio > 0, ordenados de mayor a menor margen porcentual; nueva tarjeta `.meta-card` "💰 Productos Más Rentables" con badge de margen % codificado por color (verde ≥50%, ámbar ≥30%, rojo <30%), precio de venta, costo calculado y ganancia unitaria en pesos |
+
+### Funcionalidad v4.68
+
+- **De "qué se vende más" a "qué deja más ganancia"**: complementa "Productos Más Vendidos" (v4.58, ranking por unidades) con la pregunta que más le importa al bolsillo del dueño — *¿cuáles productos son más rentables por cada venta?* — útil para decidir qué promocionar o destacar en el mostrador.
+- **Información financiera sensible, gateada como "Rendimiento de Cajeros"**: igual que v4.59, restringe tanto la ejecución de la consulta como el renderizado HTML a roles `admin`/`superadmin` — el costo de producción (`costo_calculado`) es información estratégica que no debería filtrarse al personal operativo.
+- **Fórmula explícita y transparente**: el pie de la tarjeta muestra la fórmula exacta (`margen = (precio venta − costo calculado) / precio venta`) para que el administrador entienda de dónde sale el porcentaje, sin "caja negra".
+- **Reutiliza `costo_calculado`**: aprovecha el campo que `RecetaModel::recalcularCostos()` ya mantiene actualizado por receta — sin necesidad de recalcular nada nuevo ni tocar la lógica de costeo existente.
+- No requiere migración: usa `productos.precio_venta/costo_calculado/nombre/nombre2/activo` ya existentes.
+
+*Última actualización: 2026-06-06 | v4.68 — tarjeta "Productos Más Rentables" (ranking por margen, solo admin) en el dashboard.*
