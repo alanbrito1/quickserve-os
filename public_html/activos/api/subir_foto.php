@@ -49,6 +49,8 @@ if (empty($_FILES['foto']['tmp_name']) || $_FILES['foto']['error'] !== UPLOAD_ER
     exit;
 }
 
+try {
+
 $file     = $_FILES['foto'];
 // Límite generoso: el cliente ya comprimió, pero si viene sin comprimir aceptamos hasta 15MB
 $maxBytes = 15 * 1024 * 1024;
@@ -183,3 +185,9 @@ echo json_encode([
     'url'     => APP_BASE . '/' . $urlRelativa,
     'size_kb' => round(filesize($rutaDestino) / 1024),
 ]);
+
+} catch (Throwable $e) {
+    // Errores inesperados (DB, GD, filesystem): no exponer detalles internos al cliente
+    error_log('[ClanDestino Activos SubirFoto] ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Error interno al guardar la foto.']);
+}

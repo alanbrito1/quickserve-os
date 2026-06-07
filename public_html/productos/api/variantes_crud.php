@@ -16,6 +16,8 @@ permiso_requerir('productos', 'solo_ver');
 
 $pdo = db();
 
+try {
+
 // ── GET: lista de variantes de un producto ─────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $pid = (int)($_GET['producto_id'] ?? 0);
@@ -127,6 +129,12 @@ if ($accion === 'reactivar') {
 
     echo json_encode(['success' => true, 'mensaje' => 'Variante reactivada.']);
     exit;
+}
+
+} catch (Throwable $e) {
+    // Errores inesperados: no exponer detalles internos al cliente
+    error_log('[ClanDestino Variantes CRUD] ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }
 
 echo json_encode(['error' => 'Acción no reconocida.']);

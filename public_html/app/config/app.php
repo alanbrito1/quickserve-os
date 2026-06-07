@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.71'); // 2026-06-06: v4.71 auditoría y documentación del sistema de permisos por rol/módulo
+define('APP_VERSION', '4.72'); // 2026-06-06: v4.72 auditoría de seguridad — corrige open redirect y zip-slip, agrega manejo de errores
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

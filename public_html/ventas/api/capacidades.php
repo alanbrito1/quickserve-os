@@ -13,12 +13,18 @@ header('Content-Type: application/json; charset=utf-8');
 
 permiso_requerir('ventas', 'solo_ver');
 
-$productos = VentaModel::productos_con_capacidad();
+try {
+    $productos = VentaModel::productos_con_capacidad();
 
-// Retornar solo id y capacidad (lo que necesita el frontend para actualizar los indicadores)
-$resultado = array_map(static fn(array $p): array => [
-    'id'        => (int)$p['id'],
-    'capacidad' => (int)$p['capacidad'],
-], $productos);
+    // Retornar solo id y capacidad (lo que necesita el frontend para actualizar los indicadores)
+    $resultado = array_map(static fn(array $p): array => [
+        'id'        => (int)$p['id'],
+        'capacidad' => (int)$p['capacidad'],
+    ], $productos);
 
-echo json_encode($resultado);
+    echo json_encode($resultado);
+} catch (Throwable $e) {
+    error_log('[ClanDestino Capacidades] ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([]);
+}

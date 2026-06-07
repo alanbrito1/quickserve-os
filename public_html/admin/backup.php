@@ -239,9 +239,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['zip_file'])) {
                 for ($i = 0; $i < $zip->numFiles; $i++) {
                     $nombre = $zip->getNameIndex($i);
 
-                    // Sanitizar ruta: eliminar ../ y barras absolutas (path traversal)
-                    $limpio = str_replace(['../', '..' . DIRECTORY_SEPARATOR, '\\'], ['', '', '/'], $nombre);
-                    $limpio = ltrim($limpio, '/');
+                    // Validar ruta por segmentos (zip-slip / path traversal):
+                    // un str_replace de "../" es vulnerable a patrones anidados como
+                    // "....//" que se convierten en "../" tras un solo reemplazo.
+                    // En su lugar, se descarta cualquier entrada con segmento ".."
+                    // o ruta absoluta — más robusto que reemplazar substrings.
+                    $normalizado = str_replace('\\', '/', $nombre);
+                    $segmentos   = explode('/', $normalizado);
+                    if (str_starts_with($normalizado, '/') || in_array('..', $segmentos, true)) {
+                        $omitidos++;
+                        continue;
+                    }
+                    $limpio = ltrim($normalizado, '/');
                     if (empty($limpio) || str_ends_with($limpio, '/')) continue; // directorio
 
                     // Proteger archivos sensibles y uploads (imágenes del usuario)

@@ -22,8 +22,15 @@ auth_session_init();
 $usuario_activo = auth_check();
 
 if (!$usuario_activo) {
-    // Guardar la URL que el usuario intentaba acceder para redirigir después del login
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'] ?? (APP_BASE . '/dashboard.php');
+    // Guardar la URL que el usuario intentaba acceder para redirigir después del login.
+    // Solo se acepta una ruta interna que empiece con UN solo "/" — una URI que empiece
+    // con "//" es una redirección relativa de protocolo (CWE-601 Open Redirect: el
+    // navegador la interpreta como "//evil.com/..." y redirige a un dominio externo).
+    $__uri = $_SERVER['REQUEST_URI'] ?? '';
+    $_SESSION['redirect_after_login'] = (preg_match('#^/(?!/)#', $__uri) === 1)
+        ? $__uri
+        : (APP_BASE . '/dashboard.php');
+    unset($__uri);
     header('Location: ' . APP_BASE . '/login.php');
     exit;
 }

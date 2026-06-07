@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.71 — Memoria de Sesión
+# ClanDestino ERP v4.72 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1735,3 +1735,61 @@ Se revisó si "cada rol de usuario se puede configurar para cada módulo o secci
 El sistema de permisos está bien diseñado y completo — no requirió cambios funcionales ni de esquema. El "avance" de esta versión es **cerrar la brecha de visibilidad**: ahora tanto la pantalla de gestión de usuarios como el módulo de Ayuda explican exactamente qué se controla por la matriz y qué se controla por rol directo, evitando que el administrador asuma (incorrectamente) que basta con subir el nivel de un módulo para que un empleado vea información sensible.
 
 *Última actualización: 2026-06-06 | v4.71 — auditoría y documentación completa del sistema de permisos por rol/módulo (matriz + 3 excepciones documentadas).*
+
+## Estado v4.72 (2026-06-06)
+
+### Auditoría de seguridad / vulnerabilidades — segundo ciclo de la mejora grande
+
+Se auditaron los ~32 archivos PHP modificados desde v4.40 (la última auditoría XSS documentada fue en v4.25) más los puntos de entrada críticos (login, middleware, uploads, backups). Resultado: **2 hallazgos corregidos, 1 endurecimiento defensivo añadido a 4 endpoints, y 6 categorías confirmadas sin problemas**.
+
+### 🔴 Hallazgo 1 — Open Redirect (CWE-601), CORREGIDO
+
+| Archivo | Problema | Corrección |
+|---------|----------|------------|
+| `app/middleware/auth_check.php` | Guardaba `$_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI']` **sin validar**. Una URL maliciosa con `REQUEST_URI` empezando en `//` (p. ej. `//evil.com/phish`) se interpreta por el navegador como redirección de protocolo relativo a un dominio externo | Ahora se valida con `preg_match('#^/(?!/)#', $uri)`: solo se acepta si empieza con **un solo** `/` (ruta interna); si no, se usa `/dashboard.php` por defecto |
+| `login.php` | Usaba `$redirect` de la sesión directamente en `header('Location: ' . $redirect)` sin revalidar | Defensa en profundidad: se repite la misma validación `preg_match('#^/(?!/)#', ...)` justo antes del `header()`, por si la sesión llegara a contener un valor no confiable por otra vía en el futuro |
+
+### 🔴 Hallazgo 2 — Zip-Slip / Path Traversal en restaurador de código (CWE-22), CORREGIDO
+
+| Archivo | Problema | Corrección |
+|---------|----------|------------|
+| `admin/backup.php` (función "Actualizar código" — solo superadmin) | Sanitizaba rutas del ZIP con `str_replace(['../', ...], ...)`, vulnerable a patrones anidados: `"....//"` se convierte en `"../"` tras un único reemplazo (bypass clásico de filtros ingenuos) | Reemplazado por validación por **segmentos de ruta**: se descompone la ruta en partes con `explode('/', ...)` y se **descarta toda la entrada** si contiene un segmento `".."` o empieza con `/` — no hay forma de reconstruir un `..` mediante concatenación |
+
+> Nota de exposición: esta función ya estaba protegida por `if ($_SESSION['usuario_rol'] !== 'superadmin')`, por lo que el riesgo real era bajo (requiere cuenta superadmin comprometida o ZIP de fuente no confiable). Aun así se corrigió por buena práctica de defensa en profundidad.
+
+### 🟡 Endurecimiento — manejo de errores ("pruebas de error")
+
+Se detectaron 4 endpoints JSON que ejecutaban operaciones de BD/filesystem **sin try/catch**, a diferencia del patrón estándar usado en `clientes/api/crud.php` y `ventas/api/editar_venta.php` (capturar `Throwable`, registrar con `error_log()`, responder JSON genérico sin filtrar detalles internos). Se añadió ese mismo patrón a:
+
+- `activos/api/subir_foto.php` — protege contra fallos de GD (redimensionado), filesystem y DB durante la subida de fotos
+- `productos/api/variantes_crud.php` — protege las mutaciones (crear/editar/eliminar/reactivar variantes)
+- `productos/api/ingredientes.php` — protege la consulta de ingredientes para el detalle expandible
+- `ventas/api/capacidades.php` — protege la consulta de capacidad de producción del POS
+
+Sin este cambio, una excepción de `PDOException` (con `PDO::ERRMODE_EXCEPTION` activo) habría terminado el script de forma abrupta — sin filtrar información (porque `display_errors=0` en producción) pero con una respuesta vacía/rota para el cliente JS. Ahora responden con JSON limpio (`{"success": false, "error": "Error interno del servidor."}` o `[]` según el endpoint) y registran el detalle real en el log del servidor.
+
+### ✅ Categorías auditadas sin hallazgos
+
+| Categoría | Resultado |
+|-----------|-----------|
+| **Inyección SQL** | Todo el SQL dinámico usa `match()` con valores hardcodeados, *flags* booleanos de detección de migración (`$colEsBaseV ? ', es_base' : ...`), o listas blancas vía `preg_match('/^[a-zA-Z0-9_]+$/', ...)` (nombres de tabla en backups). Cero concatenación de input de usuario en queries. |
+| **XSS** | Todo texto de BD mostrado en HTML pasa por `htmlspecialchars()`. Mensajes de WhatsApp (que interpolan `{$var['nombre']}`) nunca se imprimen como HTML — van con `rawurlencode()` a `href="https://wa.me/...?text=..."`, y los teléfonos se sanitizan con `preg_replace('/[^0-9]/', '', $tel)`. |
+| **CSRF** | Los 9 endpoints POST que cambian estado llaman `csrf_verificar()` con `hash_equals()` (comparación segura contra *timing attacks*); los endpoints GET de solo descarga (`clientes/exportar.php`, `activos/exportar.php`) lo omiten correctamente por ser lecturas idempotentes detrás de `auth_check` + `permiso_requerir`. |
+| **Subida de archivos** | `activos/api/subir_foto.php` valida el tipo MIME real con `finfo_file()` (no la extensión del cliente), limita a 15 MB, genera nombres de archivo en servidor (`activo_{id}_{time}.ext` — el cliente no controla el nombre), y crea un `.htaccess` que bloquea ejecución de `.php/.phtml/.cgi` en `uploads/`. |
+| **Sesiones y contraseñas** | Cookies de sesión con `httponly=true`, `secure` (cuando hay HTTPS), `samesite=Lax`; contraseñas con `password_hash`/`password_verify` (bcrypt costo 12, comparación en tiempo constante). Rate-limiting de login activo: `MAX_LOGIN_INTENTOS=5` en `LOGIN_BLOQUEO_MINS=15`, registrado por email **e** IP en `login_intentos`. |
+| **Funciones peligrosas** | Cero `eval()`, `exec()`, `shell_exec()`, `system()`, `passthru()`, `proc_open()`, `unserialize()`, `assert()` en todo `public_html/`. La única coincidencia (`db()->exec($sql)` en `admin/backup.php`) es `PDO::exec()` para restaurar migraciones SQL — no la función de shell — y ya estaba protegida con CSRF, límite de 5 MB, solo `.sql`, y try/catch por sentencia. |
+
+### Cambios de versión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/app/middleware/auth_check.php` | Valida `REQUEST_URI` antes de guardarlo como redirect post-login (corrige open redirect) |
+| `public_html/login.php` | Revalida el redirect antes de `header('Location: ...)` (defensa en profundidad) |
+| `public_html/admin/backup.php` | Sanitización de rutas ZIP por segmentos en vez de `str_replace` (corrige zip-slip) |
+| `public_html/activos/api/subir_foto.php` | + try/catch con `error_log` y respuesta JSON genérica |
+| `public_html/productos/api/variantes_crud.php` | + try/catch con `error_log` y respuesta JSON genérica |
+| `public_html/productos/api/ingredientes.php` | + try/catch con `error_log` y respuesta JSON genérica |
+| `public_html/ventas/api/capacidades.php` | + try/catch con `error_log` y respuesta JSON genérica |
+| `public_html/app/config/app.php` | APP_VERSION → 4.72 |
+
+*Última actualización: 2026-06-06 | v4.72 — auditoría de seguridad: corrige open redirect (CWE-601) y zip-slip/path traversal (CWE-22), añade manejo de errores try/catch a 4 endpoints JSON. Próximo ciclo: v4.73 (código obsoleto + comentarios).*

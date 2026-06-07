@@ -61,6 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($usuario) {
                 $redirect = $_SESSION['redirect_after_login'] ?? (APP_BASE . '/dashboard.php');
                 unset($_SESSION['redirect_after_login']);
+                // Defensa en profundidad: solo redirigir a rutas internas (un solo "/" inicial).
+                // Evita open redirect (CWE-601) si "redirect_after_login" llegara a contener "//host/..."
+                if (preg_match('#^/(?!/)#', $redirect) !== 1) {
+                    $redirect = APP_BASE . '/dashboard.php';
+                }
                 header('Location: ' . $redirect);
                 exit;
             } else {
