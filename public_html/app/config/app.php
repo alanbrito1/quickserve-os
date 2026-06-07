@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.68'); // 2026-06-06: v4.68 tarjeta "Productos Más Rentables" (solo admin) — ranking por margen porcentual
+define('APP_VERSION', '4.69'); // 2026-06-06: v4.69 actualizar documentación del Dashboard en ayuda/index.php (v4.63-v4.68)
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

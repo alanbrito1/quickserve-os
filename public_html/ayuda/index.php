@@ -287,7 +287,7 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">ClanDestino ERP — Visión General</div>
-                    <div class="section-badge">v4.62 · Colombia</div>
+                    <div class="section-badge">v4.69 · Colombia</div>
                 </div>
             </div>
             <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
@@ -476,24 +476,38 @@ Es el ingrediente que más limita la producción (el cuello de botella).</span><
                 </tbody>
             </table>
 
-            <div class="sub-title">Meta del día (v4.48)</div>
-            <p>Si el negocio configura una <code>meta_ventas_diaria</code> (clave en <code>configuracion_negocio</code>), aparece una barra de progreso comparando lo vendido hoy contra la meta. El color cambia según el avance: rojo &lt;50%, ámbar 50–79%, verde ≥80%. Los administradores ven un botón ✏️ que revela un formulario inline para editar la meta sin salir del dashboard.</p>
+            <div class="sub-title">Meta del día (v4.48) y Racha de Metas (v4.63)</div>
+            <p>Si el negocio configura una <code>meta_ventas_diaria</code> (clave en <code>configuracion_negocio</code>), aparece una barra de progreso comparando lo vendido hoy contra la meta. El color cambia según el avance: rojo &lt;50%, ámbar 50–79%, verde ≥80%. Los administradores ven un botón ✏️ que revela un formulario inline para editar la meta sin salir del dashboard. Junto al porcentaje, un badge "🔥 Racha: N días" cuenta cuántos días <em>consecutivos</em> (contando hacia atrás desde ayer, sin incluir el día de hoy que aún está en curso) el negocio alcanzó la meta — calculado en PHP día por día porque MySQL 5.7 no soporta funciones de ventana.</p>
 
             <div class="sub-title">Gráfico de ventas — últimos 7 días (v4.49)</div>
             <p>Barras hechas en HTML/CSS puro (sin librerías externas) que comparan el total vendido cada día de la última semana. La barra de hoy resalta en rojo (<code>--brand</code>); los días anteriores en gris. Pasar el cursor sobre una barra muestra el monto exacto del día. Útil para detectar patrones — por ejemplo, si los fines de semana venden más que entre semana.</p>
 
-            <div class="sub-title">Tarjetas de seguimiento de clientes y productos (v4.57 – v4.60)</div>
+            <div class="sub-title">Comparativo del mes (v4.65)</div>
+            <p>Compara el total vendido en lo que va del mes contra el <strong>mismo número de días</strong> del mes anterior — no el mes completo, que penalizaría a mitad de mes — usando <code>DATEDIFF()</code> en SQL para una comparación justa sin importar cuántos días tuvo cada mes. Se muestra como un badge ▲/▼ verde o rojo con el porcentaje de variación, acompañado de un mensaje contextual de ánimo ("vas mejor que el mes pasado 🎉" / "¡a recuperar terreno!").</p>
+
+            <div class="sub-title">Tarjetas de seguimiento de clientes y productos (v4.57 – v4.66)</div>
             <table class="data-table">
                 <thead><tr><th>Tarjeta</th><th>Qué hace</th><th>Acción rápida</th></tr></thead>
                 <tbody>
                     <tr><td>🏆 Top Clientes del Mes</td><td>Los 5 clientes que más compraron en el mes en curso (suma de <code>ventas.total</code>, excluye obsequios y ventas de mostrador), con medallas 🥇🥈🥉 para el top 3.</td><td>"🎉 Agradecer" — abre WhatsApp con mensaje de fidelización pre-armado</td></tr>
                     <tr><td>💌 Clientes para Reactivar</td><td>Clientes activos con teléfono que tienen historial de compras pero llevan más de 30 días sin volver, ordenados por valor histórico total acumulado.</td><td>"💌 Reconectar" — abre WhatsApp con mensaje de reconexión tipo "te extrañamos"</td></tr>
+                    <tr><td>🎂 Aniversario de Clientes</td><td>Clientes cuya <strong>primera compra</strong> (<code>MIN(ventas.fecha_venta)</code>) ocurrió en esta misma fecha (mes y día) hace uno o más años — comparación por <code>DATE_FORMAT(...,'%m-%d')</code> para evitar desfases en años bisiestos.</td><td>"🎂 Felicitar" — abre WhatsApp con mensaje de celebración de aniversario pre-armado</td></tr>
                     <tr><td>🥪 Productos Más Vendidos</td><td>Los 5 productos más vendidos del mes en curso (por unidades), con monto generado y una barra de progreso proporcional al producto líder.</td><td>— informativo: ayuda a decidir qué producir primero según la demanda real</td></tr>
                     <tr><td>👤 Rendimiento de Cajeros</td><td>Ranking mensual de ventas agrupado por el usuario que registró cada venta (<code>ventas.created_by</code>): número de ventas, total vendido y ticket promedio.</td><td>— informativo. <strong>Solo visible para roles <code>admin</code>/<code>superadmin</code></strong></td></tr>
                 </tbody>
             </table>
-            <div class="tip"><strong>Tres tonos distintos de WhatsApp según el contexto de la relación:</strong> cobranza ("te recordamos tu saldo pendiente…" — fiados pendientes, v4.51), fidelización ("¡gracias por ser uno de nuestros mejores clientes!" — Top Clientes, v4.57) y reconexión ("¡te extrañamos! ¿cuándo te vemos de nuevo?" — Clientes para Reactivar, v4.60). Cada mensaje llega pre-escrito y solo falta pulsar enviar.</div>
-            <div class="warn"><strong>"Rendimiento de Cajeros" es información sensible:</strong> compara el desempeño de los empleados entre sí. Por eso la consulta ni siquiera se ejecuta si el usuario no tiene rol <code>admin</code> o <code>superadmin</code> — el resto del personal no puede verla bajo ninguna circunstancia, ni inspeccionando la página.</div>
+            <div class="tip"><strong>Cuatro tonos distintos de WhatsApp según el contexto de la relación:</strong> cobranza ("te recordamos tu saldo pendiente…" — fiados pendientes, v4.51), fidelización ("¡gracias por ser uno de nuestros mejores clientes!" — Top Clientes, v4.57), reconexión ("¡te extrañamos! ¿cuándo te vemos de nuevo?" — Clientes para Reactivar, v4.60) y celebración ("¡hoy se cumple tu aniversario con nosotros! 🎉" — Aniversario de Clientes, v4.66). Cada mensaje llega pre-escrito y solo falta pulsar enviar.</div>
+            <div class="warn"><strong>"Rendimiento de Cajeros" y "Productos Más Rentables" son información sensible:</strong> el primero compara el desempeño de los empleados entre sí; el segundo expone el costo de producción y márgenes de ganancia — información financiera estratégica. Por eso ninguna de las dos consultas se ejecuta si el usuario no tiene rol <code>admin</code> o <code>superadmin</code> — el resto del personal no puede verlas bajo ninguna circunstancia, ni inspeccionando la página.</div>
+
+            <div class="sub-title">Indicadores de tendencia y rentabilidad (v4.65, v4.67, v4.68)</div>
+            <table class="data-table">
+                <thead><tr><th>Tarjeta</th><th>Qué muestra</th><th>Para qué sirve</th></tr></thead>
+                <tbody>
+                    <tr><td>📊 Comparativo del mes</td><td>Variación porcentual entre el mes en curso y el mismo tramo de días del mes anterior, con badge ▲/▼ y mensaje de ánimo.</td><td>Saber si el negocio va mejor o peor que el mes pasado, no solo si tuvo un buen o mal día.</td></tr>
+                    <tr><td>⏰ Horas Pico de Ventas</td><td>Las 3 franjas horarias (<code>HOUR(fecha_venta)</code>) con mayor monto vendido en los últimos 30 días, con medallas y barra de progreso relativa.</td><td>Planear turnos de personal y anticipar producción según la demanda real de cada franja del día.</td></tr>
+                    <tr><td>💰 Productos Más Rentables</td><td>Los 5 productos con mejor margen porcentual (<code>(precio_venta − costo_calculado) / precio_venta</code>), con badge codificado por color y ganancia unitaria en pesos. <strong>Solo admin/superadmin.</strong></td><td>Decidir qué productos promocionar o destacar — venden lo mismo, pero no todos dejan la misma ganancia.</td></tr>
+                </tbody>
+            </table>
 
             <div class="sub-title">Panel de Alertas operativas</div>
             <p>Aparece automáticamente cuando hay algo que requiere atención — y solo entonces. Cada tarjeta enlaza directo al módulo correspondiente para resolver el problema sin tener que buscarlo.</p>
@@ -504,19 +518,21 @@ Es el ingrediente que más limita la producción (el cuello de botella).</span><
                     <tr><td>💳 Fiados pendientes <span style="display:inline-block;margin-left:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#fff7ed;color:#9a3412">naranja</span></td><td><code>saldo_fiado &gt; 0</code> en clientes activos</td><td>"WA ↗" — recordatorio de cobro por WhatsApp (v4.51), si el cliente tiene teléfono registrado</td></tr>
                     <tr><td>🥪 Stock de producto bajo <span style="display:inline-block;margin-left:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#fff7ed;color:#9a3412">naranja</span></td><td><code>stock_disponible &lt; stock_minimo</code></td><td>Enlace directo a "Producir"</td></tr>
                     <tr><td>🛡️ Garantías por vencer <span style="display:inline-block;margin-left:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#fffbeb;color:#92400e">amarillo</span></td><td><code>garantia_hasta</code> entre hoy y los próximos 30 días</td><td>Enlace a "Ver activos"; muestra serial (si tiene) y días restantes (v4.61)</td></tr>
+                    <tr><td>⏳ Productos sin rotación <span style="display:inline-block;margin-left:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#fff7ed;color:#9a3412">naranja</span></td><td>Producto activo con <code>stock_disponible &gt; 0</code>, creado hace más de 15 días, sin ventas registradas en los últimos 15 días (o nunca vendido)</td><td>Enlace a "Ver productos"; distingue "Sin ventas hace N días" de "Nunca se ha vendido" (v4.64)</td></tr>
                 </tbody>
             </table>
             <div class="tip"><strong>Solo aparece lo relevante:</strong> cada categoría de alerta se consulta únicamente si el usuario tiene acceso al módulo correspondiente (inventario, ventas, productos, activos), y cada tarjeta —y el panel completo— se oculta si no hay nada que reportar. El dashboard nunca muestra paneles vacíos.</div>
+            <div class="tip"><strong>"Productos sin rotación" cuida los perecederos:</strong> en un negocio de sándwiches, el stock terminado que no rota es pérdida potencial por vencimiento. La alerta usa <code>LEFT JOIN</code> con <code>venta_detalles</code>/<code>ventas</code> para distinguir productos que nunca se han vendido (<code>ultima_venta IS NULL</code>) de los que simplemente llevan tiempo sin movimiento, y excluye productos recién creados para evitar falsas alarmas.</div>
 
             <div class="int-list">
                 <span class="int-badge">Usa →</span>
-                <span class="int-badge arrow">ventas (resumen del día, gráfico 7 días, top clientes/productos/cajeros)</span>
-                <span class="int-badge arrow">clientes (fiados pendientes, clientes para reactivar)</span>
+                <span class="int-badge arrow">ventas (resumen del día, gráfico 7 días, comparativo mensual, horas pico, top clientes/productos/cajeros)</span>
+                <span class="int-badge arrow">clientes (fiados pendientes, clientes para reactivar, aniversarios)</span>
                 <span class="int-badge arrow">inventario (insumos bajos)</span>
-                <span class="int-badge arrow">productos (stock bajo, producidos hoy)</span>
+                <span class="int-badge arrow">productos (stock bajo, sin rotación, producidos hoy, rentabilidad)</span>
                 <span class="int-badge arrow">activos (garantías por vencer)</span>
                 <span class="int-badge arrow">turnos_caja — mig. 037 (estado del turno)</span>
-                <span class="int-badge arrow">configuracion_negocio (meta de ventas diaria)</span>
+                <span class="int-badge arrow">configuracion_negocio (meta de ventas diaria, racha)</span>
             </div>
         </div>
 
