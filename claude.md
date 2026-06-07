@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.57 — Memoria de Sesión
+# ClanDestino ERP v4.58 — Memoria de Sesión
 # Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -1445,3 +1445,24 @@ Si `es_base` se cambia en una receta después de realizar ventas, la restauraci�
 - No requiere migración: usa `ventas.cliente_id`, `ventas.total` y `clientes.telefono` ya existentes.
 
 *Última actualización: 2026-06-06 | v4.57 — tarjeta "Top Clientes del Mes" en el dashboard con agradecimiento por WhatsApp.*
+
+---
+
+## Estado v4.58 (2026-06-06)
+
+### Cambios implementados en esta sesión
+
+| Archivo | Cambio |
+|---------|--------|
+| `public_html/dashboard.php` | Nueva consulta `$top_productos`: top 5 productos del mes en curso por unidades vendidas (`venta_detalles` JOIN `ventas`/`productos`, excluye obsequios y ventas sin completar); nueva tarjeta `.meta-card` "🥪 Productos Más Vendidos" justo debajo de "Top Clientes del Mes", con medallas 🥇🥈🥉, unidades vendidas, monto generado y barra de progreso relativa al producto líder; `$meses_es` (mapeo de meses en español) movido del HTML al bloque PHP de consultas para reutilizarlo en ambas tarjetas |
+
+### Funcionalidad v4.58
+
+- **Ranking de productos**: nueva tarjeta en el dashboard que muestra los 5 productos más vendidos (por unidades) en el mes en curso, con su monto total generado — complementa la tarjeta "Top Clientes del Mes" (v4.57) dando visibilidad del lado de la oferta además de la demanda.
+- **Barra de progreso relativa**: cada producto muestra una barra cuya longitud es proporcional a sus unidades vendidas respecto al producto líder del mes — permite ver de un vistazo qué tan dominante es el producto #1 frente al resto.
+- **Subtítulo `nombre2`**: si el producto tiene subtítulo configurado (mig. 027), se muestra junto al nombre — igual que en POS, producción e historial.
+- Solo se muestra si hay ventas de productos registradas en el mes — no rompe el layout si el negocio recién empieza.
+- No requiere migración: usa `venta_detalles.cantidad/subtotal`, `ventas.fecha_venta/estado/metodo_pago` y `productos.nombre/nombre2` ya existentes.
+- Útil para decisiones de producción: el dueño puede priorizar qué sándwiches preparar primero según la demanda real del mes.
+
+*Última actualización: 2026-06-06 | v4.58 — tarjeta "Productos Más Vendidos del Mes" en el dashboard.*

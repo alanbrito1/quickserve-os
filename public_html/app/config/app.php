@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.57'); // 2026-06-06: v4.57 tarjeta "Top Clientes del Mes" en el dashboard con agradecimiento por WhatsApp
+define('APP_VERSION', '4.58'); // 2026-06-06: v4.58 tarjeta "Productos Más Vendidos del Mes" en el dashboard
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

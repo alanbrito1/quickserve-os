@@ -92,10 +92,35 @@ if (permiso_tiene('ventas', 'solo_ver')) {
              LIMIT 5"
         )->fetchAll();
     } catch (\Exception $e) {}
+
+    // Nombres de meses en español (date('F') siempre devuelve inglés)
+    $meses_es = [1=>'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+                 'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    // Productos más vendidos del mes en curso (por unidades, excluye obsequios y mostrador)
+    $top_productos = [];
+    try {
+        $top_productos = db()->query(
+            "SELECT p.id, p.nombre, p.nombre2,
+                    SUM(vd.cantidad) AS unidades,
+                    SUM(vd.subtotal) AS total_vendido
+             FROM venta_detalles vd
+             JOIN ventas v ON v.id = vd.venta_id
+             JOIN productos p ON p.id = vd.producto_id
+             WHERE v.fecha_venta >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+               AND v.estado = 'completada' AND v.metodo_pago != 'obsequio'
+             GROUP BY p.id, p.nombre, p.nombre2
+             ORDER BY unidades DESC
+             LIMIT 5"
+        )->fetchAll();
+    } catch (\Exception $e) {}
 } else {
     $meta_diaria = 0.0; $meta_pct = 0; $meta_alcanzada = false;
     $grafico_7d  = [];  $total_7d  = 0.0;
-    $top_clientes = [];
+    $top_clientes  = [];
+    $top_productos = [];
+    $meses_es = [1=>'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+                 'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 }
 if (permiso_tiene('inventario', 'solo_ver')) {
     $row = db()->query(
@@ -640,10 +665,6 @@ $nivel_labels = [
         <div class="meta-card">
             <div class="meta-header">
                 <span class="meta-lbl">🏆 Top Clientes del Mes</span>
-                <?php
-                $meses_es = [1=>'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
-                             'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-                ?>
                 <span style="font-size:11px;font-weight:400;color:var(--gray-5)"><?= $meses_es[(int)date('n')] ?> <?= date('Y') ?></span>
             </div>
             <?php foreach ($top_clientes as $i => $tc):
@@ -669,6 +690,40 @@ $nivel_labels = [
                     <a href="https://wa.me/<?= $tel_tcw ?>?text=<?= $msg_tc ?>" target="_blank" rel="noopener noreferrer"
                        style="color:#25d366;font-weight:700;text-decoration:none;font-size:11px">🎉 Agradecer</a>
                     <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($top_productos)): ?>
+        <div class="meta-card">
+            <div class="meta-header">
+                <span class="meta-lbl">🥪 Productos Más Vendidos</span>
+                <span style="font-size:11px;font-weight:400;color:var(--gray-5)"><?= $meses_es[(int)date('n')] ?> <?= date('Y') ?></span>
+            </div>
+            <?php
+            $max_unidades_tp = max(array_column($top_productos, 'unidades'));
+            foreach ($top_productos as $i => $tp):
+                $medalla_tp = ['🥇','🥈','🥉'][$i] ?? ($i + 1) . '.';
+                $pct_barra  = $max_unidades_tp > 0 ? max(6, (int)round($tp['unidades'] / $max_unidades_tp * 100)) : 0;
+            ?>
+            <div style="padding:8px 0;border-bottom:1px solid var(--gray-9)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <div>
+                        <span style="font-size:15px;margin-right:6px"><?= $medalla_tp ?></span>
+                        <strong style="font-size:13px"><?= htmlspecialchars($tp['nombre']) ?></strong>
+                        <?php if (!empty($tp['nombre2'])): ?>
+                        <span style="font-size:11px;color:var(--gray-5)"> · <?= htmlspecialchars($tp['nombre2']) ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-weight:800;color:var(--brand);font-size:14px"><?= (int)$tp['unidades'] ?> u</div>
+                        <div style="font-size:11px;color:var(--gray-5)">$<?= number_format($tp['total_vendido'], 0, ',', '.') ?></div>
+                    </div>
+                </div>
+                <div style="height:5px;background:var(--gray-9);border-radius:3px;overflow:hidden">
+                    <div style="height:100%;width:<?= $pct_barra ?>%;background:var(--brand);border-radius:3px"></div>
                 </div>
             </div>
             <?php endforeach; ?>
