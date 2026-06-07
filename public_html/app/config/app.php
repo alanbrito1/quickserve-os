@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.66'); // 2026-06-06: v4.66 tarjeta "Aniversario de Clientes" — felicitación por WhatsApp en su fecha de primera compra
+define('APP_VERSION', '4.67'); // 2026-06-06: v4.67 tarjeta "Horas Pico de Ventas" — franjas horarias de mayor demanda (últimos 30 días)
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

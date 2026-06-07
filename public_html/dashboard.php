@@ -209,6 +209,22 @@ if (permiso_tiene('ventas', 'solo_ver')) {
         )->fetchAll();
     } catch (\Exception $e) {}
 
+    // Horas pico de ventas — franjas horarias de mayor demanda (últimos 30 días)
+    $horas_pico = [];
+    try {
+        $horas_pico = db()->query(
+            "SELECT HOUR(fecha_venta) AS hora,
+                    COUNT(*)  AS num_ventas,
+                    SUM(total) AS monto
+             FROM ventas
+             WHERE fecha_venta >= CURDATE() - INTERVAL 30 DAY
+               AND estado = 'completada' AND metodo_pago != 'obsequio'
+             GROUP BY HOUR(fecha_venta)
+             ORDER BY monto DESC
+             LIMIT 3"
+        )->fetchAll();
+    } catch (\Exception $e) {}
+
     // Rendimiento de cajeros del mes (solo admin/superadmin — datos de desempeño del personal)
     $top_cajeros = [];
     if (in_array($_SESSION['usuario_rol'] ?? '', ['admin','superadmin'], true)) {
@@ -236,6 +252,7 @@ if (permiso_tiene('ventas', 'solo_ver')) {
     $top_cajeros        = [];
     $clientes_reactivar = [];
     $clientes_aniversario = [];
+    $horas_pico = [];
     $meses_es = [1=>'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
                  'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 }
@@ -1019,6 +1036,35 @@ $nivel_labels = [
             </div>
             <?php endforeach; ?>
             <p style="font-size:11px;color:var(--gray-5);margin:8px 0 0">🔒 Visible solo para administradores</p>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($horas_pico)): ?>
+        <div class="meta-card">
+            <div class="meta-header">
+                <span class="meta-lbl">⏰ Horas Pico de Ventas</span>
+                <span style="font-size:11px;font-weight:400;color:var(--gray-5)">últimos 30 días</span>
+            </div>
+            <?php
+            $max_hp    = max(array_column($horas_pico, 'monto'));
+            $medallas  = ['🥇','🥈','🥉'];
+            $n_hp      = count($horas_pico);
+            foreach ($horas_pico as $i => $hp):
+                $hora_ini = (int)$hp['hora'];
+                $hora_fin = ($hora_ini + 1) % 24;
+                $pct_hp   = $max_hp > 0 ? max(4, (int)round($hp['monto'] / $max_hp * 100)) : 0;
+            ?>
+            <div style="padding:7px 0;<?= $i < $n_hp - 1 ? 'border-bottom:1px solid var(--gray-9)' : '' ?>">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <strong style="font-size:13px"><?= $medallas[$i] ?? '' ?> <?= sprintf('%02d:00 – %02d:00', $hora_ini, $hora_fin) ?></strong>
+                    <span style="font-size:11px;color:var(--gray-5)"><?= (int)$hp['num_ventas'] ?> venta<?= $hp['num_ventas'] != 1 ? 's' : '' ?> · $<?= number_format($hp['monto'], 0, ',', '.') ?></span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" style="width:<?= $pct_hp ?>%;background:var(--brand)"></div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <p style="font-size:11px;color:var(--gray-5);margin:8px 0 0">💡 Útil para planear turnos de personal y producción según la demanda real del día.</p>
         </div>
         <?php endif; ?>
 
