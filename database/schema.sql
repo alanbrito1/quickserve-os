@@ -1,11 +1,12 @@
 -- ============================================================
--- ClanDestino ERP v4.74 — Esquema de instalación completo
+-- ClanDestino ERP v4.80 — Esquema de instalación completo
 -- Compatible: MySQL 5.7+ / MariaDB 10.3+
--- Última actualización: 2026-06-06
+-- Última actualización: 2026-06-08
 -- Incluye migración 035: variantes de tamaño (producto_variantes)
 --              mig. 036: recetas.es_base (ingrediente que no escala con factor_receta)
 --              mig. 037: tabla turnos_caja
 --              mig. 038: columnas descuento_pct / descuento_valor en ventas
+--              mig. 039: tabla insumo_presentaciones + presentacion_id en compra_detalles
 -- ============================================================
 -- INSTRUCCIONES DE INSTALACIÓN (instalación desde cero):
 --   1. Crear base de datos: CREATE DATABASE clandestinoERP
@@ -18,14 +19,15 @@
 --       iniciales. No es necesario ejecutar las migraciones 002-038
 --       para una instalación nueva.
 --
--- TABLAS (29): logs_historial, login_intentos, usuarios,
+-- TABLAS (30): logs_historial, login_intentos, usuarios,
 --   permisos_modulos, configuracion_negocio, configuracion_app,
 --   listas_sistema, proveedores, insumos, productos, recetas,
 --   combo_configs, combo_insumos, clientes, ventas, venta_detalles,
 --   pagos_fiado, compras, compra_detalles, empleados, registro_horas,
 --   parametros_laborales, nomina_liquidaciones, activos,
 --   costos_indirectos, produccion_lotes, ajustes_stock,
---   producto_variantes (mig. 035), turnos_caja (mig. 037)
+--   producto_variantes (mig. 035), turnos_caja (mig. 037),
+--   insumo_presentaciones (mig. 039)
 --
 -- TRIGGERS (9):
 --   trg_config_negocio_audit, trg_insumos_costo_from_presentacion_insert,
@@ -46,6 +48,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `ajustes_stock`;
 DROP TABLE IF EXISTS `produccion_lotes`;
 DROP TABLE IF EXISTS `producto_variantes`;
+DROP TABLE IF EXISTS `insumo_presentaciones`;
 DROP TABLE IF EXISTS `costos_indirectos`;
 DROP TABLE IF EXISTS `activos`;
 DROP TABLE IF EXISTS `nomina_liquidaciones`;
@@ -553,6 +556,9 @@ CREATE TABLE `compra_detalles` (
     -- Snapshots de nombre e unidad (mig. 034 — al final por orden histórico)
     `nombre_snap`           VARCHAR(200)  DEFAULT NULL,
     `unidad_snap`           VARCHAR(20)   DEFAULT NULL,
+    -- FK lógica a insumo_presentaciones (mig. 039) — NULL = compra sin presentación catalogada
+    `presentacion_id`       INT           DEFAULT NULL
+                                COMMENT 'FK lógica → insumo_presentaciones.id. NULL = sin presentación catalogada.',
     CONSTRAINT `fk_cd_compra` FOREIGN KEY (`compra_id`)
         REFERENCES `compras`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_cd_insumo` FOREIGN KEY (`insumo_id`)
@@ -560,6 +566,37 @@ CREATE TABLE `compra_detalles` (
     INDEX `idx_cd_compra` (`compra_id`),
     INDEX `idx_cd_insumo` (`insumo_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- TABLA: insumo_presentaciones (mig. 039)
+-- Catálogo de presentaciones de compra por insumo.
+-- Principio: la unidad canónica del insumo (unidad_medida, stock, costo) NUNCA cambia.
+-- Esta tabla solo define "cómo se compra" — el sistema convierte automáticamente:
+--   cantidad (canónica) = cant_presentaciones × cantidad_base
+--   precio_unitario     = precio_presentacion  / cantidad_base
+-- SIN FK A NIVEL BD (errno 121 en cPanel compartido).
+-- ============================================================
+CREATE TABLE `insumo_presentaciones` (
+    `id`                INT           NOT NULL AUTO_INCREMENT,
+    `insumo_id`         INT           NOT NULL COMMENT 'FK lógica → insumos.id',
+    `nombre`            VARCHAR(60)   NOT NULL COMMENT 'Ej: Frasco 900ml, Galón 3.785L, Paca 12 unidades',
+    `cantidad_base`     DECIMAL(12,4) NOT NULL COMMENT 'Cuántas unidades canónicas trae esta presentación',
+    `unidad_compra`     VARCHAR(30)   NOT NULL DEFAULT '' COMMENT 'Etiqueta: frasco, galón, paca, caja…',
+    `precio_referencia` DECIMAL(12,2) DEFAULT NULL COMMENT 'Precio habitual de referencia (orientativo)',
+    `equiv_cantidad`    DECIMAL(10,4) DEFAULT NULL COMMENT 'Override equiv_cantidad del insumo para esta presentación',
+    `equiv_unidad`      VARCHAR(20)   DEFAULT NULL COMMENT 'Override equiv_unidad del insumo para esta presentación',
+    `es_predeterminada` TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '1 = pre-selecciona en formulario de compras',
+    `activo`            TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_at`        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `created_by`        INT DEFAULT NULL,
+    `updated_by`        INT DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `idx_ip_insumo` (`insumo_id`),
+    INDEX `idx_ip_activo` (`activo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Catálogo de presentaciones de compra por insumo — migración 039';
 
 
 -- ============================================================

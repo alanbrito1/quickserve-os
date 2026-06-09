@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/InsumoModel.php';
+require_once __DIR__ . '/../app/models/PresentacionModel.php';
 require_once __DIR__ . '/../app/helpers/ListasHelper.php';
 
 $nav_activo = 'inventario';
@@ -33,6 +34,9 @@ try {
     $col = db()->query("SHOW COLUMNS FROM insumos LIKE 'presentacion'")->fetch();
     $tienePresent = (bool)$col;
 } catch (\Exception $e) { $tienePresent = false; }
+
+// Detectar migración 039: tabla insumo_presentaciones
+$tiene039 = PresentacionModel::tabla_existe_publica();
 
 // Catálogos cargados desde listas_sistema (Admin → Catálogos).
 // Fallback a arrays hardcodeados si la migración 029 aún no está aplicada,
@@ -545,6 +549,85 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
     </div>
     <?php endif; ?>
 
+    <?php if ($tiene039 && permiso_tiene('inventario','editar_existentes')): ?>
+    <!-- ── Presentaciones de compra (migración 039) ──────────────────── -->
+    <details id="aj-pres-section" style="margin-top:14px;border:1px solid #c7d2fe;border-radius:10px;overflow:hidden">
+      <summary style="padding:10px 14px;background:#eef2ff;font-weight:700;font-size:13px;color:#3730a3;cursor:pointer;user-select:none;list-style:none">
+        📦 Presentaciones de compra
+        <span id="aj-pres-badge" style="margin-left:8px;background:#6366f1;color:#fff;border-radius:12px;padding:1px 8px;font-size:11px"></span>
+      </summary>
+      <div style="padding:12px 14px;background:#fff">
+        <p style="font-size:11px;color:var(--g5);margin-bottom:10px">
+          Define cómo se compra habitualmente este insumo (frasco 900ml, galón 3.785L, etc.). El sistema convierte automáticamente al registrar una compra.
+        </p>
+        <!-- lista de presentaciones existentes -->
+        <div id="aj-pres-lista" style="margin-bottom:10px"></div>
+
+        <!-- formulario para agregar/editar presentación -->
+        <details id="aj-pres-form-wrap" style="border:1px solid var(--g8);border-radius:8px;overflow:hidden">
+          <summary style="padding:8px 12px;background:var(--g9);font-size:12px;font-weight:700;cursor:pointer;list-style:none">
+            + Agregar presentación
+          </summary>
+          <div style="padding:12px">
+            <input type="hidden" id="pf-id">
+            <input type="hidden" id="pf-insumo-id">
+            <div class="form-grid">
+              <div class="fg" style="grid-column:1/-1">
+                <label>Nombre / descripción *</label>
+                <input type="text" id="pf-nombre" placeholder="Ej: Frasco 900ml, Galón 3.785L, Paca 12 und" maxlength="60">
+              </div>
+              <div class="fg">
+                <label>Cantidad base (unidades canónicas) *</label>
+                <input type="number" id="pf-cantidad-base" placeholder="Ej: 900 (para 900ml)" min="0.0001" step="0.0001">
+                <span class="hint" id="pf-hint-base"></span>
+              </div>
+              <div class="fg">
+                <label>Unidad de compra</label>
+                <input type="text" id="pf-unidad-compra" placeholder="Ej: frasco, galón, paca" maxlength="30">
+              </div>
+              <div class="fg">
+                <label>Precio de referencia ($)</label>
+                <input type="number" id="pf-precio-ref" placeholder="Precio habitual (orientativo)" min="0" step="1">
+              </div>
+              <div class="fg" style="grid-column:1/-1;display:flex;align-items:center;gap:8px;margin-top:2px">
+                <input type="checkbox" id="pf-predeterminada" style="width:18px;height:18px">
+                <label for="pf-predeterminada" style="margin:0;font-weight:600">Presentación predeterminada</label>
+              </div>
+            </div>
+
+            <!-- equiv override -->
+            <details style="margin-top:10px;border:1px solid #bfdbfe;border-radius:8px;overflow:hidden">
+              <summary style="padding:7px 10px;background:#eff6ff;font-size:11px;font-weight:700;color:#1e40af;cursor:pointer;list-style:none">
+                📏 Override de equivalencia física (opcional)
+              </summary>
+              <div style="padding:10px" class="form-grid">
+                <div class="fg">
+                  <label>1 unidad equivale a…</label>
+                  <input type="number" id="pf-equiv-cant" placeholder="Ej: 170" min="0.001" step="0.001">
+                  <span class="hint">Deja vacío para usar el equivalente genérico del insumo</span>
+                </div>
+                <div class="fg">
+                  <label>Unidad física</label>
+                  <select id="pf-equiv-unidad">
+                    <option value="g">Gramos (g)</option>
+                    <option value="kg">Kilogramos (kg)</option>
+                    <option value="ml">Mililitros (ml)</option>
+                    <option value="litro">Litros</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn-submit" style="flex:1;font-size:13px;padding:9px" onclick="guardarPresentacion()">Guardar presentación</button>
+              <button onclick="cancelarFormPres()" style="padding:9px 14px;background:var(--g9);color:var(--dark);border:none;border-radius:8px;font-weight:700;cursor:pointer">Cancelar</button>
+            </div>
+          </div>
+        </details>
+      </div>
+    </details>
+    <?php endif; ?>
+
     <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn-submit" style="flex:1" onclick="confirmarAjuste()">Guardar</button>
       <button style="flex:0.4;padding:12px;background:var(--g9);color:var(--dark);border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer"
@@ -603,6 +686,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
 
 <script>
 var TIENE_PRESENT = <?= $tienePresent ? 'true' : 'false' ?>;
+var TIENE_039     = <?= $tiene039     ? 'true' : 'false' ?>;
 var csrf = () => document.getElementById('csrf-tk').value;
 
 function abrirModal(id) { var el=document.getElementById(id); if(el) el.classList.add('on'); }
@@ -742,6 +826,13 @@ function abrirEditar(ins) {
         calcCostoAj('precio');
     }
     abrirModal('modal-ajustar');
+
+    // Cargar presentaciones catalogadas si mig 039 está aplicada
+    if (TIENE_039) {
+        document.getElementById('pf-insumo-id').value = ins.id;
+        document.getElementById('pf-hint-base').textContent = 'Unidad básica del insumo: ' + ins.unidad_medida;
+        cargarPresentaciones(ins.id);
+    }
 }
 
 // ── Cálculo bidireccional (modal editar/ajustar) — misma lógica que calcCosto() ──
@@ -903,6 +994,118 @@ async function duplicarInsumo(ins) {
         toast('Creado: ' + d.nombre, 'ok');
         setTimeout(() => location.reload(), 900);
     } else toast(d.error || 'Error al duplicar', 'err');
+}
+
+// ── Presentaciones de compra (mig 039) ──────────────────────────────────────
+async function cargarPresentaciones(insumo_id) {
+    var lista = document.getElementById('aj-pres-lista');
+    var badge = document.getElementById('aj-pres-badge');
+    if (!lista) return;
+    lista.innerHTML = '<em style="font-size:11px;color:var(--g5)">Cargando…</em>';
+    try {
+        var r = await fetch('api/presentaciones.php?insumo_id=' + insumo_id);
+        var d = await r.json();
+        if (!d.success) { lista.innerHTML = ''; return; }
+        var pres = d.presentaciones || [];
+        if (badge) badge.textContent = pres.length > 0 ? pres.length : '';
+        if (pres.length === 0) {
+            lista.innerHTML = '<p style="font-size:11px;color:var(--g5);margin:0">Sin presentaciones configuradas.</p>';
+            return;
+        }
+        var html = '';
+        pres.forEach(function(p) {
+            var pred = p.es_predeterminada == 1 ? ' <span style="background:#dcfce7;color:#166534;border-radius:8px;padding:1px 6px;font-size:10px">★ Predeterminada</span>' : '';
+            var equiv = (p.equiv_cantidad && p.equiv_unidad) ? ' · equiv: ' + p.equiv_cantidad + ' ' + p.equiv_unidad : '';
+            html += '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--g9)">'
+                  + '<div style="flex:1;font-size:12px"><strong>' + htmlEsc(p.nombre) + '</strong>' + pred + '<br>'
+                  + '<span style="color:var(--g5)">' + p.cantidad_base + ' ' + htmlEsc(p.unidad_compra || 'und')
+                  + (p.precio_referencia > 0 ? ' · $' + Number(p.precio_referencia).toLocaleString('es-CO') : '')
+                  + equiv + '</span></div>'
+                  + '<button onclick="editarPresentacion(' + JSON.stringify(p).replace(/"/g,"'") + ')" style="padding:4px 8px;font-size:11px;border:1px solid var(--g7);border-radius:6px;background:#fff;cursor:pointer">Editar</button>'
+                  + '<button onclick="eliminarPresentacion(' + p.id + ',\'' + htmlEsc(p.nombre) + '\',' + insumo_id + ')" style="padding:4px 8px;font-size:11px;border:1px solid #fca5a5;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">✕</button>'
+                  + '</div>';
+        });
+        lista.innerHTML = html;
+    } catch(e) {
+        lista.innerHTML = '<em style="font-size:11px;color:#dc2626">Error al cargar presentaciones</em>';
+    }
+}
+
+function editarPresentacion(p) {
+    document.getElementById('pf-id').value            = p.id;
+    document.getElementById('pf-nombre').value        = p.nombre;
+    document.getElementById('pf-cantidad-base').value = p.cantidad_base;
+    document.getElementById('pf-unidad-compra').value = p.unidad_compra || '';
+    document.getElementById('pf-precio-ref').value    = p.precio_referencia || '';
+    document.getElementById('pf-predeterminada').checked = p.es_predeterminada == 1;
+    document.getElementById('pf-equiv-cant').value    = p.equiv_cantidad || '';
+    document.getElementById('pf-equiv-unidad').value  = p.equiv_unidad   || 'g';
+    var wrap = document.getElementById('aj-pres-form-wrap');
+    wrap.open = true;
+    wrap.querySelector('summary').textContent = '✏ Editando: ' + p.nombre;
+    wrap.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function cancelarFormPres() {
+    document.getElementById('pf-id').value            = '';
+    document.getElementById('pf-nombre').value        = '';
+    document.getElementById('pf-cantidad-base').value = '';
+    document.getElementById('pf-unidad-compra').value = '';
+    document.getElementById('pf-precio-ref').value    = '';
+    document.getElementById('pf-predeterminada').checked = false;
+    document.getElementById('pf-equiv-cant').value    = '';
+    var wrap = document.getElementById('aj-pres-form-wrap');
+    if (wrap) { wrap.open = false; wrap.querySelector('summary').textContent = '+ Agregar presentación'; }
+}
+
+async function guardarPresentacion() {
+    var nombre = document.getElementById('pf-nombre').value.trim();
+    var cantB  = document.getElementById('pf-cantidad-base').value;
+    if (!nombre)          { toast('El nombre es obligatorio', 'err'); return; }
+    if (!(parseFloat(cantB) > 0)) { toast('La cantidad base debe ser mayor a cero', 'err'); return; }
+
+    var insumo_id = document.getElementById('pf-insumo-id').value;
+    var pf_id     = document.getElementById('pf-id').value;
+    var fd = new FormData();
+    fd.append('csrf_token',    csrf());
+    fd.append('accion',        pf_id ? 'editar' : 'crear');
+    if (pf_id) fd.append('id', pf_id);
+    fd.append('insumo_id',     insumo_id);
+    fd.append('nombre',        nombre);
+    fd.append('cantidad_base', cantB);
+    fd.append('unidad_compra', document.getElementById('pf-unidad-compra').value.trim());
+    fd.append('precio_referencia', document.getElementById('pf-precio-ref').value || '');
+    fd.append('es_predeterminada', document.getElementById('pf-predeterminada').checked ? '1' : '0');
+    fd.append('equiv_cantidad', document.getElementById('pf-equiv-cant').value || '');
+    fd.append('equiv_unidad',   document.getElementById('pf-equiv-unidad').value || 'g');
+
+    try {
+        var r = await fetch('api/presentaciones.php', {method:'POST', body:fd});
+        var d = await r.json();
+        if (d.success) {
+            toast(d.mensaje || 'Guardado', 'ok');
+            cancelarFormPres();
+            cargarPresentaciones(insumo_id);
+        } else toast(d.error || 'Error', 'err');
+    } catch(e) { toast('Error de red', 'err'); }
+}
+
+async function eliminarPresentacion(id, nombre, insumo_id) {
+    if (!confirm('¿Eliminar la presentación "' + nombre + '"?\nNo afecta el historial de compras.')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', csrf());
+    fd.append('accion',     'eliminar');
+    fd.append('id',         id);
+    try {
+        var r = await fetch('api/presentaciones.php', {method:'POST', body:fd});
+        var d = await r.json();
+        if (d.success) { toast(d.mensaje || 'Eliminado', 'ok'); cargarPresentaciones(insumo_id); }
+        else toast(d.error || 'Error', 'err');
+    } catch(e) { toast('Error de red', 'err'); }
+}
+
+function htmlEsc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 var _tt;

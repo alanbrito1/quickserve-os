@@ -41,13 +41,14 @@ class InsumoModel
 
     /**
      * Retorna insumos básicos para dropdowns y cálculos.
-     * Incluye equiv_cantidad y equiv_unidad para mostrar equivalencias físicas
-     * al registrar compras (ej: "10 lonchas = 300 g").
+     * Incluye campos de presentación (mig. 010) y equivalencia (mig. 030)
+     * para el panel informativo del formulario de compras.
      */
     public static function todos(): array
     {
         return db()->query(
             'SELECT id, nombre, unidad_medida, costo_actual, stock_actual,
+                    presentacion, cantidad_presentacion, precio_presentacion,
                     equiv_cantidad, equiv_unidad
              FROM insumos WHERE activo = 1 ORDER BY nombre'
         )->fetchAll();

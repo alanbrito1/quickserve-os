@@ -1,5 +1,5 @@
-# ClanDestino ERP v4.75 — Memoria de Sesión
-# Última sesión: 2026-06-06 | Próxima sesión: continuar desde este punto
+# ClanDestino ERP v4.80 — Memoria de Sesión
+# Última sesión: 2026-06-08 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -632,6 +632,7 @@ schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas,
 036_receta_ingrediente_base.sql        → ALTER TABLE recetas ADD COLUMN es_base TINYINT(1) DEFAULT 0 — ingredientes base no escalan con factor_receta de variante
 037_turnos_caja.sql                    → CREATE TABLE turnos_caja (id, fecha, fondo_inicial, notas_apertura, usuario_apertura, fecha_apertura, estado ENUM('abierto','cerrado'), fecha_cierre, usuario_cierre, notas_cierre)
 038_descuento_venta.sql                → ALTER TABLE ventas ADD COLUMN descuento_pct DECIMAL(5,2) DEFAULT 0, ADD COLUMN descuento_valor DECIMAL(12,2) DEFAULT 0
+039_insumo_presentaciones.sql          → CREATE TABLE insumo_presentaciones (catálogo de presentaciones de compra por insumo); ALTER TABLE compra_detalles ADD COLUMN presentacion_id INT DEFAULT NULL (FK lógica)
 
 ### Política de snapshots (principio de inmutabilidad extendido)
 Además de los precios, TODOS estos datos se guardan como snapshot al momento de la transacción:
@@ -1936,3 +1937,60 @@ Todos los commits de la sesión (v4.71 a v4.75) están confirmados en `origin/ma
 | `public_html/app/config/app.php` | APP_VERSION → 4.75 |
 
 *Última actualización: 2026-06-06 | v4.75 — cierre del plan de 5 ciclos: schema.sql recontado y corregido (29 tablas, 59 seeds, versiones unificadas), claude.md verificado completo, GitHub 100% sincronizado. Sistema en estado estable, sin pendientes de código, documentación o sincronización.*
+
+## Estado v4.80 (2026-06-08)
+
+### Presentaciones múltiples de compra por insumo (mig. 039)
+
+Implementación completa del soporte para catálogos de presentaciones de compra por insumo. Un insumo puede tener múltiples formas físicas de compra (frasco, galón, bidón, etc.) sin alterar su unidad canónica de stock ni su base de recetas.
+
+### Arquitectura (Opción A — principio de unidad canónica)
+
+- La `unidad_medida` del insumo permanece fija e inmutable (base de recetas, mov. de stock sin cambios).
+- `insumo_presentaciones` cataloga las distintas presentaciones de compra con sus `cantidad_base` y `unidad_compra`.
+- Al comprar con presentación con `equiv_cantidad` → se actualiza `insumos.equiv_cantidad/equiv_unidad` para reflejar la equivalencia física real.
+- `compra_detalles.presentacion_id` es FK lógica nullable (sin restricción DB, patrón del proyecto para cPanel).
+- Historial inmutable: compras anteriores con `presentacion_id = NULL` continúan funcionando sin cambios.
+
+### Migración 039
+
+```sql
+CREATE TABLE insumo_presentaciones (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  insumo_id INT NOT NULL,          -- FK lógica → insumos.id
+  nombre VARCHAR(120) NOT NULL,
+  cantidad_base DECIMAL(12,4) NOT NULL DEFAULT 1.0000,
+  unidad_compra VARCHAR(60) DEFAULT NULL,
+  precio_referencia DECIMAL(12,2) DEFAULT NULL,
+  es_predeterminada TINYINT(1) NOT NULL DEFAULT 0,
+  equiv_cantidad DECIMAL(12,4) DEFAULT NULL,
+  equiv_unidad VARCHAR(60) DEFAULT NULL,
+  activo TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by INT DEFAULT NULL
+);
+ALTER TABLE compra_detalles ADD COLUMN presentacion_id INT DEFAULT NULL;
+```
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `database/migrations/039_insumo_presentaciones.sql` | Nueva migración (tabla + columna) |
+| `public_html/app/models/PresentacionModel.php` | Nuevo modelo; método `tabla_existe_publica()` expuesto |
+| `public_html/app/models/CompraModel.php` | `criar()` y `editar()`: INSERT dinámico + detección mig. 039 + update `equiv_cantidad` |
+| `public_html/inventario/index.php` | Sección "Presentaciones de compra" en modal ajustar + JS CRUD |
+| `public_html/inventario/compras.php` | Selector de presentación catalogada + mini-modal nuevo insumo + `pres_cat` en `INSUMO_MAP` |
+| `public_html/tests/suite.php` | G29: 9 tests para tabla `insumo_presentaciones` y FK en `compra_detalles` |
+| `database/schema.sql` | v4.80 — tabla `insumo_presentaciones` (30 tablas totales); columna en `compra_detalles` |
+| `public_html/app/config/app.php` | APP_VERSION → 4.80 |
+
+### Cambios técnicos destacados
+
+- **INSERT dinámico**: `CompraModel::criar()` y `editar()` usan array builder (`$cols_det[]`/`$pars_det[]` + `implode()`) en lugar de 8 ramas estáticas (`if/elseif/else`).
+- **Detección de migración**: `static $tiene039c` / `static $tiene039ce` en `CompraModel`; `PresentacionModel::tabla_existe()` en vistas.
+- **`cerrarModal(id)`**: Refactorizado para aceptar ID como parámetro (soporta `modalEditar` y `modalNuevoIns`).
+- **Creación inline de insumos**: `guardarNuevoInsInline()` crea el insumo vía API y lo inyecta en `INSUMOS`/`INSUMO_MAP` sin recarga de página.
+
+*Última actualización: 2026-06-08 | v4.80 — presentaciones múltiples de compra por insumo: nueva tabla `insumo_presentaciones` (mig. 039), selector en compras, CRUD en inventario, 9 tests G29, INSERT dinámico en CompraModel. 30 tablas en schema.*

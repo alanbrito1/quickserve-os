@@ -31,6 +31,7 @@
  *   G26  Turnos de Caja 037  — tabla existe, columnas, estado válido, sin duplicados abiertos, fondo≥0
  *   G27  Descuentos 038      — columnas existen, pct en 0-50, valor≥0, coherencia pct/valor, total≤bruto
  *   G28  Abonos a Fiado      — snapshots saldo_anterior/posterior (034), coherencia, no negativos, métodos válidos
+ *   G29  Presentaciones 039  — tabla insumo_presentaciones, columnas, cantidad_base > 0, FK lógica a compra_detalles
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1477,6 +1478,97 @@ if ($tiene_snap_saldo) {
         true);
 }
 
+// ── G29: Presentaciones de compra (mig 039) ───────────────────────────────────
+$G = 'G29 Presentaciones de compra (mig 039)';
+
+$tiene039 = false;
+try {
+    $tiene039 = (int)$pdo->query(
+        "SELECT COUNT(*) FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='insumo_presentaciones'"
+    )->fetchColumn() > 0;
+} catch (\Exception $e) {}
+
+t($G, "Tabla insumo_presentaciones existe (mig. 039 aplicada)",
+    $tiene039,
+    "Aplicar 039_insumo_presentaciones.sql",
+    !$tiene039);
+
+if ($tiene039) {
+    // Test: columnas obligatorias presentes
+    $cols039 = [];
+    try {
+        $rows = $pdo->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='insumo_presentaciones'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        $cols039 = array_flip($rows);
+    } catch (\Exception $e) {}
+
+    foreach (['id','insumo_id','nombre','cantidad_base','unidad_compra','es_predeterminada','activo'] as $col) {
+        t($G, "Columna '{$col}' existe en insumo_presentaciones",
+            isset($cols039[$col]),
+            "Falta columna '{$col}' — revisar migración 039.");
+    }
+
+    // Test: cantidad_base siempre > 0
+    $baseInvalida = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM insumo_presentaciones WHERE cantidad_base <= 0 AND activo=1");
+    t($G, "cantidad_base siempre mayor a 0 en presentaciones activas",
+        $baseInvalida === 0,
+        $baseInvalida > 0 ? "{$baseInvalida} presentaciones activas con cantidad_base ≤ 0." : '');
+
+    // Test: es_predeterminada solo 0 o 1
+    $predInvalida = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM insumo_presentaciones WHERE es_predeterminada NOT IN (0,1)");
+    t($G, "es_predeterminada solo contiene 0 o 1",
+        $predInvalida === 0,
+        $predInvalida > 0 ? "{$predInvalida} filas con es_predeterminada inválido." : '');
+
+    // Test: sin huérfanos (insumo_id apunta a insumos existentes)
+    $huerfanos = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM insumo_presentaciones ip
+         WHERE NOT EXISTS (SELECT 1 FROM insumos i WHERE i.id = ip.insumo_id)");
+    t($G, "Sin presentaciones huérfanas (insumo_id apunta a insumos existentes)",
+        $huerfanos === 0,
+        $huerfanos > 0 ? "{$huerfanos} presentaciones con insumo_id sin insumo correspondiente." : '');
+
+    // Test: nombre no vacío
+    $nombreVacio = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM insumo_presentaciones WHERE TRIM(nombre)='' AND activo=1");
+    t($G, "Nombre de presentación no vacío",
+        $nombreVacio === 0,
+        $nombreVacio > 0 ? "{$nombreVacio} presentaciones activas sin nombre." : '');
+
+    // Test: columna presentacion_id en compra_detalles
+    $tienePresId = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='compra_detalles'
+           AND COLUMN_NAME='presentacion_id'") > 0;
+    t($G, "Columna presentacion_id existe en compra_detalles (snapshot mig. 039)",
+        $tienePresId,
+        "presentacion_id no existe en compra_detalles — aplicar 039 completo.");
+
+    if ($tienePresId) {
+        // Test: FK lógica — cuando presentacion_id IS NOT NULL apunta a presentaciones existentes
+        $fkRota = (int)scalar($pdo,
+            "SELECT COUNT(*) FROM compra_detalles cd
+             WHERE cd.presentacion_id IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM insumo_presentaciones ip WHERE ip.id = cd.presentacion_id)");
+        t($G, "FK lógica presentacion_id → insumo_presentaciones sin huérfanos",
+            $fkRota === 0,
+            $fkRota > 0 ? "{$fkRota} compra_detalles con presentacion_id huérfano." : '');
+    }
+
+    // Test: equiv_cantidad, cuando definida, siempre > 0
+    $equivInvalida = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM insumo_presentaciones
+         WHERE equiv_cantidad IS NOT NULL AND equiv_cantidad <= 0");
+    t($G, "equiv_cantidad, cuando definida, siempre mayor a 0",
+        $equivInvalida === 0,
+        $equivInvalida > 0 ? "{$equivInvalida} presentaciones con equiv_cantidad ≤ 0." : '');
+}
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -1535,7 +1627,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    26 grupos
+    29 grupos
 </p>
 
 <!-- Resumen global -->

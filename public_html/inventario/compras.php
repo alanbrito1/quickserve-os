@@ -8,10 +8,25 @@
 require_once __DIR__ . '/../app/middleware/auth_check.php';
 require_once __DIR__ . '/../app/models/CompraModel.php';
 require_once __DIR__ . '/../app/models/InsumoModel.php';
+require_once __DIR__ . '/../app/models/PresentacionModel.php';
+require_once __DIR__ . '/../app/helpers/ListasHelper.php';
 
 permiso_requerir('compras', 'solo_propios');
 
-$insumos = InsumoModel::todos();
+$insumos         = InsumoModel::todos();
+$pres_por_insumo = PresentacionModel::todas_agrupadas();
+
+// Catálogos para mini-modal de nuevo insumo
+$UNIDADES_LISTA   = listas_get('unidad_medida');
+$CATEGORIAS_LISTA = listas_get('categoria_insumo');
+$UNIDADES_NI  = !empty($UNIDADES_LISTA)
+    ? array_column($UNIDADES_LISTA, 'etiqueta', 'valor')
+    : ['g'=>'Gramos','ml'=>'Mililitros','unidad'=>'Unidades','kg'=>'Kilogramos',
+       'litro'=>'Litros','loncha'=>'Lonchas','lata'=>'Latas'];
+$CATEGORIAS_NI = !empty($CATEGORIAS_LISTA)
+    ? array_column($CATEGORIAS_LISTA, 'etiqueta', 'valor')
+    : ['proteína'=>'Proteína','lácteo'=>'Lácteo','vegetal'=>'Vegetal',
+       'condimento'=>'Condimento','empaque'=>'Empaque','grasa'=>'Grasa','otro'=>'Otro'];
 $msg_ok  = '';
 $msg_err = '';
 
@@ -59,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $linea['cant_presentaciones']   = $numpres;
                     $linea['precio_presentacion']   = $ppres > 0 ? $ppres : null;
                 }
+                // Mig 039: snapshot de presentacion_id catalogada
+                $pres_id = !empty($l['presentacion_id']) ? (int)$l['presentacion_id'] : null;
+                if ($pres_id > 0) $linea['presentacion_id'] = $pres_id;
                 $lineas[] = $linea;
             }
         }
@@ -94,6 +112,17 @@ $insumos_js = json_encode(array_map(fn($i) => [
     'precio_pres'   => $i['precio_presentacion']   ? (float)$i['precio_presentacion']   : null,
     'equiv_cant'    => $i['equiv_cantidad']  ? (float)$i['equiv_cantidad']  : null,
     'equiv_unidad'  => $i['equiv_unidad']   ?? null,
+    // Catálogo de presentaciones (mig 039) — vacío si no hay o mig no aplicada
+    'pres_cat'      => array_map(fn($p) => [
+        'id'              => (int)$p['id'],
+        'nombre'          => $p['nombre'],
+        'cantidad_base'   => (float)$p['cantidad_base'],
+        'unidad_compra'   => $p['unidad_compra'],
+        'precio_referencia'=> $p['precio_referencia'] ? (float)$p['precio_referencia'] : null,
+        'equiv_cantidad'  => $p['equiv_cantidad']  ? (float)$p['equiv_cantidad']  : null,
+        'equiv_unidad'    => $p['equiv_unidad'] ?? null,
+        'es_predeterminada'=> (int)$p['es_predeterminada'],
+    ], $pres_por_insumo[$i['id']] ?? []),
 ], $insumos), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 ?>
 <!DOCTYPE html>
@@ -248,6 +277,20 @@ $insumos_js = json_encode(array_map(fn($i) => [
         .modal-title { font-size:16px; font-weight:800; }
         .btn-close { background:none; border:none; font-size:22px; cursor:pointer; color:var(--g5); line-height:1; padding:0 4px; }
         .btn-close:hover { color:var(--brand); }
+
+        /* Selector de presentación catalogada (mig 039) */
+        .pres-cat-block { margin-top:6px; }
+        .pres-cat-panel { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:9px 12px; }
+        .pres-cat-panel select { width:100%; padding:8px 10px; border:2px solid #86efac; border-radius:8px; font-size:14px; color:var(--dark); outline:none; -webkit-appearance:none; background:#fff; }
+        .pres-cat-panel select:focus { border-color:#22c55e; }
+        .pres-cat-detail { margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .pres-calc-hint { margin-top:4px; font-size:11px; color:#1d4ed8; background:#eff6ff; padding:3px 8px; border-radius:6px; display:none; }
+
+        /* Mini-modal: crear nuevo insumo */
+        .btn-nuevo-ins { display:inline-flex; align-items:center; gap:5px; padding:6px 12px;
+            background:#fff; border:1px dashed var(--g8); border-radius:8px; font-size:12px;
+            font-weight:700; color:var(--g5); cursor:pointer; margin-top:6px; }
+        .btn-nuevo-ins:hover { border-color:var(--brand); color:var(--brand); }
     </style>
 </head>
 <body>
@@ -304,7 +347,12 @@ $insumos_js = json_encode(array_map(fn($i) => [
             <!-- Líneas de la compra -->
             <div id="lineas-container"></div>
 
-            <button type="button" class="add-linea-btn" onclick="agregarLinea()">+ Agregar ítem</button>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+                <button type="button" class="add-linea-btn" style="margin-top:0" onclick="agregarLinea()">+ Agregar ítem</button>
+                <?php if (permiso_tiene('inventario','editar_existentes')): ?>
+                <button type="button" class="btn-nuevo-ins" onclick="abrirModalNuevoIns()">+ Crear nuevo insumo</button>
+                <?php endif; ?>
+            </div>
 
             <div class="total-row">
                 <span>Total compra:</span>
@@ -484,6 +532,51 @@ $insumos_js = json_encode(array_map(fn($i) => [
 
 </main>
 
+<!-- ── Mini-modal: crear nuevo insumo inline ────────────────────────── -->
+<div class="modal-overlay" id="modalNuevoIns" role="dialog" aria-modal="true">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-hdr">
+      <span class="modal-title">Crear nuevo insumo</span>
+      <button class="btn-close" onclick="cerrarModal('modalNuevoIns')">✕</button>
+    </div>
+    <div id="niAlert" style="display:none" class="alert alert-err"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg" style="grid-column:1/-1">
+        <label>Nombre *</label>
+        <input type="text" id="ni2-nombre" placeholder="Ej: Aceite Vegetal">
+      </div>
+      <div class="fg">
+        <label>Unidad *</label>
+        <select id="ni2-unidad">
+          <?php foreach ($UNIDADES_NI as $k => $v): ?>
+          <option value="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($v) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Categoría</label>
+        <select id="ni2-categoria">
+          <?php foreach ($CATEGORIAS_NI as $k => $v): ?>
+          <option value="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($v) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Stock de seguridad</label>
+        <input type="number" id="ni2-stock-seg" placeholder="0" min="0" step="0.001" value="0">
+      </div>
+      <div class="fg">
+        <label>Stock inicial</label>
+        <input type="number" id="ni2-stock" placeholder="0" min="0" step="0.001" value="0">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-guardar" style="font-size:14px;padding:12px" onclick="guardarNuevoInsInline()">Crear insumo</button>
+      <button onclick="cerrarModal('modalNuevoIns')" style="padding:12px 16px;background:var(--g9);border:1px solid var(--g8);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modal de edición ───────────────────────────────────────────────── -->
 <div class="modal-overlay" id="modalEditar" role="dialog" aria-modal="true">
     <div class="modal-box">
@@ -624,11 +717,35 @@ function agregarLinea() {
             <button type="button" class="btn-rm" onclick="quitarLinea(${n})" title="Quitar ítem">−</button>
         </div>
 
-        <!-- Hidden: campos de presentación para snapshot al backend (migraciones 032/034) -->
+        <!-- Selector de presentación catalogada (mig 039) — se muestra si el insumo tiene catálogo -->
+        <div class="pres-cat-block" id="pres-cat-block-${n}" style="display:none">
+            <div class="pres-cat-panel">
+                <div class="fu-lbl" style="margin-bottom:5px">📦 Presentación catalogada</div>
+                <select id="pres-cat-sel-${n}" onchange="selectPresentacion(${n})">
+                    <option value="">— Seleccionar presentación —</option>
+                </select>
+                <div id="pres-cat-detail-${n}" style="display:none;margin-top:8px">
+                    <div class="pres-cat-detail">
+                        <div class="fu-col">
+                            <span class="fu-lbl">Nro. de presentaciones</span>
+                            <input type="number" id="num-pres-${n}" placeholder="Ej: 3" min="1" step="1" oninput="calcDesdePres(${n})">
+                        </div>
+                        <div class="fu-col">
+                            <span class="fu-lbl">Precio por presentación ($)</span>
+                            <input type="number" id="ppres-in-${n}" placeholder="Ej: 8500" min="0" step="1" oninput="calcDesdePres(${n})">
+                        </div>
+                    </div>
+                    <div class="pres-calc-hint" id="pres-calc-hint-${n}"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden: campos de presentación para snapshot al backend (migraciones 032/034 y 039) -->
         <input type="hidden" name="lineas[${n}][presentacion]"          id="hpres-${n}">
         <input type="hidden" name="lineas[${n}][cantidad_presentacion]" id="hcantpx-${n}">
         <input type="hidden" name="lineas[${n}][cant_presentaciones]"   id="hnumpres-${n}">
         <input type="hidden" name="lineas[${n}][precio_presentacion]"   id="hppres-${n}">
+        <input type="hidden" name="lineas[${n}][presentacion_id]"       id="hpres-id-${n}">
     `;
     document.getElementById('lineas-container').appendChild(div);
 }
@@ -689,9 +806,37 @@ function selectInsumo(n) {
             ? `Cantidad (${ins.presentacion}s)` : `Cantidad (${ins.unidad})`;
     }
 
-    // Pre-cargar precio/unidad con el costo actual del insumo
+    // Selector de presentación catalogada (mig 039)
+    const presCatBlock = document.getElementById('pres-cat-block-' + n);
+    const presCatSel   = document.getElementById('pres-cat-sel-' + n);
+    const hPresId      = document.getElementById('hpres-id-' + n);
+    if (presCatBlock && presCatSel) {
+        const cats = ins.pres_cat || [];
+        if (cats.length > 0) {
+            // Reconstruir opciones del selector
+            let opts = '<option value="">— Seleccionar presentación —</option>';
+            cats.forEach(p => {
+                const prec = p.precio_referencia > 0 ? ` · $${Math.round(p.precio_referencia).toLocaleString('es-CO')}` : '';
+                opts += `<option value="${p.id}" data-base="${p.cantidad_base}" data-ucomp="${escHtml(p.unidad_compra)}" data-ref="${p.precio_referencia||0}">${escHtml(p.nombre)} (${p.cantidad_base} ${escHtml(ins.unidad)}/${p.unidad_compra||'und'})${prec}</option>`;
+            });
+            presCatSel.innerHTML = opts;
+            presCatBlock.style.display = '';
+            // Pre-seleccionar la predeterminada si existe
+            const pred = cats.find(p => p.es_predeterminada == 1);
+            if (pred) {
+                presCatSel.value = pred.id;
+                selectPresentacion(n);
+            }
+        } else {
+            presCatBlock.style.display = 'none';
+            if (hPresId) hPresId.value = '';
+            document.getElementById('pres-cat-detail-' + n).style.display = 'none';
+        }
+    }
+
+    // Pre-cargar precio/unidad con el costo actual (solo si no hay presentación catalogada pre-cargada)
     const precioUEl = document.getElementById('precio-u-' + n);
-    if (precioUEl && ins.costo > 0) precioUEl.value = ins.costo;
+    if (precioUEl && ins.costo > 0 && !precioUEl.value) precioUEl.value = ins.costo;
 
     // Sugerir cantidad = 1 si el campo está vacío
     const cantEl = document.getElementById('cant-' + n);
@@ -874,16 +1019,22 @@ function abrirEditar(data) {
     document.body.style.overflow = 'hidden';
 }
 
-function cerrarModal() {
-    document.getElementById('modalEditar').classList.remove('open');
+function cerrarModal(id = 'modalEditar') {
+    document.getElementById(id)?.classList.remove('open');
     document.body.style.overflow = '';
 }
 
 document.getElementById('modalEditar').addEventListener('click', e => {
-    if (e.target === e.currentTarget) cerrarModal();
+    if (e.target === e.currentTarget) cerrarModal('modalEditar');
+});
+document.getElementById('modalNuevoIns').addEventListener('click', e => {
+    if (e.target === e.currentTarget) cerrarModal('modalNuevoIns');
 });
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') cerrarModal();
+    if (e.key === 'Escape') {
+        cerrarModal('modalEditar');
+        cerrarModal('modalNuevoIns');
+    }
 });
 
 /* Líneas del modal — misma estructura que el formulario principal */
@@ -1116,6 +1267,166 @@ async function guardarEdicion() {
     } else {
         alertEl.textContent = data.error || 'Error al guardar.';
         alertEl.style.display = 'block';
+    }
+}
+
+// ── Presentación catalogada (mig 039) ────────────────────────────────────────
+function selectPresentacion(n) {
+    const sel     = document.getElementById('pres-cat-sel-' + n);
+    const pid     = parseInt(sel.value);
+    const detail  = document.getElementById('pres-cat-detail-' + n);
+    const hid     = document.getElementById('hpres-id-' + n);
+    const hint    = document.getElementById('pres-calc-hint-' + n);
+
+    if (!pid) {
+        if (detail) detail.style.display = 'none';
+        if (hid)    hid.value = '';
+        if (hint)   hint.style.display = 'none';
+        return;
+    }
+
+    const iid = parseInt(document.getElementById('sel-ins-' + n)?.value);
+    const ins = INSUMO_MAP[iid];
+    const pres = (ins?.pres_cat || []).find(p => p.id == pid);
+    if (!pres) return;
+
+    if (detail) detail.style.display = '';
+    if (hid)    hid.value = pid;
+
+    // Pre-llenar precio de referencia si existe y está vacío
+    const ppresEl   = document.getElementById('ppres-in-' + n);
+    const numPresEl = document.getElementById('num-pres-'  + n);
+    if (ppresEl && pres.precio_referencia > 0 && !ppresEl.value) ppresEl.value = pres.precio_referencia;
+    if (numPresEl  && !numPresEl.value) numPresEl.value = 1;
+
+    calcDesdePres(n);
+}
+
+function calcDesdePres(n) {
+    const sel = document.getElementById('pres-cat-sel-' + n);
+    const pid = parseInt(sel?.value);
+    if (!pid) return;
+
+    const iid  = parseInt(document.getElementById('sel-ins-' + n)?.value);
+    const ins  = INSUMO_MAP[iid];
+    const pres = (ins?.pres_cat || []).find(p => p.id == pid);
+    if (!pres) return;
+
+    const numPres = parseFloat(document.getElementById('num-pres-'  + n)?.value) || 0;
+    const pPres   = parseFloat(document.getElementById('ppres-in-' + n)?.value) || 0;
+    const base    = parseFloat(pres.cantidad_base) || 0;
+    if (!base) return;
+
+    const cantEl   = document.getElementById('cant-'    + n);
+    const precioEl = document.getElementById('precio-u-'+ n);
+    const totalEl  = document.getElementById('total-'   + n);
+    const hpres    = document.getElementById('hpres-'   + n);
+    const hcantpx  = document.getElementById('hcantpx-' + n);
+    const hnumpres = document.getElementById('hnumpres-'+ n);
+    const hppres   = document.getElementById('hppres-'  + n);
+    const hint     = document.getElementById('pres-calc-hint-' + n);
+
+    if (numPres > 0) {
+        const cantCanonica = Math.round(numPres * base * 10000) / 10000;
+        if (cantEl) cantEl.value = cantCanonica;
+        if (hnumpres) hnumpres.value = numPres;
+    }
+    if (pPres > 0) {
+        const precioUnit = Math.round((pPres / base) * 10000) / 10000;
+        if (precioEl)  precioEl.value = precioUnit;
+        if (hppres)    hppres.value   = pPres;
+    }
+    if (numPres > 0 && pPres > 0) {
+        if (totalEl)   totalEl.value  = Math.round(numPres * pPres);
+    }
+    if (hpres)   hpres.value   = pres.unidad_compra || '';
+    if (hcantpx) hcantpx.value = base;
+
+    if (hint) {
+        if (numPres > 0 && base > 0) {
+            const cantC = numPres * base;
+            const precioU = pPres > 0 ? '$' + (pPres / base).toLocaleString('es-CO', {minimumFractionDigits:4, maximumFractionDigits:4}) + '/' + ins.unidad : '—';
+            hint.textContent = `${numPres} × ${base} ${ins.unidad}/${pres.unidad_compra||'und'} = ${cantC.toLocaleString('es-CO', {maximumFractionDigits:4})} ${ins.unidad} · ${precioU}`;
+            hint.style.display = '';
+        }
+    }
+
+    recalcularTotal();
+}
+
+// ── Mini-modal: crear nuevo insumo inline ─────────────────────────────────────
+function abrirModalNuevoIns() {
+    document.getElementById('ni2-nombre').value   = '';
+    document.getElementById('ni2-stock-seg').value = '0';
+    document.getElementById('ni2-stock').value     = '0';
+    document.getElementById('niAlert').style.display = 'none';
+    document.getElementById('modalNuevoIns').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('ni2-nombre').focus(), 100);
+}
+
+async function guardarNuevoInsInline() {
+    const nombre = document.getElementById('ni2-nombre').value.trim();
+    if (!nombre) {
+        document.getElementById('niAlert').textContent = 'El nombre es obligatorio.';
+        document.getElementById('niAlert').style.display = 'block';
+        return;
+    }
+    const fd = new FormData();
+    fd.append('csrf_token',    document.querySelector('[name="csrf_token"]').value);
+    fd.append('accion',        'crear');
+    fd.append('nombre',        nombre);
+    fd.append('unidad_medida', document.getElementById('ni2-unidad').value);
+    fd.append('categoria',     document.getElementById('ni2-categoria').value);
+    fd.append('stock_seguridad', document.getElementById('ni2-stock-seg').value || '0');
+    fd.append('stock_actual',    document.getElementById('ni2-stock').value     || '0');
+    fd.append('costo_actual',  '0');
+    fd.append('presentacion',  '');
+    fd.append('cantidad_presentacion', '0');
+    fd.append('precio_presentacion',   '0');
+
+    try {
+        const r = await fetch('../inventario/api/insumo_crud.php', {method:'POST', body:fd});
+        const d = await r.json();
+        if (!d.success) {
+            document.getElementById('niAlert').textContent = d.error || 'Error al crear.';
+            document.getElementById('niAlert').style.display = 'block';
+            return;
+        }
+        // Agregar al mapa local y reconstruir selects
+        const nuevo = {
+            id: d.id, nombre: nombre,
+            unidad: document.getElementById('ni2-unidad').value,
+            costo: 0, presentacion: null, cant_pres: null, precio_pres: null,
+            equiv_cant: null, equiv_unidad: null, pres_cat: []
+        };
+        INSUMOS.push(nuevo);
+        INSUMO_MAP[nuevo.id] = nuevo;
+
+        // Agregar opción a todos los selects de insumos activos
+        const newOpt = `<option value="${nuevo.id}">${escHtml(nuevo.nombre)} (${escHtml(nuevo.unidad)})</option>`;
+        document.querySelectorAll('[id^="sel-ins-"]').forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = nuevo.id;
+            opt.textContent = `${nuevo.nombre} (${nuevo.unidad})`;
+            s.appendChild(opt);
+        });
+
+        cerrarModal('modalNuevoIns');
+        // Seleccionar automáticamente en la última línea si no tiene insumo
+        const lineas = document.querySelectorAll('.linea');
+        if (lineas.length > 0) {
+            const ultima = lineas[lineas.length - 1];
+            const id = ultima.id.replace('linea-', '');
+            const sel = document.getElementById('sel-ins-' + id);
+            if (sel && !sel.value) {
+                sel.value = nuevo.id;
+                selectInsumo(id);
+            }
+        }
+    } catch(e) {
+        document.getElementById('niAlert').textContent = 'Error de red.';
+        document.getElementById('niAlert').style.display = 'block';
     }
 }
 

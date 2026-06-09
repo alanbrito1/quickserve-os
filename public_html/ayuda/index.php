@@ -920,6 +920,35 @@ los productos que usan ese insumo.</span></div>
             <div class="tip">El hint dinámico <strong>"= X unidades total"</strong> aparece debajo del campo de cantidad y también dentro del panel. Se actualiza en tiempo real conforme escribes la cantidad. Para insumos con empaque de más de 1 unidad muestra el total en unidades básicas; para insumos con equivalencia física muestra el total en la unidad física (gramos, ml…).</div>
             <div class="ok"><strong>Importante:</strong> Los datos del panel son de solo lectura — reflejan la información del inventario. Para editar la presentación de un insumo usa el módulo <strong>Inventario → editar insumo</strong>. Las compras siempre quedan guardadas con el snapshot de presentación vigente al momento de registrarlas.</div>
 
+            <div class="sub-title">Presentaciones de compra por insumo (v4.80)</div>
+            <p>Cada insumo puede tener un catálogo de <strong>presentaciones de compra</strong> — las distintas formas físicas en que se adquiere (frasco, galón, bidón, etc.). Esto no cambia la unidad de stock ni las recetas; solo facilita calcular cuántas unidades entran al inventario según el envase que compraste.</p>
+            <table class="data-table">
+                <thead><tr><th>Concepto</th><th>Ejemplo: Aceite Vegetal</th><th>Qué hace el sistema</th></tr></thead>
+                <tbody>
+                    <tr><td>Insumo</td><td>Aceite Vegetal · unidad: <em>ml</em></td><td>La unidad canónica siempre es <em>ml</em>. Recetas y stock no cambian.</td></tr>
+                    <tr><td>Presentación "Frasco 900 ml"</td><td>cantidad_base = 900, unidad_compra = ml</td><td>Comprar 3 frascos → stock += 2700 ml; precio_unitario = precio/900.</td></tr>
+                    <tr><td>Presentación "Galón 3.785 L"</td><td>cantidad_base = 3785, unidad_compra = ml</td><td>Comprar 1 galón → stock += 3785 ml; precio_unitario = precio/3785.</td></tr>
+                    <tr><td>Presentación "Bidón 18 L"</td><td>cantidad_base = 18000, unidad_compra = ml</td><td>Comprar 2 bidones → stock += 36000 ml.</td></tr>
+                </tbody>
+            </table>
+            <div class="tip"><strong>Selector automático:</strong> Al elegir un insumo con presentaciones catalogadas, aparece un selector con todas sus presentaciones. Escoge la presentación, ingresa cuántos envases compraste y el precio por envase — el sistema calcula la cantidad en unidades básicas y el precio unitario automáticamente.</div>
+            <div class="ok"><strong>Predeterminada:</strong> Puedes marcar una presentación como predeterminada y se seleccionará automáticamente al elegir ese insumo en el formulario de compra.</div>
+            <div class="tip"><strong>Equivalencia física:</strong> Cuando una presentación tiene configurada una equivalencia (por ejemplo, "1 und = 500 g"), al registrar la compra el sistema actualiza el campo <em>equiv_cantidad</em> del insumo para reflejar la medida real del lote actual.</div>
+
+            <div class="sub-title">Administrar presentaciones de compra</div>
+            <p>Las presentaciones se gestionan desde <strong>Inventario → editar insumo → sección "Presentaciones de compra"</strong>. Solo usuarios con permiso <em>inventario: editar_existentes</em> pueden agregar, editar o desactivar presentaciones.</p>
+            <table class="data-table">
+                <thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+                <tbody>
+                    <tr><td>Nombre</td><td>Etiqueta descriptiva de la presentación (p. ej. "Frasco 900 ml").</td></tr>
+                    <tr><td>Cantidad base</td><td>Cuántas unidades básicas del insumo trae esta presentación. Debe ser mayor a 0.</td></tr>
+                    <tr><td>Unidad de compra</td><td>Etiqueta de la unidad del envase (ml, L, kg, und…).</td></tr>
+                    <tr><td>Precio de referencia</td><td>Precio habitual de esta presentación (opcional, solo como referencia).</td></tr>
+                    <tr><td>Predeterminada</td><td>Si está marcada, se preselecciona al elegir el insumo en compras.</td></tr>
+                    <tr><td>Equiv. física</td><td>Equivalencia real (p. ej. 500 g por unidad) — actualiza <em>equiv_cantidad</em> del insumo al comprar.</td></tr>
+                </tbody>
+            </table>
+
             <div class="sub-title">Filtrar historial de compras</div>
             <p>En el historial de compras puedes combinar los siguientes filtros para encontrar rápidamente cualquier compra:</p>
             <table class="data-table">

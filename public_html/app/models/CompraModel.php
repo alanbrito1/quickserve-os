@@ -64,20 +64,17 @@ class CompraModel
             $compra_id = (int)$pdo->lastInsertId();
 
             // ── 2. Líneas: insertar + actualizar insumo ─────────────────────
-            // Detectar si migración 032 está aplicada (columnas de presentación)
+            // Detectar columnas opcionales de compra_detalles por migración
             static $tiene032 = null;
             if ($tiene032 === null) {
                 try {
-                    $c032 = db()->query(
+                    $tiene032 = (int)db()->query(
                         "SELECT COUNT(*) FROM information_schema.COLUMNS
                          WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='compra_detalles'
                            AND COLUMN_NAME='precio_presentacion'"
-                    )->fetchColumn();
-                    $tiene032 = (int)$c032 > 0;
+                    )->fetchColumn() > 0;
                 } catch (\Exception $e) { $tiene032 = false; }
             }
-
-            // Detectar migración 034 (nombre_snap, unidad_snap en compra_detalles)
             static $tiene034c = null;
             if ($tiene034c === null) {
                 try {
@@ -88,41 +85,40 @@ class CompraModel
                     )->fetchColumn() > 0;
                 } catch (\Exception $e2) { $tiene034c = false; }
             }
-
-            if ($tiene032 && $tiene034c) {
-                $stmtDetalle = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal,
-                         presentacion, cantidad_presentacion, cant_presentaciones, precio_presentacion,
-                         nombre_snap, unidad_snap,
-                         created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub,
-                             :pres, :cantpx, :numpres, :ppres,
-                             :nsnap, :usnap, :uid)'
-                );
-            } elseif ($tiene032) {
-                $stmtDetalle = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal,
-                         presentacion, cantidad_presentacion, cant_presentaciones, precio_presentacion,
-                         created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub,
-                             :pres, :cantpx, :numpres, :ppres, :uid)'
-                );
-            } elseif ($tiene034c) {
-                $stmtDetalle = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal,
-                         nombre_snap, unidad_snap, created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub, :nsnap, :usnap, :uid)'
-                );
-            } else {
-                $stmtDetalle = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal, created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub, :uid)'
-                );
+            // Migración 039: presentacion_id en compra_detalles
+            static $tiene039c = null;
+            if ($tiene039c === null) {
+                try {
+                    $tiene039c = (int)$pdo->query(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS
+                         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='compra_detalles'
+                           AND COLUMN_NAME='presentacion_id'"
+                    )->fetchColumn() > 0;
+                } catch (\Exception $e3) { $tiene039c = false; }
             }
+
+            // Construir INSERT dinámico según migraciones disponibles
+            $cols_det = ['compra_id', 'insumo_id', 'cantidad', 'precio_unitario', 'subtotal'];
+            $pars_det = [':cid', ':iid', ':cant', ':precio', ':sub'];
+            if ($tiene032) {
+                array_push($cols_det, 'presentacion', 'cantidad_presentacion', 'cant_presentaciones', 'precio_presentacion');
+                array_push($pars_det, ':pres', ':cantpx', ':numpres', ':ppres');
+            }
+            if ($tiene034c) {
+                array_push($cols_det, 'nombre_snap', 'unidad_snap');
+                array_push($pars_det, ':nsnap', ':usnap');
+            }
+            if ($tiene039c) {
+                $cols_det[] = 'presentacion_id';
+                $pars_det[] = ':pres_id';
+            }
+            $cols_det[] = 'created_by';
+            $pars_det[] = ':uid';
+
+            $stmtDetalle = $pdo->prepare(
+                'INSERT INTO compra_detalles (' . implode(', ', $cols_det) . ')
+                 VALUES (' . implode(', ', $pars_det) . ')'
+            );
 
             // Precarga los nombres de insumos una vez para todo el loop
             $stmtInsNombre = $pdo->prepare('SELECT nombre, unidad_medida FROM insumos WHERE id = ?');
@@ -143,6 +139,15 @@ class CompraModel
                    )"
             );
 
+            // Stmt para actualizar equiv cuando la presentación tiene override
+            $stmtEquiv = $tiene039c ? $pdo->prepare(
+                'UPDATE insumos SET equiv_cantidad=:eq, equiv_unidad=:eu, updated_by=:uid WHERE id=:id'
+            ) : null;
+            $stmtPresEquiv = $tiene039c ? $pdo->prepare(
+                'SELECT equiv_cantidad, equiv_unidad FROM insumo_presentaciones
+                 WHERE id=? AND activo=1 AND equiv_cantidad IS NOT NULL'
+            ) : null;
+
             $insumosActualizados = [];
 
             foreach ($lineas as $l) {
@@ -158,6 +163,7 @@ class CompraModel
                             ? (float)$l['cant_presentaciones'] : null;
                 $ppres    = isset($l['precio_presentacion']) && $l['precio_presentacion'] > 0
                             ? (float)$l['precio_presentacion'] : null;
+                $pres_id  = !empty($l['presentacion_id']) ? (int)$l['presentacion_id'] : null;
 
                 // Fetch nombre e unidad del insumo para snapshot
                 $stmtInsNombre->execute([$iid]);
@@ -183,6 +189,9 @@ class CompraModel
                     $params[':nsnap'] = $nsnap;
                     $params[':usnap'] = $usnap;
                 }
+                if ($tiene039c) {
+                    $params[':pres_id'] = $pres_id;
+                }
                 $stmtDetalle->execute($params);
 
                 // Costo anterior para auditoría
@@ -202,6 +211,21 @@ class CompraModel
                 if (abs($costo_anterior - $precio) > 0.001) {
                     log_registrar('insumos', $iid, 'costo_actual',
                         (string)$costo_anterior, (string)$precio, 'UPDATE');
+                }
+
+                // Si la presentación tiene un override de equiv_cantidad, actualizar el insumo
+                // para reflejar el gramaje real del lote que acaba de entrar al stock.
+                if ($pres_id && $stmtPresEquiv && $stmtEquiv) {
+                    $stmtPresEquiv->execute([$pres_id]);
+                    $pe = $stmtPresEquiv->fetch();
+                    if ($pe && !empty($pe['equiv_cantidad'])) {
+                        $stmtEquiv->execute([
+                            ':eq'  => (float)$pe['equiv_cantidad'],
+                            ':eu'  => $pe['equiv_unidad'] ?? null,
+                            ':uid' => $uid,
+                            ':id'  => $iid,
+                        ]);
+                    }
                 }
 
                 $insumosActualizados[$iid] = true;
@@ -407,7 +431,6 @@ class CompraModel
                     )->fetchColumn() > 0;
                 } catch (\Exception $e2) { $tiene032e = false; }
             }
-
             static $tiene034ce = null;
             if ($tiene034ce === null) {
                 try {
@@ -418,41 +441,40 @@ class CompraModel
                     )->fetchColumn() > 0;
                 } catch (\Exception $e2) { $tiene034ce = false; }
             }
-
-            if ($tiene032e && $tiene034ce) {
-                $stmtDet = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal,
-                         presentacion, cantidad_presentacion, cant_presentaciones, precio_presentacion,
-                         nombre_snap, unidad_snap,
-                         created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub,
-                             :pres, :cantpx, :numpres, :ppres,
-                             :nsnap, :usnap, :uid)'
-                );
-            } elseif ($tiene032e) {
-                $stmtDet = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal,
-                         presentacion, cantidad_presentacion, cant_presentaciones, precio_presentacion,
-                         created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub,
-                             :pres, :cantpx, :numpres, :ppres, :uid)'
-                );
-            } elseif ($tiene034ce) {
-                $stmtDet = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal,
-                         nombre_snap, unidad_snap, created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub, :nsnap, :usnap, :uid)'
-                );
-            } else {
-                $stmtDet = $pdo->prepare(
-                    'INSERT INTO compra_detalles
-                        (compra_id, insumo_id, cantidad, precio_unitario, subtotal, created_by)
-                     VALUES (:cid, :iid, :cant, :precio, :sub, :uid)'
-                );
+            static $tiene039ce = null;
+            if ($tiene039ce === null) {
+                try {
+                    $tiene039ce = (int)$pdo->query(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS
+                         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='compra_detalles'
+                           AND COLUMN_NAME='presentacion_id'"
+                    )->fetchColumn() > 0;
+                } catch (\Exception $e3) { $tiene039ce = false; }
             }
+
+            // Construir INSERT dinámico según migraciones disponibles
+            $cols_det_e = ['compra_id', 'insumo_id', 'cantidad', 'precio_unitario', 'subtotal'];
+            $pars_det_e = [':cid', ':iid', ':cant', ':precio', ':sub'];
+            if ($tiene032e) {
+                array_push($cols_det_e, 'presentacion', 'cantidad_presentacion', 'cant_presentaciones', 'precio_presentacion');
+                array_push($pars_det_e, ':pres', ':cantpx', ':numpres', ':ppres');
+            }
+            if ($tiene034ce) {
+                array_push($cols_det_e, 'nombre_snap', 'unidad_snap');
+                array_push($pars_det_e, ':nsnap', ':usnap');
+            }
+            if ($tiene039ce) {
+                $cols_det_e[] = 'presentacion_id';
+                $pars_det_e[] = ':pres_id';
+            }
+            $cols_det_e[] = 'created_by';
+            $pars_det_e[] = ':uid';
+
+            $stmtDet = $pdo->prepare(
+                'INSERT INTO compra_detalles (' . implode(', ', $cols_det_e) . ')
+                 VALUES (' . implode(', ', $pars_det_e) . ')'
+            );
+
             $stmtInsNombre = $pdo->prepare('SELECT nombre, unidad_medida FROM insumos WHERE id = ?');
             $stmtUpd = $pdo->prepare(
                 'UPDATE insumos
@@ -472,6 +494,14 @@ class CompraModel
                    AND p.id IN (SELECT DISTINCT r2.producto_id FROM recetas r2 WHERE r2.insumo_id = :iid)"
             );
 
+            $stmtEquivE = $tiene039ce ? $pdo->prepare(
+                'UPDATE insumos SET equiv_cantidad=:eq, equiv_unidad=:eu, updated_by=:uid WHERE id=:id'
+            ) : null;
+            $stmtPresEquivE = $tiene039ce ? $pdo->prepare(
+                'SELECT equiv_cantidad, equiv_unidad FROM insumo_presentaciones
+                 WHERE id=? AND activo=1 AND equiv_cantidad IS NOT NULL'
+            ) : null;
+
             $total  = 0.0;
             $tocados = [];
             foreach ($lineas as $l) {
@@ -480,6 +510,10 @@ class CompraModel
                 $precio = (float)$l['precio_unitario'];
                 $sub    = $cant * $precio;
                 $total += $sub;
+                $pres_id_e = !empty($l['presentacion_id']) ? (int)$l['presentacion_id'] : null;
+
+                $stmtInsNombre->execute([$iid]);
+                $insRow = $stmtInsNombre->fetch();
 
                 $detParams = [':cid'=>$id,':iid'=>$iid,':cant'=>$cant,':precio'=>$precio,':sub'=>$sub,':uid'=>$uid];
                 if ($tiene032e) {
@@ -492,13 +526,28 @@ class CompraModel
                                             ? (float)$l['precio_presentacion'] : null;
                 }
                 if ($tiene034ce) {
-                    $stmtInsNombre->execute([$iid]);
-                    $insRow = $stmtInsNombre->fetch();
                     $detParams[':nsnap'] = $insRow['nombre']        ?? null;
                     $detParams[':usnap'] = $insRow['unidad_medida'] ?? null;
                 }
+                if ($tiene039ce) {
+                    $detParams[':pres_id'] = $pres_id_e;
+                }
                 $stmtDet->execute($detParams);
                 $stmtUpd->execute([':precio'=>$precio,':cant'=>$cant,':uid'=>$uid,':iid'=>$iid]);
+
+                if ($pres_id_e && $stmtPresEquivE && $stmtEquivE) {
+                    $stmtPresEquivE->execute([$pres_id_e]);
+                    $pe = $stmtPresEquivE->fetch();
+                    if ($pe && !empty($pe['equiv_cantidad'])) {
+                        $stmtEquivE->execute([
+                            ':eq'  => (float)$pe['equiv_cantidad'],
+                            ':eu'  => $pe['equiv_unidad'] ?? null,
+                            ':uid' => $uid,
+                            ':id'  => $iid,
+                        ]);
+                    }
+                }
+
                 $tocados[$iid] = true;
             }
 
