@@ -1,5 +1,5 @@
-# ClanDestino ERP v4.80 — Memoria de Sesión
-# Última sesión: 2026-06-08 | Próxima sesión: continuar desde este punto
+# ClanDestino ERP v4.81 — Memoria de Sesión
+# Última sesión: 2026-06-10 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -2007,3 +2007,29 @@ Eliminados del repo en commit `43bda19`:
 - `database/schema_completo_v4.20.sql` — snapshot antiguo de v4.20, reemplazado por `schema.sql`.
 
 *Última actualización: 2026-06-08 | v4.80 — presentaciones múltiples de compra por insumo: nueva tabla `insumo_presentaciones` (mig. 039), 11 archivos modificados/creados, 9 tests G29, INSERT dinámico en CompraModel, limpieza de 11 SQL auxiliares obsoletos. 30 tablas en schema.*
+
+## Estado v4.81 (2026-06-10)
+
+### Fase 1 — Fixes en módulo Inventario (sin migración)
+
+Tres correcciones en `public_html/inventario/index.php`, todas confirmadas por lectura directa de código antes de implementar.
+
+1. **Botón "Eliminar insumo" no aparecía**: el gate de permiso usaba `permiso_tiene('inventario','admin_total')` (línea 312) mientras el endpoint `api/insumo_crud.php` solo exige `editar_existentes`. Se igualó el gate al backend (mismo permiso que "Ajustar"/"Copiar").
+
+2. **Editar presentación catalogada (mig. 039) creaba fila duplicada**: el botón "Editar" inyectaba `JSON.stringify(p).replace(/"/g,"'")` dentro de un `onclick`; si `nombre`/`unidad_compra` contenía un apóstrofe, el literal JS se rompía, `pf-id` quedaba vacío y `guardarPresentacion()` mandaba `accion='crear'` (INSERT en vez de UPDATE). Se refactorizó a un array global `presentacionesActuales` + botones `editarPresentacion(id)`/`eliminarPresentacion(id)` que buscan el objeto por `id` — ya no se serializa JSON en atributos HTML.
+
+3. **Nuevo tipo de ajuste "Total (=)"** en el modal Ajustar stock: junto a `entrada`/`merma`/`correccion`, ahora existe `total` para fijar el stock absoluto (ej. tras un conteo físico). `abrirEditar(ins)` guarda `ajusteInsumoActual = ins`; `confirmarAjuste()` calcula `delta = cantidad_ingresada - stock_actual` para este tipo. La etiqueta del campo "Cantidad a ajustar" cambia dinámicamente a "Nuevo stock total" vía `actualizarLabelCantidadAjuste()`, y se permite ingresar `0` (fijar stock en cero) ajustando el gate de envío a `delta !== 0` para este tipo. Sin cambios de backend ni migración — `api/ajustar_stock.php` ya validaba `nuevo_stock >= 0` con `delta` crudo.
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `public_html/inventario/index.php` | 3 fixes descritos arriba (permiso eliminar, refactor presentaciones, tipo "total") |
+| `public_html/app/config/app.php` | APP_VERSION → 4.81 |
+
+### Pendiente (próximas sesiones, ver plan v4.81+)
+
+- **v4.82**: normalización numérica a 2 decimales (helper `FormatoHelper.php` + `formatMiles`/`formatDecimal` en `nav.php` + ~15 correcciones de `number_format`/`.toFixed` + eliminación de 4 funciones de formato duplicadas).
+- **v4.83-v4.86**: consolidación de arquitectura de presentaciones — `insumo_presentaciones` (mig. 039) como UI primaria con sincronización automática a campos legacy (`PresentacionModel::sincronizarLegacy()`), simplificación del panel "Tipo de empaque" en compras, conversión receta↔equivalencia física, conversión presentación↔ajuste de stock/conteo.
+
+*Última actualización: 2026-06-10 | v4.81 — 3 fixes en inventario (eliminar insumo, editar presentación sin duplicar, ajuste de stock tipo "total"), sin migraciones. Plan completo de continuación en `.claude/plans` (v4.82 normalización numérica, v4.83-v4.86 arquitectura de presentaciones).*

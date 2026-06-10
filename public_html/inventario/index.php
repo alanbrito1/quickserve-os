@@ -309,7 +309,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
                             onclick="duplicarInsumo(<?= htmlspecialchars(json_encode($ins)) ?>)">
                             <?= IC_COPY ?>
                         </button>
-                        <?php if (permiso_tiene('inventario','admin_total')): ?>
+                        <?php if (permiso_tiene('inventario','editar_existentes')): ?>
                         <button class="btn-eliminar ic" title="Eliminar"
                             onclick="eliminarInsumo(<?= $ins['id'] ?>, <?= json_encode($ins['nombre']) ?>)">
                             <?= IC_TRASH ?>
@@ -473,13 +473,14 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
       <input type="text" id="aj-stock-actual" readonly
              style="background:var(--g9);color:var(--g5)"></div>
     <div class="fg"><label>Tipo de ajuste</label>
-      <select id="aj-tipo">
+      <select id="aj-tipo" onchange="actualizarLabelCantidadAjuste()">
         <option value="entrada">Entrada (+) — compra directa, donación</option>
         <option value="merma">Merma (−) — vencimiento, derrame</option>
         <option value="correccion">Corrección (±) — conteo físico</option>
+        <option value="total">Total (=) — fijar stock actual</option>
       </select>
     </div>
-    <div class="fg"><label>Cantidad a ajustar</label>
+    <div class="fg"><label id="aj-cantidad-label">Cantidad a ajustar</label>
       <input type="number" id="aj-cantidad" placeholder="0.000" step="0.001" min="0.001">
     </div>
     <div class="fg"><label>Motivo (opcional)</label>
@@ -688,6 +689,8 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
 var TIENE_PRESENT = <?= $tienePresent ? 'true' : 'false' ?>;
 var TIENE_039     = <?= $tiene039     ? 'true' : 'false' ?>;
 var csrf = () => document.getElementById('csrf-tk').value;
+var presentacionesActuales = [];
+var ajusteInsumoActual = null;
 
 function abrirModal(id) { var el=document.getElementById(id); if(el) el.classList.add('on'); }
 function cerrar(id)     { var el=document.getElementById(id); if(el) el.classList.remove('on'); }
@@ -801,6 +804,7 @@ async function guardarNuevoInsumo() {
 
 // ── Abrir modal de ajuste/edición ────────────────────────────────────────────
 function abrirEditar(ins) {
+    ajusteInsumoActual = ins;
     document.getElementById('aj-titulo').textContent = 'Ajustar: ' + ins.nombre;
     document.getElementById('aj-id').value     = ins.id;
     document.getElementById('aj-nombre').value = ins.nombre;
@@ -809,6 +813,7 @@ function abrirEditar(ins) {
     document.getElementById('aj-cantidad').value = '';
     document.getElementById('aj-motivo').value = '';
     document.getElementById('aj-seg').value    = ins.stock_seguridad || 0;
+    actualizarLabelCantidadAjuste();
 
     if (TIENE_PRESENT) {
         document.getElementById('aj-pres').value      = ins.presentacion || '';
@@ -871,6 +876,23 @@ function calcCostoAj(source) {
     }
 }
 
+// ── Cambiar etiqueta de "Cantidad a ajustar" según el tipo seleccionado ───────
+function actualizarLabelCantidadAjuste() {
+    var tipo  = document.getElementById('aj-tipo').value;
+    var label = document.getElementById('aj-cantidad-label');
+    var input = document.getElementById('aj-cantidad');
+    if (!label || !input) return;
+    if (tipo === 'total') {
+        label.textContent = 'Nuevo stock total';
+        input.placeholder = 'Ej: 12.50';
+        input.min = '0';
+    } else {
+        label.textContent = 'Cantidad a ajustar';
+        input.placeholder = '0.000';
+        input.min = '0.001';
+    }
+}
+
 // ── Confirmar ajuste ─────────────────────────────────────────────────────────
 async function confirmarAjuste() {
     var id       = document.getElementById('aj-id').value;
@@ -881,10 +903,21 @@ async function confirmarAjuste() {
     var nombre   = document.getElementById('aj-nombre').value.trim();
     if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
 
-    var delta = tipo === 'merma' ? -cantidad : cantidad;
+    var delta;
+    if (tipo === 'merma') {
+        delta = -cantidad;
+    } else if (tipo === 'total') {
+        var stockActual = (ajusteInsumoActual && ajusteInsumoActual.id == id)
+            ? parseFloat(ajusteInsumoActual.stock_actual) || 0 : 0;
+        delta = cantidad - stockActual;
+    } else {
+        delta = cantidad; // entrada, correccion
+    }
 
-    // Ajuste de stock: solo cuando el usuario ingresó cantidad (cantidad=0 → solo editar campos)
-    if (cantidad !== 0) {
+    // Ajuste de stock: solo cuando hay un cambio real (cantidad=0 → solo editar campos,
+    // salvo tipo 'total' donde cantidad=0 puede significar "fijar stock en cero")
+    var aplicaAjuste = (tipo === 'total') ? (delta !== 0) : (cantidad !== 0);
+    if (aplicaAjuste) {
         var fd1 = new FormData();
         fd1.append('csrf_token',  csrf());
         fd1.append('insumo_id',   id);
@@ -1007,6 +1040,7 @@ async function cargarPresentaciones(insumo_id) {
         var d = await r.json();
         if (!d.success) { lista.innerHTML = ''; return; }
         var pres = d.presentaciones || [];
+        presentacionesActuales = pres;
         if (badge) badge.textContent = pres.length > 0 ? pres.length : '';
         if (pres.length === 0) {
             lista.innerHTML = '<p style="font-size:11px;color:var(--g5);margin:0">Sin presentaciones configuradas.</p>';
@@ -1021,8 +1055,8 @@ async function cargarPresentaciones(insumo_id) {
                   + '<span style="color:var(--g5)">' + p.cantidad_base + ' ' + htmlEsc(p.unidad_compra || 'und')
                   + (p.precio_referencia > 0 ? ' · $' + Number(p.precio_referencia).toLocaleString('es-CO') : '')
                   + equiv + '</span></div>'
-                  + '<button onclick="editarPresentacion(' + JSON.stringify(p).replace(/"/g,"'") + ')" style="padding:4px 8px;font-size:11px;border:1px solid var(--g7);border-radius:6px;background:#fff;cursor:pointer">Editar</button>'
-                  + '<button onclick="eliminarPresentacion(' + p.id + ',\'' + htmlEsc(p.nombre) + '\',' + insumo_id + ')" style="padding:4px 8px;font-size:11px;border:1px solid #fca5a5;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">✕</button>'
+                  + '<button onclick="editarPresentacion(' + p.id + ')" style="padding:4px 8px;font-size:11px;border:1px solid var(--g7);border-radius:6px;background:#fff;cursor:pointer">Editar</button>'
+                  + '<button onclick="eliminarPresentacion(' + p.id + ')" style="padding:4px 8px;font-size:11px;border:1px solid #fca5a5;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">✕</button>'
                   + '</div>';
         });
         lista.innerHTML = html;
@@ -1031,7 +1065,9 @@ async function cargarPresentaciones(insumo_id) {
     }
 }
 
-function editarPresentacion(p) {
+function editarPresentacion(id) {
+    var p = presentacionesActuales.find(function(x){ return x.id == id; });
+    if (!p) { toast('Presentación no encontrada', 'err'); return; }
     document.getElementById('pf-id').value            = p.id;
     document.getElementById('pf-nombre').value        = p.nombre;
     document.getElementById('pf-cantidad-base').value = p.cantidad_base;
@@ -1090,7 +1126,10 @@ async function guardarPresentacion() {
     } catch(e) { toast('Error de red', 'err'); }
 }
 
-async function eliminarPresentacion(id, nombre, insumo_id) {
+async function eliminarPresentacion(id) {
+    var p = presentacionesActuales.find(function(x){ return x.id == id; });
+    var nombre    = p ? p.nombre : '';
+    var insumo_id = document.getElementById('pf-insumo-id').value;
     if (!confirm('¿Eliminar la presentación "' + nombre + '"?\nNo afecta el historial de compras.')) return;
     var fd = new FormData();
     fd.append('csrf_token', csrf());

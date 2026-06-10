@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.80'); // 2026-06-08: v4.80 presentaciones múltiples de compra por insumo (mig.039)
+define('APP_VERSION', '4.81'); // 2026-06-10: v4.81 fixes inventario (eliminar insumo, editar presentación, ajuste tipo "total")
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
