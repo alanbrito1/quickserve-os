@@ -464,7 +464,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
       </select>
     </div>
     <div class="fg"><label id="aj-cantidad-label">Cantidad a ajustar</label>
-      <input type="number" id="aj-cantidad" placeholder="0.000" step="0.001" min="0.001">
+      <input type="number" id="aj-cantidad" placeholder="0.00" step="0.01" min="0.01">
     </div>
     <div class="fg" id="aj-pres-conv-wrap" style="display:none">
       <label>Convertir desde presentación</label>
@@ -829,7 +829,7 @@ function convertirDesdePresentacionAj() {
     if (cantBase <= 0 || nro <= 0) { hint.textContent = ''; return; }
     var total  = nro * cantBase;
     var unidad = (ajusteInsumoActual && ajusteInsumoActual.unidad_medida) || '';
-    document.getElementById('aj-cantidad').value = total.toFixed(3);
+    document.getElementById('aj-cantidad').value = total.toFixed(2);
     hint.textContent = '= ' + formatDecimal(total, 2) + ' ' + unidad;
 }
 
@@ -925,8 +925,8 @@ function actualizarLabelCantidadAjuste() {
         input.min = '0';
     } else {
         label.textContent = 'Cantidad a ajustar';
-        input.placeholder = '0.000';
-        input.min = '0.001';
+        input.placeholder = '0.00';
+        input.min = '0.01';
     }
 }
 
