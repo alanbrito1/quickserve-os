@@ -594,8 +594,8 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
             ? '<span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:3px" title="Cantidad fija — no escala con variante de tamaño">🔒base</span>'
             : '';
         const cantLabel = rinde > 1
-            ? `${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)} <span style="color:#9ca3af;font-size:10px">(tanda)</span>`
-            : `${(+i.cantidad_requerida).toFixed(4)} ${esc(i.unidad_medida)}`;
+            ? `${(+i.cantidad_requerida).toFixed(2)} ${esc(i.unidad_medida)} <span style="color:#9ca3af;font-size:10px">(tanda)</span>`
+            : `${(+i.cantidad_requerida).toFixed(2)} ${esc(i.unidad_medida)}`;
         tblRows += `<tr>
             <td>${esc(i.nombre)}${crit}${base}</td>
             <td>${cantLabel}</td>
@@ -876,7 +876,7 @@ function buildVariantesSection(prodId, variantes) {
                        style="width:90px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px">
             </td>
             <td>
-                <input type="number" id="var-factor-${prodId}-${v.id}" value="${parseFloat(v.factor_receta).toFixed(3)}"
+                <input type="number" id="var-factor-${prodId}-${v.id}" value="${parseFloat(v.factor_receta).toFixed(2)}"
                        min="0.001" max="10" step="0.1" ${!esActiva ? 'disabled' : ''}
                        style="width:70px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px">
                 <span style="font-size:10px;color:var(--g5)">× receta</span>
@@ -1233,7 +1233,7 @@ function calcIngredientes(prodId, rinde) {
         const unidad = celdas[1]?.textContent?.replace(/[\d.,]+/,'').replace('(tanda)','').trim();
         html += `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #dbeafe">
             <span>${nombre}</span>
-            <strong style="color:#1d4ed8">${total.toFixed(4)} ${unidad}</strong>
+            <strong style="color:#1d4ed8">${total.toFixed(2)} ${unidad}</strong>
         </div>`;
     });
     const el = document.getElementById('calc-ings-' + prodId);
@@ -1340,7 +1340,7 @@ async function guardarAjuste() {
     finally { btn.disabled = false; }
 }
 
-function fmt(n) { return Math.round(parseFloat(n)||0).toLocaleString('es-CO'); }
+var fmt = formatMiles;
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 let tt;
 function toast(m, t) {

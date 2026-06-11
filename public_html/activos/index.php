@@ -860,10 +860,10 @@ async function enviarFoto() {
     var id=document.getElementById('foto-activo-id').value;
     var csrf=document.getElementById('foto-csrf').value;
     if(!file||!id) return;
-    toast('Comprimiendo ('+(file.size/1048576).toFixed(1)+' MB)...','ok');
+    toast('Comprimiendo ('+(file.size/1048576).toFixed(2)+' MB)...','ok');
     var blob = await comprimirImagen(file);
     if(blob.size>10*1048576){toast('Imagen muy grande. Usa una de menor resolución.','err');input.value='';return;}
-    toast('Subiendo ('+(blob.size/1048576).toFixed(1)+' MB)...','ok');
+    toast('Subiendo ('+(blob.size/1048576).toFixed(2)+' MB)...','ok');
     var fd=new FormData();
     fd.append('csrf_token',csrf); fd.append('activo_id',id); fd.append('foto',blob,'foto.jpg');
     try {

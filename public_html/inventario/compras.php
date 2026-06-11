@@ -911,7 +911,7 @@ function _actualizarHintCant(n) {
         if (ins.cant_pres > 1) {
             // Presentación con múltiples unidades: ej. "3 frascos = 2700 ml"
             const total = cant * ins.cant_pres;
-            hint = `= ${total.toLocaleString('es-CO', {maximumFractionDigits:3})} ${ins.unidad} total`;
+            hint = `= ${total.toLocaleString('es-CO', {maximumFractionDigits:2})} ${ins.unidad} total`;
         } else if (ins.equiv_cant > 0 && ins.equiv_unidad) {
             // Equivalencia física: ej. "3 lonchas = 90 g"
             const totalF = cant * ins.equiv_cant;
@@ -985,7 +985,7 @@ function recalcularTotal() {
 }
 
 function formatPeso(n) {
-    return '$' + Math.round(n).toLocaleString('es-CO');
+    return '$' + formatMiles(n);
 }
 function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1345,8 +1345,8 @@ function calcDesdePres(n) {
     if (hint) {
         if (numPres > 0 && base > 0) {
             const cantC = numPres * base;
-            const precioU = pPres > 0 ? '$' + (pPres / base).toLocaleString('es-CO', {minimumFractionDigits:4, maximumFractionDigits:4}) + '/' + ins.unidad : '—';
-            hint.textContent = `${numPres} × ${base} ${ins.unidad}/${pres.unidad_compra||'und'} = ${cantC.toLocaleString('es-CO', {maximumFractionDigits:4})} ${ins.unidad} · ${precioU}`;
+            const precioU = pPres > 0 ? '$' + (pPres / base).toLocaleString('es-CO', {minimumFractionDigits:2, maximumFractionDigits:2}) + '/' + ins.unidad : '—';
+            hint.textContent = `${numPres} × ${base} ${ins.unidad}/${pres.unidad_compra||'und'} = ${cantC.toLocaleString('es-CO', {maximumFractionDigits:2})} ${ins.unidad} · ${precioU}`;
             hint.style.display = '';
         }
     }

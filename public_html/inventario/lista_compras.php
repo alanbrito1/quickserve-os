@@ -176,11 +176,11 @@ $fecha_generada = date('d/m/Y H:i');
                         <span class="badge <?= $badgeC ?>"><?= $estado ?></span>
                     </td>
                     <td>
-                        <?= number_format($item['stock_actual'], 3, ',', '.') ?>
+                        <?= number_format($item['stock_actual'], 2, ',', '.') ?>
                         <small style="color:var(--g5)"><?= htmlspecialchars($item['unidad_medida']) ?></small>
                     </td>
                     <td class="num">
-                        <?= number_format(max(0, $item['cantidad_sugerida']), 3, ',', '.') ?>
+                        <?= number_format(max(0, $item['cantidad_sugerida']), 2, ',', '.') ?>
                         <small style="color:var(--g5); font-weight:400"><?= htmlspecialchars($item['unidad_medida']) ?></small>
                     </td>
                     <td class="num">

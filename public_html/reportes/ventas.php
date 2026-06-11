@@ -213,7 +213,7 @@ if (isset($_GET['export'])) {
     // ── Hoja 2: Rentabilidad ────────────────────────────────────────────────
     $w->setSheet('Rentabilidad');
     $w->addRow(['ClanDestino ERP — Rentabilidad por Producto'], true);
-    $w->addRow(["Costo fijo/u: $" . number_format($costo_fijo_u, 2) . "  |  Generado: " . date('d/m/Y H:i')]);
+    $w->addRow(["Costo fijo/u: $" . number_format($costo_fijo_u, 2, ',', '.') . "  |  Generado: " . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $w->addRow(['Producto', 'Nombre complementario', 'Tamaño', 'Precio Venta', 'Costo Ing.', 'Costo Fijo', 'Costo Total', 'Margen $', 'Margen %'], true);
     foreach ($rentabilidad as $p) {
@@ -506,7 +506,7 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
 
     <!-- Rentabilidad por producto -->
     <div class="card">
-        <div class="card-title">Rentabilidad por Producto <small style="font-weight:400; color:var(--g5)">(costo fijo $<?= number_format($costo_fijo_u,1,',','.') ?>/u)</small></div>
+        <div class="card-title">Rentabilidad por Producto <small style="font-weight:400; color:var(--g5)">(costo fijo $<?= number_format($costo_fijo_u,2,',','.') ?>/u)</small></div>
         <table>
             <thead>
                 <tr>

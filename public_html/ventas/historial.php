@@ -633,7 +633,7 @@ async function anularVenta(id,fecha){
     } catch(e){ toast('Error de conexión.','err'); }
 }
 
-function fmt(n){ return Math.round(parseFloat(n)||0).toLocaleString('es-CO'); }
+var fmt = formatMiles;
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* ──────── EDITAR VENTA ──────── */

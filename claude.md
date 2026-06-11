@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.81 — Memoria de Sesión
+# ClanDestino ERP v4.82 — Memoria de Sesión
 # Última sesión: 2026-06-10 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -2033,3 +2033,84 @@ Tres correcciones en `public_html/inventario/index.php`, todas confirmadas por l
 - **v4.83-v4.86**: consolidación de arquitectura de presentaciones — `insumo_presentaciones` (mig. 039) como UI primaria con sincronización automática a campos legacy (`PresentacionModel::sincronizarLegacy()`), simplificación del panel "Tipo de empaque" en compras, conversión receta↔equivalencia física, conversión presentación↔ajuste de stock/conteo.
 
 *Última actualización: 2026-06-10 | v4.81 — 3 fixes en inventario (eliminar insumo, editar presentación sin duplicar, ajuste de stock tipo "total"), sin migraciones. Plan completo de continuación en `.claude/plans` (v4.82 normalización numérica, v4.83-v4.86 arquitectura de presentaciones).*
+
+## Estado v4.82 (2026-06-10)
+
+### Fase 2 — Normalización numérica a 2 decimales (formato es-CO), sin migración
+
+Se confirmó con el usuario mantener el formato colombiano ya dominante (punto = miles, coma = decimales) — esta fase **no cambia separadores**, solo unifica la precisión a 2 decimales en todas las cantidades visibles.
+
+### Helpers nuevos (fuente única de formato)
+
+| Helper | Archivo | Uso |
+|---|---|---|
+| `fmt_cantidad(float $n, int $dec=2): string` | `app/helpers/FormatoHelper.php` (nuevo) | `number_format($n, $dec, ',', '.')` — disponible globalmente vía `require` en `auth_check.php` |
+| `formatMiles(n)` | `app/views/nav.php` (script inline) | Entero redondeado con separador de miles es-CO — reemplaza los `formatPeso`/`fmt` duplicados |
+| `formatDecimal(n, dec=2)` | `app/views/nav.php` (script inline) | `toLocaleString('es-CO', {minimumFractionDigits, maximumFractionDigits})` |
+
+### Eliminación de 4 funciones de formato duplicadas
+
+| Archivo | Antes | Después |
+|---|---|---|
+| `ventas/index.php` | `function formatPeso(n){...}` | usa `formatMiles` global |
+| `inventario/compras.php` | `function formatPeso(n){...}` | usa `formatMiles` global |
+| `productos/index.php` | `function fmt(n){...}` | `var fmt = formatMiles;` |
+| `ventas/historial.php` | `function fmt(n){...}` | `var fmt = formatMiles;` |
+
+### Correcciones de precisión — PHP `number_format` (3/1 decimales → 2)
+
+| Archivo | Campo |
+|---|---|
+| `inventario/lista_compras.php` | `stock_actual`, `cantidad_sugerida` |
+| `reportes/operativo.php` | `stock_actual`, `stock_seguridad` |
+| `reportes/compras.php` | `total_cantidad` |
+| `reportes/ventas.php` | `costo_fijo_u` (XLSX y HTML, antes 2 sin separador y 1 decimal respectivamente — ahora `,2,',','.'` en ambos) |
+| `admin/backup.php` | tamaño de tabla en KB |
+
+**2 correcciones omitidas (falsos positivos del plan)**: `productos/consolidar.php:397` y `inventario/conteo.php:159` son valores de `<input type="number">` — el HTML5 exige separador decimal `.` (punto) independientemente del locale de visualización. Cambiarlos a coma habría invalidado el input. Se dejaron sin tocar, consistente con el principio "no se cambian separadores".
+
+### Correcciones de precisión — JS `.toFixed` (3-4 decimales → 2)
+
+| Archivo | Función | Campos |
+|---|---|---|
+| `inventario/index.php` | `calcCostoAj()` (modal Ajustar) | costo unitario, cantidad recalculada, preview costo |
+| `inventario/index.php` | `calcCosto()` (modal Agregar Insumo) | mismos campos — **duplicado no documentado en el plan original**, detectado por ser código idéntico al de `calcCostoAj()`; corregido para mantener consistencia entre ambos modales |
+| `productos/index.php` | receta/variantes | `cantidad_requerida` (×2), `total` calculadora, `factor_receta` |
+| `activos/index.php` | toasts de subida de foto | tamaño de archivo en MB (×2) |
+
+`precio.toFixed(0)` se dejó sin cambios en ambas funciones de `inventario/index.php` (precio de presentación en COP enteros, fuera del alcance de "normalizar cantidades").
+
+### Correcciones adicionales en `inventario/compras.php` (halladas en la "verificación adicional" del plan)
+
+- `_actualizarHintCant()`: `total.toLocaleString('es-CO',{maximumFractionDigits:3})` → `2`
+- `calcDesdePres()`: hint de equivalencia física y cantidad calculada — `{minimumFractionDigits:4,...}`/`{maximumFractionDigits:4}` → `2` (solo los hints de **visualización**; los valores que viajan al backend para `DECIMAL(12,4)` se dejaron en su precisión de cálculo original)
+
+### Archivos modificados (13) + 1 nuevo
+
+| Archivo | Cambio |
+|---|---|
+| `app/helpers/FormatoHelper.php` | **Nuevo** — `fmt_cantidad()` |
+| `app/middleware/auth_check.php` | `require_once` de FormatoHelper |
+| `app/views/nav.php` | + `formatMiles()`/`formatDecimal()` |
+| `inventario/index.php` | `.toFixed` en `calcCosto()`/`calcCostoAj()` (8 cambios) |
+| `inventario/compras.php` | elimina `formatPeso`, 3 hints de precisión |
+| `inventario/lista_compras.php` | 2× `number_format` 3→2 |
+| `productos/index.php` | elimina `fmt` duplicado, 4× `.toFixed` |
+| `ventas/index.php` | elimina `formatPeso` duplicado |
+| `ventas/historial.php` | elimina `fmt` duplicado |
+| `reportes/operativo.php` | 2× `number_format` 3→2 |
+| `reportes/compras.php` | 1× `number_format` 3→2 |
+| `reportes/ventas.php` | 2× `number_format` corregido a `,2,',','.'` |
+| `admin/backup.php` | `number_format` KB 1→2 |
+| `activos/index.php` | 2× `.toFixed(1)`→`.toFixed(2)` |
+| `app/config/app.php` | APP_VERSION → 4.82 |
+
+### Verificación
+
+`php -l` sin errores en los 14 archivos tocados/creados. `tests/suite.php` requiere sesión superadmin en navegador (no ejecutable por CLI) — verificación visual pendiente para próxima sesión.
+
+### Pendiente (próximas sesiones, ver plan v4.81+)
+
+- **v4.83-v4.86**: consolidación de arquitectura de presentaciones — `insumo_presentaciones` (mig. 039) como UI primaria con sincronización automática a campos legacy (`PresentacionModel::sincronizarLegacy()`), simplificación del panel "Tipo de empaque" en compras, conversión receta↔equivalencia física, conversión presentación↔ajuste de stock/conteo. Riesgo medio-alto (toca trigger `costo_actual`) — recomendado para sesión dedicada.
+
+*Última actualización: 2026-06-10 | v4.82 — normalización numérica a 2 decimales (es-CO): nuevo helper `FormatoHelper.php` + `formatMiles`/`formatDecimal` en nav.php, 4 funciones duplicadas eliminadas, ~9 correcciones `number_format`/`.toFixed`, sin migraciones. Próximo ciclo: v4.83 (consolidación arquitectura de presentaciones, sesión dedicada por riesgo medio-alto).*

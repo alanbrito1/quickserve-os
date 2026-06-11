@@ -524,7 +524,7 @@ $total_kb    = array_sum(array_column($tabla_stats, 'kb'));
                 <tr>
                     <td><code><?= htmlspecialchars($t['nombre']) ?></code></td>
                     <td class="r"><?= number_format((int)$t['filas'], 0, ',', '.') ?></td>
-                    <td class="r"><?= number_format((float)$t['kb'], 1, ',', '.') ?></td>
+                    <td class="r"><?= number_format((float)$t['kb'], 2, ',', '.') ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>

@@ -412,8 +412,8 @@ $agotados = count(array_filter($insumos, fn($i) => $i['estado'] === 'agotado'));
                 ?>
                 <tr>
                     <td><?= htmlspecialchars($i['nombre']) ?></td>
-                    <td class="r"><?= number_format($i['stock_actual'],3,',','.') ?> <small style="color:var(--g5)"><?= htmlspecialchars($i['unidad_medida']) ?></small></td>
-                    <td class="r hide-m"><?= number_format($i['stock_seguridad'],3,',','.') ?></td>
+                    <td class="r"><?= number_format($i['stock_actual'],2,',','.') ?> <small style="color:var(--g5)"><?= htmlspecialchars($i['unidad_medida']) ?></small></td>
+                    <td class="r hide-m"><?= number_format($i['stock_seguridad'],2,',','.') ?></td>
                     <td class="r hide-m">$<?= number_format($i['costo_actual'],0,',','.') ?></td>
                     <td class="r hide-m">$<?= number_format((float)$i['stock_actual']*(float)$i['costo_actual'],0,',','.') ?></td>
                     <td><span class="badge <?= $bc ?>"><?= $i['estado'] ?></span></td>

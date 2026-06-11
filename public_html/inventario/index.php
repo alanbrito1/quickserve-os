@@ -740,14 +740,14 @@ function calcCosto(source) {
 
     // Según el campo que cambió, calcular el tercero
     if (source === 'cant') {
-        if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(4); }
+        if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(2); }
         else if (costo > 0 && cant > 0)   { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
     } else if (source === 'precio') {
-        if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(4); }
-        else if (costo > 0 && precio > 0) { cant  = precio / costo; cantEl.value   = cant.toFixed(3); }
+        if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(2); }
+        else if (costo > 0 && precio > 0) { cant  = precio / costo; cantEl.value   = cant.toFixed(2); }
     } else if (source === 'costo') {
         if (cant > 0 && costo > 0)        { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
-        else if (precio > 0 && costo > 0) { cant   = precio / costo; cantEl.value  = cant.toFixed(3); }
+        else if (precio > 0 && costo > 0) { cant   = precio / costo; cantEl.value  = cant.toFixed(2); }
     }
 
     // Re-leer valores tras el cálculo
@@ -760,7 +760,7 @@ function calcCosto(source) {
         var eq = '';
         if (precio > 0 && cant > 0)
             eq = ' = $' + precio.toLocaleString('es-CO') + ' ÷ ' + cant + ' ' + (pres || unidad);
-        calc.innerHTML = '<strong>$' + costo.toFixed(4).replace('.', ',')
+        calc.innerHTML = '<strong>$' + costo.toFixed(2).replace('.', ',')
             + ' / ' + unidad + '</strong>' + eq;
         prev.style.display = 'block';
     } else {
@@ -856,20 +856,20 @@ function calcCostoAj(source) {
     var costo  = parseFloat(costoEl.value)  || 0;
 
     if (source === 'cant') {
-        if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(4); }
+        if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(2); }
         else if (costo > 0 && cant > 0)   { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
     } else if (source === 'precio') {
-        if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(4); }
-        else if (costo > 0 && precio > 0) { cant  = precio / costo; cantEl.value   = cant.toFixed(3); }
+        if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(2); }
+        else if (costo > 0 && precio > 0) { cant  = precio / costo; cantEl.value   = cant.toFixed(2); }
     } else if (source === 'costo') {
         if (cant > 0 && costo > 0)        { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
-        else if (precio > 0 && costo > 0) { cant   = precio / costo; cantEl.value  = cant.toFixed(3); }
+        else if (precio > 0 && costo > 0) { cant   = precio / costo; cantEl.value  = cant.toFixed(2); }
     }
 
     // Re-leer tras el cálculo para mostrar el resultado correcto en la vista previa
     costo = parseFloat(costoEl.value) || 0;
     if (costo > 0) {
-        if (calc) calc.innerHTML = '<strong>$' + costo.toFixed(4).replace('.', ',') + '</strong>';
+        if (calc) calc.innerHTML = '<strong>$' + costo.toFixed(2).replace('.', ',') + '</strong>';
         if (prev) prev.style.display = 'block';
     } else {
         if (prev) prev.style.display = 'none';

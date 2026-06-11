@@ -269,7 +269,7 @@ if (($_GET['export'] ?? '') === '1') {
             <tr>
                 <td><strong><?= htmlspecialchars($r['nombre']) ?></strong></td>
                 <td style="color:var(--g5)"><?= htmlspecialchars($r['unidad_medida']) ?></td>
-                <td class="r"><?= number_format((float)$r['total_cantidad'],3,',','.') ?></td>
+                <td class="r"><?= number_format((float)$r['total_cantidad'],2,',','.') ?></td>
                 <td class="r">$<?= number_format((float)$r['precio_promedio'],0,',','.') ?></td>
                 <td class="r"><strong>$<?= number_format((float)$r['total_pesos'],0,',','.') ?></strong></td>
             </tr>

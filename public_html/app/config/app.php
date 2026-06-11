@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.81'); // 2026-06-10: v4.81 fixes inventario (eliminar insumo, editar presentación, ajuste tipo "total")
+define('APP_VERSION', '4.82'); // 2026-06-10: v4.82 normalización numérica a 2 decimales (formato es-CO)
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

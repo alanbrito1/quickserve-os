@@ -1088,4 +1088,16 @@ document.addEventListener('keydown', function(e) {
 window.addEventListener('resize', function() {
     if (window.innerWidth >= 641) closeNavMobile();
 });
+
+/* ── Formato numérico es-CO (punto miles, coma decimales) ────────────────
+   formatMiles(1234.5)      -> "1.235"        (entero, redondeado)
+   formatDecimal(1234.5)    -> "1.234,50"     (2 decimales por defecto)
+   formatDecimal(1234.5, 3) -> "1.234,500"                                 */
+function formatMiles(n) {
+    return Math.round(Number(n) || 0).toLocaleString('es-CO');
+}
+function formatDecimal(n, dec) {
+    dec = (dec === undefined) ? 2 : dec;
+    return (Number(n) || 0).toLocaleString('es-CO', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
 </script>

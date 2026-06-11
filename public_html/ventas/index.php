@@ -1881,7 +1881,7 @@ setInterval(refrescarCapacidades, 120_000);
 // ---- UTILIDADES ----
 
 function formatPeso(n) {
-    return '$' + Math.round(n).toLocaleString('es-CO');
+    return '$' + formatMiles(n);
 }
 
 function escHtml(s) {
