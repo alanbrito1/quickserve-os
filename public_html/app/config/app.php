@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.86'); // 2026-06-11: v4.86 conversión presentación↔ajuste de stock/conteo
+define('APP_VERSION', '4.87'); // 2026-06-11: v4.87 formato numérico configurable (decimales/separadores) — piloto inventario
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
