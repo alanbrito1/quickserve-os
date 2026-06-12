@@ -471,10 +471,10 @@ if ($accion === 'preview' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$resultad
                             <?php endif; ?>
                         </td>
                         <td style="padding:5px 8px;text-align:right;font-weight:700">
-                            <?= $rb ? number_format((float)$rb['cantidad_requerida'], 3) : '<span style="color:var(--g5)">—</span>' ?>
+                            <?= $rb ? fmt_cantidad((float)$rb['cantidad_requerida'], 3) : '<span style="color:var(--g5)">—</span>' ?>
                         </td>
                         <td style="padding:5px 8px;text-align:right;font-weight:700">
-                            <?= $rf ? number_format((float)$rf['cantidad_requerida'], 3) : '<span style="color:var(--g5)">—</span>' ?>
+                            <?= $rf ? fmt_cantidad((float)$rf['cantidad_requerida'], 3) : '<span style="color:var(--g5)">—</span>' ?>
                         </td>
                         <td style="padding:5px 8px;text-align:center">
                             <?php if ($es_base_ing): ?>
@@ -576,7 +576,7 @@ if ($accion === 'preview' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$resultad
                             <?php endif; ?>
                         </div>
                         <div class="prod-meta">
-                            $<?= number_format($p['precio_venta'], 0, ',', '.') ?><br>
+                            $<?= fmt_moneda($p['precio_venta']) ?><br>
                             <span style="color:<?= (int)$p['stock_disponible'] > 0 ? 'var(--green)' : 'var(--g5)' ?>">
                                 <?= (int)$p['stock_disponible'] ?> u
                             </span>
@@ -608,7 +608,7 @@ if ($accion === 'preview' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$resultad
                             <?php endif; ?>
                         </div>
                         <div class="prod-meta">
-                            $<?= number_format($p['precio_venta'], 0, ',', '.') ?><br>
+                            $<?= fmt_moneda($p['precio_venta']) ?><br>
                             <span style="color:<?= (int)$p['stock_disponible'] > 0 ? 'var(--green)' : 'var(--g5)' ?>">
                                 <?= (int)$p['stock_disponible'] ?> u
                             </span>
