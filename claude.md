@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.88 — Memoria de Sesión
+# ClanDestino ERP v4.89 — Memoria de Sesión
 # Última sesión: 2026-06-12 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -2486,3 +2486,92 @@ compras, reportes, activos, costos, clientes) — uno por versión.
 decimales. `toLocaleString('es-CO')` de produccion.php queda fuera de alcance (patrón
 compartido con ~20 sitios de otros módulos, candidato a v4.89). Pendiente prueba manual en
 navegador.*
+
+## Estado v4.89 (2026-06-12)
+
+### Formato numérico configurable — módulo Ventas (POS) completo
+
+Continuación de v4.87/v4.88: se replicó el patrón `fmt_cantidad()`/`fmt_moneda()`/
+`NUM_FORMAT`/`formatMiles()` en los 5 archivos del módulo **ventas**, uno por bloque/commit,
+siguiendo el ritmo v4.81→v4.88. Todos los montos en ventas son "precio en pesos" → 0
+decimales vía `fmt_moneda()`; no se encontraron campos "cantidad" (stock/recetas) en este
+módulo, salvo un caso puntual de porcentaje de descuento.
+
+### `ventas/index.php` (commit `6fc087f`)
+
+- Barra de resumen del día (total, efectivo, digital, fiado) y precios de producto en el
+  catálogo → `fmt_moneda()`.
+- JS: `formatPeso(n){ return '$'+formatMiles(n); }` ya hereda `NUM_FORMAT` (reescrito en
+  v4.87) sin cambios.
+- **Fuera de alcance**: `step="1"` de descuento % (no es "cantidad"); `saldo`/deuda de cliente
+  vía `Math.round(...).toLocaleString('es-CO')` (líneas 1291/1347 — patrón compartido
+  diferido, mismo criterio que produccion.php en v4.88).
+
+### `ventas/apertura.php` (commit `4034eb9`)
+
+- Fondo inicial, efectivo cobrado y total en caja (KPIs + historial de turnos) →
+  `fmt_moneda()`.
+- **Fuera de alcance**: `step="500"` del input de fondo inicial (múltiplos de $500, no es
+  "cantidad").
+
+### `ventas/cierre.php` (commit `d8ceeff`)
+
+- Helper local `fmt_cop()` (línea 186, duplicado de `fmt_moneda()` con prefijo `$` propio)
+  redefinido como `return '$' . fmt_moneda($n);` — punto único de cambio que cubre sus 9 usos
+  en el texto compartido por WhatsApp (cobrado, fiado, obsequio, total, descuentos, meta,
+  fondo, total en caja, desglose por método de pago).
+- 13 montos en pesos en la vista HTML (tarjetas por método de pago, fondo/efectivo/total caja,
+  cobrado/fiado/obsequio/total ventas, descuentos, meta diaria, detalle por producto + total,
+  fiados del día) → `fmt_moneda()`.
+
+### `ventas/fiado.php` (commit `975e189`)
+
+- Deuda total pendiente y saldo por cliente (lista, mensaje de WhatsApp y preview de abono) →
+  `fmt_moneda()`.
+- **Fuera de alcance**: `step="100"` del input de monto de abono (no es "cantidad");
+  `toLocaleString('es-CO')` del preview JS y del toast de confirmación de abono (patrón
+  compartido diferido).
+
+### `ventas/historial.php` (commit `0938b38`)
+
+- Fiado pendiente del cliente filtrado, KPIs (total recaudado, efectivo, digital, fiado, sin
+  cobrar, obsequiados) y total por venta → `fmt_moneda()`.
+- `descuento_pct` (badge "−X% dto"): `number_format($x, 0)` sin separadores (bug es-CO latente,
+  mismo caso que `cantidad_requerida`/`avg` en v4.88) → `fmt_cantidad($x, 0)`, preservando 0
+  decimales.
+- **Fuera de alcance**: `var fmt = formatMiles` (modal de edición de items) ya hereda
+  `NUM_FORMAT`; `step="1"`/`step="100"` del modal (cantidad entera / precio).
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `ventas/index.php` | `fmt_moneda()` resumen del día + precios de catálogo |
+| `ventas/apertura.php` | `fmt_moneda()` fondo/efectivo/total caja (KPIs + historial) |
+| `ventas/cierre.php` | `fmt_cop()` redefinido sobre `fmt_moneda()` (9 usos WhatsApp) + 13 montos HTML |
+| `ventas/fiado.php` | `fmt_moneda()` deuda total y saldo por cliente |
+| `ventas/historial.php` | `fmt_moneda()` KPIs/totales, `fmt_cantidad($x,0)` descuento_pct |
+| `app/config/app.php` | APP_VERSION → 4.89 |
+
+### Verificación
+
+`php -l` sin errores en los 5 archivos (5 bloques, 5 commits separados, push tras cada uno).
+**Pendiente prueba manual en navegador** (igual que v4.87/v4.88, sin acceso a navegador/BD
+desde este entorno): con config por defecto (2/`.`/`,`) confirmar que las 5 páginas de ventas
+se ven igual que antes; con config alternativa (separadores en-US) confirmar que montos en
+pesos y el badge de descuento muestran los nuevos separadores.
+
+### v4.90+ (futuro)
+
+Candidatos: (a) migrar `toLocaleString('es-CO', {maximumFractionDigits:N})` (~20 sitios en
+ventas, clientes, costos, activos, nómina, inventario/compras.php — incluye los 4 sitios
+identificados en index.php/fiado.php de este bloque) a un helper con `NUM_FORMAT`; (b)
+continuar el patrón v4.87-v4.89 en el resto de módulos (nómina, compras, reportes, activos,
+costos, clientes) — uno por versión.
+
+*Última actualización: 2026-06-12 | v4.89 — formato numérico configurable
+(`fmt_moneda()`/`fmt_cantidad()`) aplicado a los 5 archivos del módulo Ventas/POS (index,
+apertura, cierre, fiado, historial), 5 commits separados, incluyendo el fix del helper local
+`fmt_cop()` en cierre.php. Precios siguen en 0 decimales. `toLocaleString('es-CO')` de
+index.php/fiado.php queda fuera de alcance (patrón compartido con ~20 sitios de otros módulos,
+candidato a v4.90). Pendiente prueba manual en navegador.*
