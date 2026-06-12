@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.86 — Memoria de Sesión
+# ClanDestino ERP v4.87 — Memoria de Sesión
 # Última sesión: 2026-06-11 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -2278,3 +2278,119 @@ Cierra la Fase 3 del plan v4.81+ (arquitectura de presentaciones). Escenario: "c
 Con v4.86 se cierran las 3 fases del plan `curried-napping-hollerith.md` (v4.81→v4.86). Pendiente acumulado para próximas sesiones: pruebas manuales en navegador de v4.83 a v4.86 (ver cada sección "Verificación").
 
 *Última actualización: 2026-06-11 | v4.86 — cierre Fase 3 (arquitectura de presentaciones): inventario/index.php (modal Ajustar) e inventario/conteo.php agregan helper "Convertir desde presentación" (selector de presentación catalogada + "Nro.") que calcula `cantidad_base × Nro.` y llena el campo de cantidad/stock contado correspondiente. 100% UX, sin cambios de backend ni migraciones. Pendiente prueba manual. Plan v4.81+ completo (v4.81-v4.86).*
+
+## Estado v4.87 (2026-06-11)
+
+### Configuración global de formato numérico (decimales y separadores) — infraestructura + piloto inventario
+
+El usuario pidió que el número de decimales y los separadores de miles/decimales sean
+**configurables desde Admin → Apariencia** y se apliquen a todos los campos numéricos
+(lectura e inputs) de todos los módulos. Decisiones acordadas:
+
+1. **Alcance v4.87**: construir toda la infraestructura y aplicarla de inmediato solo a
+   `inventario/index.php` y `inventario/conteo.php` (piloto). El resto de módulos
+   (~8 módulos / ~30 archivos con `number_format`) se migran uno por uno en v4.88+, mismo
+   ritmo que v4.81→v4.86.
+2. **"Decimales" configurable aplica solo a CANTIDADES** (stock, presentaciones,
+   equivalencias, costo por unidad). Los **precios/montos en pesos** se mantienen siempre en
+   0 decimales (invariante "no tocar precios"). Los **separadores** (miles/decimal) aplican a
+   ambos tipos para apariencia consistente.
+
+Limitación de navegador: `<input type="number">` siempre usa `.` como decimal y nunca agrupa
+miles — eso no es configurable. Lo que sí es configurable en inputs es la **cantidad de
+decimales** (`toFixed(N)` + `step="any"`).
+
+### Migración 040 (`database/migrations/040_config_formato_numerico.sql`)
+
+`INSERT IGNORE` en `configuracion_app`: `num_decimales` (default `'2'`), `num_sep_miles`
+(default `'.'`), `num_sep_decimal` (default `','`). Reutiliza la tabla existente
+clave/valor — sin tabla nueva.
+
+### `app/helpers/FormatoHelper.php`
+
+- **`config_numeros(): array`** — lee las 3 claves de `configuracion_app` (cacheado por
+  request vía `static $cfg`), devuelve `['decimales'=>2,'sep_miles'=>'.','sep_decimal'=>',']`
+  con defaults si la tabla/claves no existen; `decimales` clamped 0-4.
+- **`fmt_cantidad(float $n, ?int $dec=null): string`** — `number_format($n, $dec ??
+  $cfg['decimales'], $cfg['sep_decimal'], $cfg['sep_miles'])`. Usar para stock,
+  presentaciones, equivalencias y costo por unidad.
+- **`fmt_moneda(float $n): string`** — siempre 0 decimales, separadores configurables. Usar
+  para precios/montos en pesos.
+
+### `app/views/nav.php`
+
+- `$_theme` extendido con `num_decimales`/`num_sep_miles`/`num_sep_decimal` (defaults `'2'`,
+  `'.'`, `','`), leídos del mismo `SELECT` de configuración de apariencia y validados
+  (clamp 0-4; separadores en whitelist; si miles==decimal, se restauran defaults).
+- Nuevo `window.NUM_FORMAT = {decimales, sepMiles, sepDecimal}` inyectado a JS.
+- **`formatDecimal(n, dec)`** reescrito (ya no usa `toLocaleString`): si `dec===undefined`
+  usa `NUM_FORMAT.decimales`; `toFixed()` + regex de agrupación de miles con el separador
+  configurado. **`formatMiles(n)` = `formatDecimal(n, 0)`**.
+
+### Admin → Apariencia (`admin/apariencia.php` + `admin/api/guardar_apariencia.php`)
+
+- Nueva tarjeta "Formato de números" con 3 `<select>`: decimales para cantidades (0-4,
+  default 2), separador de miles (`.`/`,`/` `/`'`, default `.`), separador decimal
+  (`,`/`.`, default `,`).
+- `guardar_apariencia.php` valida (clamp 0-4; whitelist de separadores; si miles==decimal se
+  fuerza a defaults `.`/`,`) y persiste en `configuracion_app`. Mismo permiso
+  `superadmin`/`admin` existente.
+
+### `inventario/index.php` (piloto)
+
+- Listado: `stock_actual`, `stock_seguridad`, `costo_actual`, `equiv_cantidad` y
+  `cantidad_presentacion`/`precio_presentacion` ahora usan `fmt_cantidad()`/`fmt_moneda()`.
+- Inputs de cantidad (`ni-stock`, `ni-seg`, `ni-equiv-cant`, `aj-seg`, `aj-cantidad`,
+  `aj-cant-pres`, `aj-costo`, `aj-equiv-cant`, `pf-cantidad-base`, `pf-equiv-cant`):
+  `step="any"` (antes `step="0.001"`/`"0.0001"`/`"0.01"`).
+- JS (`abrirEditar`, `calcCostoAj`, `convertirDesdePresentacionAj`, `cargarPresentaciones`,
+  `editarPresentacion`): `formatDecimal(x, 2)` → `formatDecimal(x)` y `.toFixed(2)` →
+  `.toFixed(NUM_FORMAT.decimales)`; `precio_referencia` en `cargarPresentaciones` ahora usa
+  `formatMiles()`.
+- Sin cambios: `ni-costo`, `aj-precio-pres`, `pf-precio-ref` (precios, 0 decimales) y
+  `aj-pres-conv-num` (helper v4.86, fuera de alcance).
+
+### `inventario/conteo.php` (piloto)
+
+- "Actual: X unidad" y la cantidad por presentación del selector de conversión usan
+  `fmt_cantidad()`.
+- Input de conteo: `step="any"`; `placeholder` usa `config_numeros()['decimales']` (mantiene
+  `.` por limitación de `<input type="number">`).
+- JS: `convertirDesdePresentacionConteo()` y la actualización post-guardado usan
+  `NUM_FORMAT.decimales`/`formatDecimal()` en vez de `2` fijo.
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `database/migrations/040_config_formato_numerico.sql` | nueva — defaults num_decimales/num_sep_miles/num_sep_decimal |
+| `app/helpers/FormatoHelper.php` | `config_numeros()`, `fmt_cantidad()`, `fmt_moneda()` |
+| `app/views/nav.php` | `window.NUM_FORMAT`, `formatDecimal()`/`formatMiles()` reescritos |
+| `admin/apariencia.php` + `admin/api/guardar_apariencia.php` | sección "Formato de números" |
+| `inventario/index.php` | `fmt_cantidad()`/`fmt_moneda()`, `step="any"`, `NUM_FORMAT.decimales` |
+| `inventario/conteo.php` | idem, piloto |
+| `app/config/app.php` | APP_VERSION → 4.87 |
+
+### Verificación
+
+`php -l` sin errores en los 6 archivos PHP tocados (3 bloques, commits separados).
+**Pendiente prueba manual en navegador**: (1) con config por defecto (2/`.`/`,`), confirmar
+que `inventario/index.php` y `conteo.php` se ven igual que antes (sin regresiones) y que los
+inputs `step="any"` siguen guardando bien; (2) en Admin → Apariencia cambiar a 3 decimales y
+separadores estilo en-US, recargar ambas páginas y confirmar que cantidades muestran 3
+decimales con nuevos separadores, inputs aceptan/guardan 3 decimales (con `.`), y los precios
+siguen en 0 decimales (solo cambian separadores); (3) volver la config a los valores por
+defecto antes de cerrar sesión, para no afectar al resto de módulos que aún no usan estos
+helpers.
+
+### v4.88+ (futuro)
+
+Replicar el patrón módulo por módulo: productos, ventas, nómina, compras, reportes, activos,
+costos, clientes — un módulo por versión, igual que v4.81→v4.86.
+
+*Última actualización: 2026-06-11 | v4.87 — infraestructura de formato numérico configurable
+(decimales + separadores de miles/decimal) vía Admin → Apariencia (migración 040 +
+`FormatoHelper.php` + `NUM_FORMAT` en `nav.php`), aplicada como piloto en
+`inventario/index.php` y `inventario/conteo.php`. Precios se mantienen en 0 decimales.
+Pendiente prueba manual en navegador (default + config alternativa) antes de extender a
+v4.88+.*
