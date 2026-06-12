@@ -70,7 +70,7 @@ try {
         'principal'  => $resultado['principal'],
         'secundario' => $resultado['secundario'],
         'mensaje'    => "Fusión completada: {$resultado['ventas']} venta(s) y "
-                      . "$" . number_format($resultado['saldo'], 0, ',', '.') . " de saldo transferidos.",
+                      . "$" . fmt_moneda($resultado['saldo']) . " de saldo transferidos.",
     ]);
 
 } catch (RuntimeException $e) {

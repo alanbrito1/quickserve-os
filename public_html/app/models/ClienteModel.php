@@ -176,7 +176,7 @@ class ClienteModel
         if ((int)$c['activo'] === 1 && (float)$c['saldo_fiado'] > 0) {
             throw new RuntimeException(
                 'No se puede desactivar un cliente con deuda pendiente '
-                . '($' . number_format($c['saldo_fiado'], 0, ',', '.') . ').'
+                . '($' . fmt_moneda($c['saldo_fiado']) . ').'
             );
         }
 
@@ -309,8 +309,8 @@ class ClienteModel
         if ($monto <= 0) throw new RuntimeException('El monto del abono debe ser mayor a $0.');
         if ($monto > (float)$cliente['saldo_fiado']) {
             throw new RuntimeException(
-                'El abono ($' . number_format($monto, 0, ',', '.') . ') supera '
-                . 'la deuda actual ($' . number_format($cliente['saldo_fiado'], 0, ',', '.') . ').'
+                'El abono ($' . fmt_moneda($monto) . ') supera '
+                . 'la deuda actual ($' . fmt_moneda($cliente['saldo_fiado']) . ').'
             );
         }
 
