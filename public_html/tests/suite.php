@@ -18,9 +18,14 @@
  *   G13  Foreign keys        — sin huérfanos en tablas críticas
  *   G14b Catálogos           — items activos en listas_sistema, sin duplicados (029)
  *   G15  Configuración       — claves requeridas en configuracion_app/negocio
- *   G16  Seguridad           — contraseñas, APP_ENV, rate-limiting, CSRF activo
+ *   G16  Seguridad           — contraseñas, APP_ENV, rate-limiting, CSRF activo;
+ *                              + auditoría estática (v4.93): cada api/*.php verifica
+ *                              autorización (permiso_requerir/rol) y los que leen
+ *                              $_POST validan token CSRF
  *   G17  Auditoría           — logs_historial activo y con registros recientes
- *   G18  Eficiencia          — índices en columnas críticas de tablas grandes
+ *   G18  Eficiencia          — índices en columnas críticas de tablas grandes;
+ *                              + índices en columnas *_id de tablas de
+ *                              detalle/transacción (v4.93)
  *   G19  Usuario UX          — validaciones de interfaz y flujos de usuario
  *   G20  Inmutabilidad ext.  — nombres snapshot en ventas, compras, producción
  *   G21  Migración 031       — conversión ENUM → VARCHAR para catálogos
@@ -32,6 +37,10 @@
  *   G27  Descuentos 038      — columnas existen, pct en 0-50, valor≥0, coherencia pct/valor, total≤bruto
  *   G28  Abonos a Fiado      — snapshots saldo_anterior/posterior (034), coherencia, no negativos, métodos válidos
  *   G29  Presentaciones 039  — tabla insumo_presentaciones, columnas, cantidad_base > 0, FK lógica a compra_detalles
+ *   G30  Regresion bugs v4.93 — guarda de regresión: fix de compras.php (fmt_cantidad en historial)
+ *                                y de nomina/index.php (generarNomina envía accion=generar)
+ *   G31  Manejo de errores   — cada api/*.php envuelve su lógica en try/catch;
+ *                              los catch (Exception) genéricos registran con error_log()
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -798,6 +807,36 @@ t($G, "Todos los usuarios activos tienen rol definido",
     $usuario_sin_rol === 0,
     $usuario_sin_rol > 0 ? "{$usuario_sin_rol} usuarios sin rol. Podrian tener acceso inesperado." : '');
 
+// ── Auditoria estatica: autorizacion y CSRF en endpoints api/*.php (v4.93) ───
+// Cada endpoint debe verificar permisos (permiso_requerir) o restringir por rol
+// (usuario_rol + in_array, patron usado en admin/api/*). Los que leen $_POST
+// deben ademas validar el token CSRF para evitar peticiones falsificadas.
+$archivos_api = glob(BASE_PATH . '/*/api/*.php');
+sort($archivos_api);
+
+$sin_autorizacion = [];
+$sin_csrf         = [];
+foreach ($archivos_api as $archivo) {
+    $src = file_get_contents($archivo);
+    $rel = str_replace('\\', '/', str_replace(BASE_PATH . DIRECTORY_SEPARATOR, '', $archivo));
+
+    $tiene_permiso = str_contains($src, 'permiso_requerir(')
+        || (str_contains($src, 'usuario_rol') && str_contains($src, 'in_array('));
+    if (!$tiene_permiso) $sin_autorizacion[] = $rel;
+
+    if (str_contains($src, '$_POST') && !str_contains($src, 'csrf_verificar(')) {
+        $sin_csrf[] = $rel;
+    }
+}
+
+t($G, "Todos los endpoints api/*.php (" . count($archivos_api) . ") verifican autorizacion",
+    empty($sin_autorizacion),
+    empty($sin_autorizacion) ? '' : "Sin permiso_requerir()/control de rol: " . implode(', ', $sin_autorizacion));
+
+t($G, "Endpoints api/*.php que leen \$_POST verifican token CSRF",
+    empty($sin_csrf),
+    empty($sin_csrf) ? '' : "Sin csrf_verificar(): " . implode(', ', $sin_csrf));
+
 // ════════════════════════════════════════════════════════════════════════════════
 //  G15 — AUDITORÍA
 //  logs_historial debe estar activo y tener registros recientes.
@@ -885,6 +924,36 @@ t($G, "No hay lineas de venta con cantidad > 9999",
     $cant_absurda === 0,
     $cant_absurda > 0 ? "{$cant_absurda} lineas con cantidad sospechosa." : '',
     true);
+
+// ── Indices en columnas *_id de tablas de detalle/transaccion (v4.93) ────────
+// Estas tablas crecen indefinidamente y sus columnas *_id se usan en JOINs y
+// filtros de reportes constantemente. Sin indice -> full-scan en cada consulta.
+$tablas_fk_check = [
+    'venta_detalles', 'compra_detalles', 'ajustes_stock', 'produccion_lotes',
+    'nomina_liquidaciones', 'registro_horas', 'insumo_presentaciones',
+    'pagos_fiado', 'combo_insumos', 'recetas', 'producto_variantes',
+    'costos_indirectos', 'logs_historial',
+];
+foreach ($tablas_fk_check as $tabla) {
+    if (!tabla_existe($pdo, $tabla)) continue;
+
+    $cols = $pdo->prepare(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME REGEXP '_id$'"
+    );
+    $cols->execute([$tabla]);
+
+    foreach ($cols->fetchAll(PDO::FETCH_COLUMN) as $col) {
+        $idx = (int)scalar($pdo,
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+            [$tabla, $col]);
+        t($G, "Indice en {$tabla}.{$col}",
+            $idx > 0,
+            $idx > 0 ? '' : "Columna {$tabla}.{$col} sin indice -> posible full-scan en JOINs/filtros.",
+            true); // WARN: depende del volumen de datos de cada instalacion
+    }
+}
 
 // ════════════════════════════════════════════════════════════════════════════════
 //  G19 — PRUEBAS DE USUARIO (UX y completitud de datos)
@@ -1569,6 +1638,62 @@ if ($tiene039) {
         $equivInvalida > 0 ? "{$equivInvalida} presentaciones con equiv_cantidad ≤ 0." : '');
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+//  G30 — REGRESIÓN DE BUGS CORREGIDOS (v4.93)
+//  Guarda de regresión: confirma que el código fuente sigue conteniendo el fix
+//  aplicado para cada bug encontrado durante las pruebas manuales v4.83-v4.92.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G30 Regresion bugs v4.93';
+
+// Bug 1: inventario/compras.php imprimía cd.cantidad cruda (ej. "46.0000")
+// en el historial "Últimas Compras" en vez de usar fmt_cantidad().
+$comprasSrc = @file_get_contents(BASE_PATH . '/inventario/compras.php');
+t($G, "compras.php formatea la cantidad del historial con fmt_cantidad()",
+    $comprasSrc !== false && str_contains($comprasSrc, "fmt_cantidad((float)\$lin['cantidad'])"),
+    "El historial 'Últimas Compras' debe usar fmt_cantidad(\$lin['cantidad']), no el DECIMAL(10,4) crudo.");
+
+// Bug 2: nomina/index.php generarNomina() no enviaba accion=generar, por lo que
+// api/generar.php respondía "Accion invalida." y nunca generaba liquidaciones.
+$nominaSrc = @file_get_contents(BASE_PATH . '/nomina/index.php');
+t($G, "nomina/index.php generarNomina() envía accion=generar al endpoint",
+    $nominaSrc !== false && str_contains($nominaSrc, "fd.append('accion', 'generar')"),
+    "Sin 'accion=generar' en el FormData, api/generar.php devuelve 'Accion invalida.' y no liquida.");
+
+// ════════════════════════════════════════════════════════════════════════════════
+//  G31 — MANEJO DE ERRORES EN ENDPOINTS API
+//  Verifica que cada endpoint api/*.php sea resiliente ante excepciones: que
+//  envuelva su lógica en try/catch y que los catch genéricos queden registrados
+//  (error_log) en vez de fallar en silencio.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G31 Manejo de errores';
+
+$sin_try     = [];
+$catch_mudo  = [];
+foreach ($archivos_api as $archivo) {
+    $src = file_get_contents($archivo);
+    $rel = str_replace('\\', '/', str_replace(BASE_PATH . DIRECTORY_SEPARATOR, '', $archivo));
+
+    if (!str_contains($src, 'try {') && !str_contains($src, 'try{')) {
+        $sin_try[] = $rel;
+    }
+
+    $tieneCatchGenerico = preg_match('/catch\s*\(\\\\?Exception\s+\$\w+\)/', $src) === 1;
+    if ($tieneCatchGenerico && !str_contains($src, 'error_log(')) {
+        $catch_mudo[] = $rel;
+    }
+}
+
+t($G, "Todos los endpoints api/*.php (" . count($archivos_api) . ") envuelven su logica en try/catch",
+    empty($sin_try),
+    empty($sin_try) ? '' : "Sin try/catch: " . implode(', ', $sin_try));
+
+t($G, "Catch genericos (Exception) registran el error con error_log()",
+    empty($catch_mudo),
+    empty($catch_mudo) ? '' : "catch (Exception) sin error_log(): " . implode(', ', $catch_mudo),
+    !empty($catch_mudo)); // WARN: fallo silencioso, no necesariamente expone datos
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -1627,7 +1752,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    29 grupos
+    31 grupos
 </p>
 
 <!-- Resumen global -->
