@@ -318,36 +318,36 @@ if ($_GET['export'] ?? '' === '1') {
     <p class="section-title">Resumen del período</p>
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi-val yellow">$<?= number_format($total_costos_directos, 0,',','.') ?></div>
+            <div class="kpi-val yellow">$<?= fmt_moneda($total_costos_directos) ?></div>
             <div class="kpi-lbl">Costos directos</div>
             <div class="kpi-sub">Trazables a producción</div>
         </div>
         <div class="kpi">
-            <div class="kpi-val blue">$<?= number_format($total_costos_indirectos, 0,',','.') ?></div>
+            <div class="kpi-val blue">$<?= fmt_moneda($total_costos_indirectos) ?></div>
             <div class="kpi-lbl">Costos indirectos</div>
             <div class="kpi-sub">Generales del negocio</div>
         </div>
         <div class="kpi">
-            <div class="kpi-val green">$<?= number_format($total_compras, 0,',','.') ?></div>
+            <div class="kpi-val green">$<?= fmt_moneda($total_compras) ?></div>
             <div class="kpi-lbl">Compras (<?= $n_compras ?>)</div>
             <div class="kpi-sub">Materia prima</div>
         </div>
         <div class="kpi">
-            <div class="kpi-val purple">$<?= number_format($dep_mensual, 0,',','.') ?></div>
+            <div class="kpi-val purple">$<?= fmt_moneda($dep_mensual) ?></div>
             <div class="kpi-lbl">Depreciación</div>
             <div class="kpi-sub"><?= $n_activos ?> activos</div>
         </div>
         <div class="kpi">
-            <div class="kpi-val yellow">$<?= number_format($nomina_directa, 0,',','.') ?></div>
+            <div class="kpi-val yellow">$<?= fmt_moneda($nomina_directa) ?></div>
             <div class="kpi-lbl">Nómina directa</div>
             <div class="kpi-sub"><?= $nomina_fuente === 'estimado' ? 'Estimado' : 'Liquidaciones' ?></div>
         </div>
         <div class="kpi">
-            <div class="kpi-val blue">$<?= number_format($nomina_indirecta, 0,',','.') ?></div>
+            <div class="kpi-val blue">$<?= fmt_moneda($nomina_indirecta) ?></div>
             <div class="kpi-lbl">Nómina indirecta</div>
         </div>
         <div class="kpi highlight">
-            <div class="kpi-val brand">$<?= number_format($gran_total, 0,',','.') ?></div>
+            <div class="kpi-val brand">$<?= fmt_moneda($gran_total) ?></div>
             <div class="kpi-lbl">Gran total</div>
             <div class="kpi-sub">Suma de todos los costos</div>
         </div>
@@ -373,7 +373,7 @@ if ($_GET['export'] ?? '' === '1') {
             ?>
             <tr>
                 <td><?= htmlspecialchars($label) ?></td>
-                <td><strong>$<?= number_format($monto, 0,',','.') ?></strong></td>
+                <td><strong>$<?= fmt_moneda($monto) ?></strong></td>
                 <td style="color:var(--g5)"><?= $pct ?>%</td>
                 <td style="width:180px">
                     <div class="bar-wrap">
@@ -386,7 +386,7 @@ if ($_GET['export'] ?? '' === '1') {
             <tfoot>
             <tr class="total-row">
                 <td>GRAN TOTAL</td>
-                <td>$<?= number_format($gran_total, 0,',','.') ?></td>
+                <td>$<?= fmt_moneda($gran_total) ?></td>
                 <td>100%</td>
                 <td></td>
             </tr>
@@ -408,7 +408,7 @@ if ($_GET['export'] ?? '' === '1') {
                 // Encabezado de grupo por clasificación
                 if ($c['clasificacion'] !== $grupo_actual) {
                     if ($grupo_actual !== '' && $total_grupo > 0) {
-                        echo '<tr class="total-row"><td colspan="4">Subtotal ' . ucfirst($grupo_actual) . '</td><td class="r">$' . number_format($total_grupo,0,',','.') . '</td></tr>';
+                        echo '<tr class="total-row"><td colspan="4">Subtotal ' . ucfirst($grupo_actual) . '</td><td class="r">$' . fmt_moneda($total_grupo) . '</td></tr>';
                         $total_grupo = 0;
                     }
                     $grupo_actual = $c['clasificacion'];
@@ -420,18 +420,18 @@ if ($_GET['export'] ?? '' === '1') {
                 <td style="font-size:12px;color:var(--g5)"><?= htmlspecialchars(str_replace('_',' ',ucfirst($c['categoria']))) ?></td>
                 <td><span class="badge badge-<?= htmlspecialchars($c['clasificacion']) ?>"><?= htmlspecialchars(ucfirst($c['clasificacion'])) ?></span></td>
                 <td style="font-size:12px;color:var(--g5)"><?= htmlspecialchars(ucfirst($c['frecuencia'])) ?></td>
-                <td class="r"><strong>$<?= number_format((float)$c['valor_mensual'],0,',','.') ?></strong></td>
+                <td class="r"><strong>$<?= fmt_moneda((float)$c['valor_mensual']) ?></strong></td>
             </tr>
             <?php endforeach;
             if ($grupo_actual !== '' && $total_grupo > 0):
             ?>
-            <tr class="total-row"><td colspan="4">Subtotal <?= ucfirst($grupo_actual) ?></td><td class="r">$<?= number_format($total_grupo,0,',','.') ?></td></tr>
+            <tr class="total-row"><td colspan="4">Subtotal <?= ucfirst($grupo_actual) ?></td><td class="r">$<?= fmt_moneda($total_grupo) ?></td></tr>
             <?php endif; ?>
             </tbody>
             <tfoot>
             <tr class="total-row">
                 <td colspan="4"><strong>TOTAL COSTOS DEL MÓDULO</strong></td>
-                <td class="r"><strong>$<?= number_format($total_costos,0,',','.') ?></strong></td>
+                <td class="r"><strong>$<?= fmt_moneda($total_costos) ?></strong></td>
             </tr>
             </tfoot>
         </table>
@@ -449,11 +449,11 @@ if ($_GET['export'] ?? '' === '1') {
             <tr>
                 <td><?= htmlspecialchars($r['proveedor']) ?></td>
                 <td class="r"><?= (int)$r['n'] ?></td>
-                <td class="r"><strong>$<?= number_format((float)$r['subtotal'],0,',','.') ?></strong></td>
+                <td class="r"><strong>$<?= fmt_moneda((float)$r['subtotal']) ?></strong></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
-            <tfoot><tr class="total-row"><td>TOTAL</td><td class="r"><?= $n_compras ?></td><td class="r">$<?= number_format($total_compras,0,',','.') ?></td></tr></tfoot>
+            <tfoot><tr class="total-row"><td>TOTAL</td><td class="r"><?= $n_compras ?></td><td class="r">$<?= fmt_moneda($total_compras) ?></td></tr></tfoot>
         </table>
     </div>
     <?php endif; ?>
