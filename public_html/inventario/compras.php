@@ -490,7 +490,7 @@ $insumos_js = json_encode(array_map(fn($i) => [
                             · <?= htmlspecialchars($cv['registrado_por'] ?? '—') ?>
                         </div>
                     </div>
-                    <div class="hist-total">$<?= number_format($cv['total'], 0, ',', '.') ?></div>
+                    <div class="hist-total">$<?= fmt_moneda($cv['total']) ?></div>
                 </div>
 
                 <?php if (!empty($cv['lineas'])): ?>
@@ -498,7 +498,7 @@ $insumos_js = json_encode(array_map(fn($i) => [
                     <?php foreach ($cv['lineas'] as $lin): ?>
                     <div style="font-size:12px;color:var(--g5);display:flex;justify-content:space-between">
                         <span><?= htmlspecialchars($lin['insumo']) ?> (<?= $lin['cantidad'] ?> <?= htmlspecialchars($lin['unidad_medida']) ?>)</span>
-                        <span>$<?= number_format($lin['subtotal'], 0, ',', '.') ?></span>
+                        <span>$<?= fmt_moneda($lin['subtotal']) ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -520,7 +520,7 @@ $insumos_js = json_encode(array_map(fn($i) => [
                     <?php endif; ?>
                     <?php if ($puede_editar): ?>
                     <button class="btn-accion btn-eliminar ic" title="Eliminar"
-                            onclick="eliminarCompra(<?= (int)$cv['id'] ?>, '<?= date('d/m/Y', strtotime($cv['fecha_compra'])) ?>', '$<?= number_format($cv['total'], 0, ',', '.') ?>')">
+                            onclick="eliminarCompra(<?= (int)$cv['id'] ?>, '<?= date('d/m/Y', strtotime($cv['fecha_compra'])) ?>', '$<?= fmt_moneda($cv['total']) ?>')">
                         <?= IC_TRASH ?>
                     </button>
                     <?php endif; ?>
