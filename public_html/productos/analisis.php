@@ -265,32 +265,32 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
             </select></div>
         <button type="submit" class="btn-ver">Ver período</button>
         <span style="align-self:center;font-size:12px;color:var(--g5);margin-left:8px">
-            Capacidad instalada: <strong><?= number_format($prod_mensual_cap,0,',','.') ?> u/mes</strong>
-            · Producción real: <strong><?= number_format($total_produccion_real,0,',','.') ?> u</strong>
+            Capacidad instalada: <strong><?= fmt_cantidad($prod_mensual_cap, 0) ?> u/mes</strong>
+            · Producción real: <strong><?= fmt_cantidad($total_produccion_real, 0) ?> u</strong>
         </span>
     </form>
 
     <!-- KPIs del período -->
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi-val brand"><?= number_format($total_produccion_real,0,',','.') ?></div>
+            <div class="kpi-val brand"><?= fmt_cantidad($total_produccion_real, 0) ?></div>
             <div class="kpi-lbl">Unidades producidas</div>
             <div class="kpi-sub"><?= round($total_produccion_real/$prod_mensual_cap*100) ?>% de capacidad</div>
         </div>
         <div class="kpi">
-            <div class="kpi-val green"><?= number_format($total_unidades_vendidas,0,',','.') ?></div>
+            <div class="kpi-val green"><?= fmt_cantidad($total_unidades_vendidas, 0) ?></div>
             <div class="kpi-lbl">Unidades vendidas</div>
-            <div class="kpi-sub">$<?= number_format($total_ingresos,0,',','.') ?> ingresos</div>
+            <div class="kpi-sub">$<?= fmt_moneda($total_ingresos) ?> ingresos</div>
         </div>
         <div class="kpi">
-            <div class="kpi-val" style="color:#6d28d9">$<?= number_format($total_costos_fijos,0,',','.') ?></div>
+            <div class="kpi-val" style="color:#6d28d9">$<?= fmt_moneda($total_costos_fijos) ?></div>
             <div class="kpi-lbl">Costos fijos</div>
             <div class="kpi-sub">Arriendo + dep. + nómina indir.</div>
         </div>
         <div class="kpi">
             <div class="kpi-val"><?= round($promedio_diario_total,1) ?></div>
             <div class="kpi-lbl">Promedio ventas/día</div>
-            <div class="kpi-sub">Proyección: <?= number_format($proyeccion_mensual,0,',','.') ?>/mes</div>
+            <div class="kpi-sub">Proyección: <?= fmt_cantidad($proyeccion_mensual, 0) ?>/mes</div>
         </div>
     </div>
 
@@ -301,7 +301,7 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
             <span>Período: <?= $meses_es[$mes] ?> <?= $anio ?></span>
         </div>
         <p style="font-size:12px;color:var(--g5);margin-bottom:14px">
-            <strong>Estimado:</strong> divide costos fijos entre capacidad instalada (<?= number_format($prod_mensual_cap,0,',','.') ?> u/mes) ·
+            <strong>Estimado:</strong> divide costos fijos entre capacidad instalada (<?= fmt_cantidad($prod_mensual_cap, 0) ?> u/mes) ·
             <strong>Real:</strong> divide entre unidades realmente producidas <?= $total_produccion_real > 0 ? '('.$total_produccion_real.' u)' : '(sin datos de producción este mes)' ?>
         </p>
         <table class="tbl">
@@ -339,10 +339,10 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
                     <div style="font-size:11px;color:var(--g5);margin-top:2px"><?= htmlspecialchars($p['nombre2']) ?></div>
                     <?php endif; ?>
                 </td>
-                <td class="r">$<?= number_format($precio,0,',','.') ?></td>
-                <td class="r">$<?= number_format($costo_ing,0,',','.') ?></td>
-                <td class="r">$<?= number_format($fijo_u_cap + $var_directo_u_cap,0,',','.') ?></td>
-                <td class="r"><?= $total_produccion_real > 0 ? '$'.number_format($fijo_u_real + $var_directo_u_real,0,',','.') : '—' ?></td>
+                <td class="r">$<?= fmt_moneda($precio) ?></td>
+                <td class="r">$<?= fmt_moneda($costo_ing) ?></td>
+                <td class="r">$<?= fmt_moneda($fijo_u_cap + $var_directo_u_cap) ?></td>
+                <td class="r"><?= $total_produccion_real > 0 ? '$'.fmt_moneda($fijo_u_real + $var_directo_u_real) : '—' ?></td>
                 <td class="r"><span class="badge <?= $cls_est ?>"><?= $mg_est ?>%</span></td>
                 <td class="r">
                     <?php if ($total_produccion_real > 0): ?>
@@ -361,7 +361,7 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
     <div class="section">
         <div class="section-title">
             Punto de equilibrio
-            <span>Costos fijos: $<?= number_format($total_costos_fijos,0,',','.') ?>/mes</span>
+            <span>Costos fijos: $<?= fmt_moneda($total_costos_fijos) ?>/mes</span>
         </div>
 
         <!-- PE Global -->
@@ -380,17 +380,17 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
         ?>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
             <div class="pe-highlight">
-                <div class="pe-val"><?= number_format($pe_global,0,',','.') ?></div>
+                <div class="pe-val"><?= fmt_cantidad($pe_global, 0) ?></div>
                 <div class="pe-lbl">Unidades/mes para cubrir costos fijos</div>
                 <div style="font-size:11px;color:var(--g5);margin-top:4px">(promedio todos los productos)</div>
             </div>
             <div class="pe-highlight" style="background:#f0fdf4;border-color:#22c55e">
-                <div class="pe-val" style="color:#16a34a">$<?= number_format($pe_global_pesos,0,',','.') ?></div>
+                <div class="pe-val" style="color:#16a34a">$<?= fmt_moneda($pe_global_pesos) ?></div>
                 <div class="pe-lbl">Ingreso mínimo mensual requerido</div>
             </div>
             <div class="pe-highlight" style="background:<?= $superavit >= 0 ? '#f0fdf4' : '#fff7ed' ?>;border-color:<?= $superavit >= 0 ? '#22c55e' : '#f97316' ?>">
                 <div class="pe-val" style="color:<?= $superavit >= 0 ? '#16a34a' : '#ea580c' ?>">
-                    <?= $superavit >= 0 ? '+' : '' ?><?= number_format($superavit,0,',','.') ?>
+                    <?= $superavit >= 0 ? '+' : '' ?><?= fmt_cantidad($superavit, 0) ?>
                 </div>
                 <div class="pe-lbl"><?= $superavit >= 0 ? 'Unidades sobre el PE (ganancia)' : 'Unidades bajo el PE (pérdida)' ?></div>
             </div>
@@ -399,8 +399,8 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
         <!-- Barra de progreso hacia el PE -->
         <div style="margin-bottom:20px">
             <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--g5);margin-bottom:4px">
-                <span>Ventas del mes: <?= number_format($total_unidades_vendidas,0,',','.') ?> u</span>
-                <span>PE: <?= number_format($pe_global,0,',','.') ?> u</span>
+                <span>Ventas del mes: <?= fmt_cantidad($total_unidades_vendidas, 0) ?> u</span>
+                <span>PE: <?= fmt_cantidad($pe_global, 0) ?> u</span>
             </div>
             <div class="util-bar" style="height:16px">
                 <div class="util-fill <?= $util_pct < 50 ? 'low' : ($util_pct < 90 ? 'warn' : '') ?>"
@@ -412,13 +412,13 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
 
         <?php if ($superavit >= 0): ?>
         <div class="alert-ok">
-            ✓ Este mes las ventas (<?= $total_unidades_vendidas ?> u) superaron el punto de equilibrio (<?= $pe_global ?> u) por <strong><?= number_format($superavit,0,',','.') ?> unidades</strong>.
-            Ganancia estimada: <strong>$<?= number_format($superavit * ($precio_prom - $costo_var_u - $var_directo_u_cap),0,',','.') ?></strong>
+            ✓ Este mes las ventas (<?= $total_unidades_vendidas ?> u) superaron el punto de equilibrio (<?= $pe_global ?> u) por <strong><?= fmt_cantidad($superavit, 0) ?> unidades</strong>.
+            Ganancia estimada: <strong>$<?= fmt_moneda($superavit * ($precio_prom - $costo_var_u - $var_directo_u_cap)) ?></strong>
         </div>
         <?php elseif ($pe_global > 0): ?>
         <div class="alert-warn">
-            ⚠ Faltan <strong><?= number_format(abs($superavit),0,',','.') ?> unidades</strong> para cubrir todos los costos fijos.
-            Con las ventas actuales hay una pérdida estimada de <strong>$<?= number_format(abs($superavit) * ($precio_prom - $costo_var_u - $var_directo_u_cap),0,',','.') ?></strong>
+            ⚠ Faltan <strong><?= fmt_cantidad(abs($superavit), 0) ?> unidades</strong> para cubrir todos los costos fijos.
+            Con las ventas actuales hay una pérdida estimada de <strong>$<?= fmt_moneda(abs($superavit) * ($precio_prom - $costo_var_u - $var_directo_u_cap)) ?></strong>
         </div>
         <?php endif; ?>
 
@@ -456,10 +456,10 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
                     <div style="font-size:11px;color:var(--g5)"><?= htmlspecialchars($p['nombre2']) ?></div>
                     <?php endif; ?>
                 </td>
-                <td class="r">$<?= number_format($precio,0,',','.') ?></td>
-                <td class="r">$<?= number_format($cv_u,0,',','.') ?></td>
-                <td class="r"><strong>$<?= number_format($mc_u,0,',','.') ?></strong> (<?= $precio>0?round($mc_u/$precio*100,1):0 ?>%)</td>
-                <td class="r"><?= is_numeric($pe_prod) ? number_format($pe_prod,0,',','.') : '—' ?> u</td>
+                <td class="r">$<?= fmt_moneda($precio) ?></td>
+                <td class="r">$<?= fmt_moneda($cv_u) ?></td>
+                <td class="r"><strong>$<?= fmt_moneda($mc_u) ?></strong> (<?= $precio>0?round($mc_u/$precio*100,1):0 ?>%)</td>
+                <td class="r"><?= is_numeric($pe_prod) ? fmt_cantidad($pe_prod, 0) : '—' ?> u</td>
                 <td class="r"><?= $vend ?> u</td>
                 <td>
                     <?php if (is_numeric($pe_prod)): ?>
@@ -480,16 +480,16 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
     <div class="section">
         <div class="section-title">
             Análisis histórico — últimos 90 días
-            <span>Promedio: <?= $promedio_diario_total ?> u/día · Proyección: <?= number_format($proyeccion_mensual,0,',','.') ?> u/mes</span>
+            <span>Promedio: <?= $promedio_diario_total ?> u/día · Proyección: <?= fmt_cantidad($proyeccion_mensual, 0) ?> u/mes</span>
         </div>
 
         <!-- Comparar proyección vs PE -->
         <?php if ($pe_global > 0): ?>
         <div class="<?= $proyeccion_mensual >= $pe_global ? 'alert-ok' : 'alert-warn' ?>" style="margin-bottom:16px">
             <?php if ($proyeccion_mensual >= $pe_global): ?>
-            ✓ Con el ritmo histórico de ventas (<?= $promedio_diario_total ?>/día), proyectás <strong><?= number_format($proyeccion_mensual,0,',','.') ?> u/mes</strong>, que supera el PE (<?= number_format($pe_global,0,',','.') ?> u). Recomendación de producción diaria: <strong><?= round($promedio_diario_total * 1.1, 0) ?> u/día</strong> (+10% buffer).
+            ✓ Con el ritmo histórico de ventas (<?= $promedio_diario_total ?>/día), proyectás <strong><?= fmt_cantidad($proyeccion_mensual, 0) ?> u/mes</strong>, que supera el PE (<?= fmt_cantidad($pe_global, 0) ?> u). Recomendación de producción diaria: <strong><?= round($promedio_diario_total * 1.1, 0) ?> u/día</strong> (+10% buffer).
             <?php else: ?>
-            ⚠ Con el ritmo histórico de ventas (<?= $promedio_diario_total ?>/día), proyectás <strong><?= number_format($proyeccion_mensual,0,',','.') ?> u/mes</strong>, pero el PE es <strong><?= number_format($pe_global,0,',','.') ?> u</strong>. Para ser rentable necesitás vender <strong><?= round($pe_global / 21.75, 1) ?> u/día</strong>.
+            ⚠ Con el ritmo histórico de ventas (<?= $promedio_diario_total ?>/día), proyectás <strong><?= fmt_cantidad($proyeccion_mensual, 0) ?> u/mes</strong>, pero el PE es <strong><?= fmt_cantidad($pe_global, 0) ?> u</strong>. Para ser rentable necesitás vender <strong><?= round($pe_global / 21.75, 1) ?> u/día</strong>.
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -523,10 +523,10 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
                     <div style="font-size:11px;color:var(--g5)"><?= htmlspecialchars($nombre2_p) ?></div>
                     <?php endif; ?>
                 </td>
-                <td class="r"><?= number_format($total_90,0,',','.') ?> u</td>
+                <td class="r"><?= fmt_cantidad($total_90, 0) ?> u</td>
                 <td class="r"><?= $prom_dia ?> u</td>
                 <td class="r"><?= $prom_sem ?> u</td>
-                <td class="r"><?= number_format($proy_mes,0,',','.') ?> u</td>
+                <td class="r"><?= fmt_cantidad($proy_mes, 0) ?> u</td>
                 <td class="r">
                     <strong style="color:var(--brand)"><?= $sugerida ?> u</strong>
                     <small style="color:var(--g5)">(+15% buffer)</small>
@@ -535,10 +535,10 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
             <?php endforeach; ?>
             <tr class="total-row">
                 <td>TOTAL</td>
-                <td class="r"><?= number_format(array_sum($productos_hist),0,',','.') ?> u</td>
+                <td class="r"><?= fmt_cantidad(array_sum($productos_hist), 0) ?> u</td>
                 <td class="r"><?= $promedio_diario_total ?> u</td>
                 <td class="r"><?= round($promedio_diario_total * 7, 1) ?> u</td>
-                <td class="r"><?= number_format($proyeccion_mensual,0,',','.') ?> u</td>
+                <td class="r"><?= fmt_cantidad($proyeccion_mensual, 0) ?> u</td>
                 <td class="r"><strong style="color:var(--brand)"><?= round($promedio_diario_total * 1.15, 1) ?> u</strong></td>
             </tr>
             </tbody>
@@ -554,37 +554,37 @@ $proyeccion_mensual = round($promedio_diario_total * 21.75, 0);
     <div class="section">
         <div class="section-title">Estructura de costos del período</div>
         <table class="tbl">
-            <thead><tr><th>Concepto</th><th>Tipo</th><th class="r">Monto mensual</th><th class="r">Por unidad (cap. <?= number_format($prod_mensual_cap,0,',','.'). ' u' ?>)</th><th class="r">Por unidad (real <?= $total_produccion_real ? number_format($total_produccion_real,0,',','.').'u' : 'sin datos' ?>)</th></tr></thead>
+            <thead><tr><th>Concepto</th><th>Tipo</th><th class="r">Monto mensual</th><th class="r">Por unidad (cap. <?= fmt_cantidad($prod_mensual_cap, 0). ' u' ?>)</th><th class="r">Por unidad (real <?= $total_produccion_real ? fmt_cantidad($total_produccion_real, 0).'u' : 'sin datos' ?>)</th></tr></thead>
             <tbody>
             <tr>
                 <td>Costos indirectos (módulo Costos)</td><td><span class="badge badge-warn">Fijo</span></td>
-                <td class="r">$<?= number_format($costos_fijos_mes,0,',','.') ?></td>
-                <td class="r">$<?= number_format($costos_fijos_mes/$prod_cap,2,',','.') ?></td>
-                <td class="r"><?= $total_produccion_real ? '$'.number_format($costos_fijos_mes/$prod_real_u,2,',','.') : '—' ?></td>
+                <td class="r">$<?= fmt_moneda($costos_fijos_mes) ?></td>
+                <td class="r">$<?= fmt_cantidad($costos_fijos_mes/$prod_cap, 2) ?></td>
+                <td class="r"><?= $total_produccion_real ? '$'.fmt_cantidad($costos_fijos_mes/$prod_real_u, 2) : '—' ?></td>
             </tr>
             <tr>
                 <td>Depreciación activos</td><td><span class="badge badge-warn">Fijo</span></td>
-                <td class="r">$<?= number_format($dep_mensual,0,',','.') ?></td>
-                <td class="r">$<?= number_format($dep_mensual/$prod_cap,2,',','.') ?></td>
-                <td class="r"><?= $total_produccion_real ? '$'.number_format($dep_mensual/$prod_real_u,2,',','.') : '—' ?></td>
+                <td class="r">$<?= fmt_moneda($dep_mensual) ?></td>
+                <td class="r">$<?= fmt_cantidad($dep_mensual/$prod_cap, 2) ?></td>
+                <td class="r"><?= $total_produccion_real ? '$'.fmt_cantidad($dep_mensual/$prod_real_u, 2) : '—' ?></td>
             </tr>
             <tr>
                 <td>Nómina indirecta (admin/soporte)</td><td><span class="badge badge-warn">Fijo</span></td>
-                <td class="r">$<?= number_format($nomina_indirecta,0,',','.') ?></td>
-                <td class="r">$<?= number_format($nomina_indirecta/$prod_cap,2,',','.') ?></td>
-                <td class="r"><?= $total_produccion_real ? '$'.number_format($nomina_indirecta/$prod_real_u,2,',','.') : '—' ?></td>
+                <td class="r">$<?= fmt_moneda($nomina_indirecta) ?></td>
+                <td class="r">$<?= fmt_cantidad($nomina_indirecta/$prod_cap, 2) ?></td>
+                <td class="r"><?= $total_produccion_real ? '$'.fmt_cantidad($nomina_indirecta/$prod_real_u, 2) : '—' ?></td>
             </tr>
             <tr>
                 <td>Nómina directa (producción)</td><td><span class="badge badge-ok">Variable</span></td>
-                <td class="r">$<?= number_format($nomina_directa,0,',','.') ?></td>
-                <td class="r">$<?= number_format($nomina_directa/$prod_cap,2,',','.') ?></td>
-                <td class="r"><?= $total_produccion_real ? '$'.number_format($nomina_directa/$prod_real_u,2,',','.') : '—' ?></td>
+                <td class="r">$<?= fmt_moneda($nomina_directa) ?></td>
+                <td class="r">$<?= fmt_cantidad($nomina_directa/$prod_cap, 2) ?></td>
+                <td class="r"><?= $total_produccion_real ? '$'.fmt_cantidad($nomina_directa/$prod_real_u, 2) : '—' ?></td>
             </tr>
             <tr class="total-row">
                 <td colspan="2">TOTAL COSTOS FIJOS + NÓMINA</td>
-                <td class="r">$<?= number_format($total_costos_fijos,0,',','.') ?></td>
-                <td class="r">$<?= number_format($total_costos_fijos/$prod_cap,2,',','.') ?></td>
-                <td class="r"><?= $total_produccion_real ? '$'.number_format($total_costos_fijos/$prod_real_u,2,',','.') : '—' ?></td>
+                <td class="r">$<?= fmt_moneda($total_costos_fijos) ?></td>
+                <td class="r">$<?= fmt_cantidad($total_costos_fijos/$prod_cap, 2) ?></td>
+                <td class="r"><?= $total_produccion_real ? '$'.fmt_cantidad($total_costos_fijos/$prod_real_u, 2) : '—' ?></td>
             </tr>
             </tbody>
         </table>
