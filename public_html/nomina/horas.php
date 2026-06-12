@@ -451,7 +451,7 @@ function actualizarMultiplicador() {
 
     if (VALOR_HORA > 0 && horas > 0) {
         const est = Math.round(horas * VALOR_HORA * mult);
-        pago.textContent = '$' + est.toLocaleString('es-CO');
+        pago.textContent = '$' + formatMiles(est);
         res.style.display = 'block';
     } else {
         res.style.display = 'none';
