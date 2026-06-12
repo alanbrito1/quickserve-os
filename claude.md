@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.89 — Memoria de Sesión
+# ClanDestino ERP v4.90 — Memoria de Sesión
 # Última sesión: 2026-06-12 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -2575,3 +2575,87 @@ apertura, cierre, fiado, historial), 5 commits separados, incluyendo el fix del 
 `fmt_cop()` en cierre.php. Precios siguen en 0 decimales. `toLocaleString('es-CO')` de
 index.php/fiado.php queda fuera de alcance (patrón compartido con ~20 sitios de otros módulos,
 candidato a v4.90). Pendiente prueba manual en navegador.*
+
+---
+
+## Estado v4.90 (2026-06-12)
+
+### Formato numérico configurable — módulo Nómina completo
+
+Continuación de v4.87-v4.89: se replicó el patrón `fmt_cantidad()`/`fmt_moneda()`/
+`formatDecimal()` en el módulo **nómina**. Nueva categorización confirmada en este módulo:
+los campos de **"horas"** (`horas_mes_std`, `horas_total`, `horas_ponderadas`) y el
+**"valor/hora"** mostrado con 2 decimales se tratan como "cantidad" (regla f de v4.88:
+`number_format($x,2,'.','')` sin separadores es-CO → `fmt_cantidad($x,2)`, preservando 2
+decimales pero corrigiendo el separador). Los montos en pesos (salarios, valor/hora ×0
+decimales, pagos, auxilio de transporte, SMLMV) → `fmt_moneda()`. Los multiplicadores de
+recargo (`mult`/factor ×1.25/×1.75/etc.) quedan fuera de alcance (regla b).
+
+### `nomina/index.php` (commit `bb8a6f0`)
+
+- 19 ocurrencias de `number_format($x,0,',','.')` → `fmt_moneda()`: resumen del período (total
+  salarios, costo total), pago base, cargas/provisiones del empleador (×3 cada uno), costo
+  total empleador (×2), auxilio de transporte, totales de cargas/provisiones.
+
+### `nomina/empleados.php` (commit `2c3c98b`)
+
+- `fmt_moneda()`: valor/hora y valor/proyecto en tarjetas de empleado, salario base
+  (modalidad por horas y tiempo completo), placeholder y nota SMLMV en el formulario de nuevo
+  empleado, auxilio de transporte (`db()->query(...aux_transporte...)->fetchColumn()`).
+- `fmt_cantidad($horas_mes_std, 2)`: jornada legal "h/mes" en la nota SMLMV y en el hint de
+  horas contratadas (PHP).
+- JS `calcHorasMes()`: `horasMes.toFixed(2)` / `HORAS_GLOBALES.toFixed(2)` →
+  `formatDecimal(horasMes, 2)` / `formatDecimal(HORAS_GLOBALES, 2)` (hints de horas/mes).
+- **Fuera de alcance**: `step="0.5"` (horas_semana, regla de negocio de media hora);
+  `step="100"`/`step="10000"`/`step="1"` (valor_hora/valor_proyecto/salario_base, precios);
+  `toLocaleString('es-CO')` (líneas 442/444/445, migración futura).
+
+### `nomina/horas.php` (commit `b1657dc`)
+
+- `fmt_moneda()`: valor/hora, pago (tabla de empleados), pago estimado (resumen del empleado
+  seleccionado).
+- `fmt_cantidad(x, 2)`: jornada legal h/mes, horas totales, horas ponderadas (tabla y resumen),
+  "valor/hora base" (mostrado con $ pero 2 decimales, preservado vía `fmt_cantidad` no
+  `fmt_moneda`).
+- **Fuera de alcance**: `number_format($tipoCfg['mult'], 2)` y `mult.toFixed(2)` (multiplicador
+  de recargo, regla b); `step="0.5"` (registro de horas por día, media hora); `est.toLocaleString
+  ('es-CO')` (línea 454, migración futura).
+
+### `nomina/parametros.php` — sin cambios
+
+Revisado: no contiene llamadas a `number_format`/`toFixed`. Los únicos inputs numéricos son
+`step="0.001"`/`step="1"` para valores de parámetro (porcentajes/factores de configuración,
+regla b/e) — fuera de alcance en su totalidad.
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `nomina/index.php` | `fmt_moneda()` — 19 ocurrencias (resumen, pago base, cargas/provisiones, costo empleador) |
+| `nomina/empleados.php` | `fmt_moneda()` (valor/hora, valor/proyecto, salarios, SMLMV, aux. transporte) + `fmt_cantidad($horas_mes_std,2)` + `formatDecimal` JS |
+| `nomina/horas.php` | `fmt_moneda()` (valor/hora, pagos) + `fmt_cantidad(x,2)` (horas, valor/hora base) |
+| `nomina/parametros.php` | sin cambios (fuera de alcance) |
+| `app/config/app.php` | APP_VERSION → 4.90 |
+
+### Verificación
+
+`php -l` sin errores en los 3 archivos editados (3 bloques, 3 commits separados, push tras
+cada uno). **Pendiente prueba manual en navegador** (acumulada con v4.83-v4.89, sin acceso a
+navegador/BD desde este entorno): con config por defecto (2/`.`/`,`) confirmar que las páginas
+de nómina se ven igual que antes; con config alternativa confirmar que horas, valor/hora base y
+montos en pesos muestran los nuevos separadores/decimales.
+
+### v4.91+ (futuro)
+
+Candidatos: (a) migrar `toLocaleString('es-CO', {maximumFractionDigits})` (~22 sitios:
+ventas/index.php y fiado.php de v4.89, empleados.php líneas 442/444/445 y horas.php línea 454
+de v4.90, más los previos de productos/clientes/costos/activos/inventario) a un helper con
+`NUM_FORMAT`; (b) continuar el patrón v4.87-v4.90 en el resto de módulos (compras, reportes,
+activos, costos, clientes) — uno por versión.
+
+*Última actualización: 2026-06-12 | v4.90 — formato numérico configurable
+(`fmt_moneda()`/`fmt_cantidad()`/`formatDecimal()`) aplicado al módulo Nómina (index,
+empleados, horas — 3 commits separados; parametros.php sin cambios, fuera de alcance). Nueva
+categorización: "horas" y "valor/hora" a 2 decimales tratados como "cantidad"
+(`fmt_cantidad($x,2)`). `toLocaleString('es-CO')` de empleados.php/horas.php queda fuera de
+alcance (patrón compartido, candidato a v4.91). Pendiente prueba manual en navegador.*

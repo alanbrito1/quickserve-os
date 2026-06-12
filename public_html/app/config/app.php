@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.89'); // 2026-06-12: v4.89 formato numérico configurable aplicado a módulo Ventas (index/apertura/cierre/fiado/historial)
+define('APP_VERSION', '4.90'); // 2026-06-12: v4.90 formato numérico configurable aplicado a módulo Nómina (index/empleados/horas)
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
