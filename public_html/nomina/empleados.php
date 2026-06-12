@@ -210,9 +210,9 @@ try {
                             <?= $tcCfg[0] ?>
                         </span>
                         <?php if ($tc === 'por_horas' && !empty($e['valor_hora'])): ?>
-                        <br><small style="color:var(--g5)">$<?= number_format($e['valor_hora'],0,',','.') ?>/h</small>
+                        <br><small style="color:var(--g5)">$<?= fmt_moneda($e['valor_hora']) ?>/h</small>
                         <?php elseif ($tc === 'por_servicio' && !empty($e['valor_proyecto'])): ?>
-                        <br><small style="color:var(--g5)">$<?= number_format($e['valor_proyecto'],0,',','.') ?>/proy</small>
+                        <br><small style="color:var(--g5)">$<?= fmt_moneda($e['valor_proyecto']) ?>/proy</small>
                         <?php endif; ?>
                     </td>
                     <td class="hide-m">
@@ -230,7 +230,7 @@ try {
                         ?>
                             <?php if (!empty($e['valor_proyecto'])): ?>
                             <span style="font-size:11px;color:var(--g5)">Proyecto:</span><br>
-                            <strong>$<?= number_format($e['valor_proyecto'], 0, ',', '.') ?></strong>
+                            <strong>$<?= fmt_moneda($e['valor_proyecto']) ?></strong>
                             <?php else: ?>
                             <span style="color:var(--g5)">Sin valor proyecto</span>
                             <?php endif; ?>
@@ -241,12 +241,12 @@ try {
                                 : ($e['salario_base'] / $horas_mes_std);
                         ?>
                             <span style="font-size:11px;color:var(--g5)">Valor/hora:</span><br>
-                            <strong>$<?= number_format($vh, 0, ',', '.') ?>/h</strong>
-                            <br><small style="color:var(--g5)">Base: $<?= number_format($e['salario_base'], 0, ',', '.') ?></small>
+                            <strong>$<?= fmt_moneda($vh) ?>/h</strong>
+                            <br><small style="color:var(--g5)">Base: $<?= fmt_moneda($e['salario_base']) ?></small>
                         <?php else:
                             // Tiempo completo / medio tiempo
                         ?>
-                            $<?= number_format($e['salario_base'], 0, ',', '.') ?>
+                            $<?= fmt_moneda($e['salario_base']) ?>
                             <?php if ($e['aplica_aux_transporte']): ?>
                             <small style="color:var(--g5)"> + aux</small>
                             <?php endif; ?>
@@ -322,10 +322,10 @@ try {
                 <!-- Campos según tipo de contrato -->
                 <div class="fg" id="nuevo-campo-salario">
                     <label>Salario Base (COP) *</label>
-                    <input type="number" name="salario_base" id="nuevo-salario" placeholder="<?= number_format($smlmv, 0) ?>"
+                    <input type="number" name="salario_base" id="nuevo-salario" placeholder="<?= fmt_moneda($smlmv) ?>"
                            min="0" step="1">
-                    <span class="smlmv-note">SMLMV 2026: $<?= number_format($smlmv, 0, ',', '.') ?>
-                        · Para <strong>por horas</strong>: se usa como base para calcular valor/hora ÷ jornada legal (<?= number_format($horas_mes_std, 2, '.', '') ?>h/mes)
+                    <span class="smlmv-note">SMLMV 2026: $<?= fmt_moneda($smlmv) ?>
+                        · Para <strong>por horas</strong>: se usa como base para calcular valor/hora ÷ jornada legal (<?= fmt_cantidad($horas_mes_std, 2) ?>h/mes)
                     </span>
                 </div>
                 <!-- Horas contratadas por este empleado (anula el parámetro global) -->
@@ -343,7 +343,7 @@ try {
                     </div>
                     <span class="smlmv-note" id="n-horas-calc">
                         <strong>Dejar vacío = usa la jornada que fija la ley</strong>
-                        (Parámetros Nómina: <?= number_format($horas_mes_std,2,'.','') ?> h/mes).
+                        (Parámetros Nómina: <?= fmt_cantidad($horas_mes_std, 2) ?> h/mes).
                         Si el gobierno cambia el tope de horas, actualízalo en
                         <a href="<?= APP_BASE ?>/nomina/parametros.php" style="color:var(--brand)">
                         Nómina → Parámetros</a> y todos los empleados por horas se recalculan automáticamente.
@@ -369,7 +369,7 @@ try {
                         <input type="checkbox" name="aplica_aux_transporte" id="aux-nuevo" checked>
                         <label for="aux-nuevo" style="font-size:14px; text-transform:none; letter-spacing:0; color:var(--dark)">
                             Aplica Auxilio de Transporte
-                            ($<?= number_format(db()->query("SELECT valor FROM configuracion_negocio WHERE clave='aux_transporte'")->fetchColumn(), 0, ',', '.') ?>
+                            ($<?= fmt_moneda(db()->query("SELECT valor FROM configuracion_negocio WHERE clave='aux_transporte'")->fetchColumn()) ?>
                             — aplica si salario ≤ 2 SMLMV)
                         </label>
                     </div>
@@ -419,13 +419,13 @@ try {
                 // Actualizar hint de horas/mes
                 if (calcEl) {
                     if (hVal > 0) {
-                        calcEl.innerHTML = 'Equivale a <strong>' + horasMes.toFixed(2) + '</strong> h/mes'
+                        calcEl.innerHTML = 'Equivale a <strong>' + formatDecimal(horasMes, 2) + '</strong> h/mes'
                             + (peri === 'semana'
                                 ? ' (' + hVal + 'h/sem &times; 52.14 semanas/a&ntilde;o &divide; 12 meses)'
                                 : ' (valor mensual directo)');
                     } else {
                         calcEl.innerHTML = '<strong>Campo vac&iacute;o: se usa el tope legal de horas ('
-                            + HORAS_GLOBALES.toFixed(2) + ' h/mes)</strong>'
+                            + formatDecimal(HORAS_GLOBALES, 2) + ' h/mes)</strong>'
                             + ' definido en N&oacute;mina &rarr; Par&aacute;metros.'
                             + '<br><em>Si el gobierno cambia el m&aacute;ximo de horas,'
                             + ' solo actualiza ese par&aacute;metro y todos los empleados por horas se recalculan.</em>';
