@@ -29,6 +29,10 @@ $_theme = [
     // Colores de texto
     'color_text'   => '#111827',
     'color_text_sec'=> '#6b7280',
+    // Formato numérico (migración 040)
+    'num_decimales'   => '2',
+    'num_sep_miles'   => '.',
+    'num_sep_decimal' => ',',
 ];
 try {
     $_trows = db()->query(
@@ -36,7 +40,8 @@ try {
          WHERE clave IN ('theme_brand','theme_dark','theme_font','theme_radius',
                          'logo_url','logo_url_login','nombre_negocio',
                          'font_heading','font_size_title','font_size_subtitle',
-                         'font_size_body','font_size_small','color_text','color_text_sec')"
+                         'font_size_body','font_size_small','color_text','color_text_sec',
+                         'num_decimales','num_sep_miles','num_sep_decimal')"
     )->fetchAll(PDO::FETCH_KEY_PAIR);
 
     // Colores: validar hex #RRGGBB antes de inyectar en CSS (previene CSS injection)
@@ -59,6 +64,20 @@ try {
 
     // Nombre del negocio
     if (!empty($_trows['nombre_negocio'])) $_theme['negocio'] = $_trows['nombre_negocio'];
+
+    // Formato numérico (migración 040): validar antes de inyectar a JS
+    if (isset($_trows['num_decimales']) && $_trows['num_decimales'] !== '')
+        $_theme['num_decimales'] = (string)max(0, min(4, (int)$_trows['num_decimales']));
+    $_sepMilesOk = ['.', ',', ' ', "'"];
+    $_sepDecOk   = ['.', ','];
+    if (in_array($_trows['num_sep_miles'] ?? '', $_sepMilesOk, true))
+        $_theme['num_sep_miles'] = $_trows['num_sep_miles'];
+    if (in_array($_trows['num_sep_decimal'] ?? '', $_sepDecOk, true))
+        $_theme['num_sep_decimal'] = $_trows['num_sep_decimal'];
+    if ($_theme['num_sep_miles'] === $_theme['num_sep_decimal']) {
+        $_theme['num_sep_miles']   = '.';
+        $_theme['num_sep_decimal'] = ',';
+    }
 
     // Logo: validar que la ruta sea relativa y empiece por uploads/ (previene javascript: y path traversal)
     // isset() en lugar de !empty() para distinguir "sin configurar" de "vacío deliberado (quitar logo)"
@@ -1089,15 +1108,27 @@ window.addEventListener('resize', function() {
     if (window.innerWidth >= 641) closeNavMobile();
 });
 
-/* ── Formato numérico es-CO (punto miles, coma decimales) ────────────────
+/* ── Formato numérico configurable (Admin > Apariencia, migración 040) ───
    formatMiles(1234.5)      -> "1.235"        (entero, redondeado)
-   formatDecimal(1234.5)    -> "1.234,50"     (2 decimales por defecto)
-   formatDecimal(1234.5, 3) -> "1.234,500"                                 */
-function formatMiles(n) {
-    return Math.round(Number(n) || 0).toLocaleString('es-CO');
-}
+   formatDecimal(1234.5)    -> "1.234,50"     (decimales = NUM_FORMAT.decimales)
+   formatDecimal(1234.5, 3) -> "1.234,500"    (decimales explícitos)          */
+window.NUM_FORMAT = {
+    decimales: <?= (int)$_theme['num_decimales'] ?>,
+    sepMiles: <?= json_encode($_theme['num_sep_miles']) ?>,
+    sepDecimal: <?= json_encode($_theme['num_sep_decimal']) ?>
+};
 function formatDecimal(n, dec) {
-    dec = (dec === undefined) ? 2 : dec;
-    return (Number(n) || 0).toLocaleString('es-CO', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    dec = (dec === undefined) ? NUM_FORMAT.decimales : dec;
+    n = Number(n) || 0;
+    var fixed = n.toFixed(dec);
+    var neg = fixed.charAt(0) === '-';
+    if (neg) fixed = fixed.slice(1);
+    var parts = fixed.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, NUM_FORMAT.sepMiles);
+    var out = parts[0] + (dec > 0 ? NUM_FORMAT.sepDecimal + parts[1] : '');
+    return neg ? '-' + out : out;
+}
+function formatMiles(n) {
+    return formatDecimal(n, 0);
 }
 </script>

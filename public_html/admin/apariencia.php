@@ -36,6 +36,9 @@ $v = [
     'font_size_small'  => (int)($cfg['font_size_small']  ?? 11),
     'color_text'       => $cfg['color_text']       ?? '#111827',
     'color_text_sec'   => $cfg['color_text_sec']   ?? '#6b7280',
+    'num_decimales'    => (int)($cfg['num_decimales']   ?? 2),
+    'num_sep_miles'    => $cfg['num_sep_miles']   ?? '.',
+    'num_sep_decimal'  => $cfg['num_sep_decimal'] ?? ',',
 ];
 
 // Opciones de fuente (sin CDN — solo fuentes del sistema para garantizar disponibilidad)
@@ -366,6 +369,37 @@ $FUENTES = [
             </div>
         </div>
 
+        <!-- Formato de números -->
+        <div class="card">
+            <div class="card-title">Formato de números</div>
+            <div class="fg">
+                <label>Decimales para cantidades</label>
+                <select id="ap-num-decimales">
+                    <?php for ($i = 0; $i <= 4; $i++): ?>
+                    <option value="<?= $i ?>" <?= $v['num_decimales'] === $i ? 'selected' : '' ?>><?= $i ?></option>
+                    <?php endfor; ?>
+                </select>
+                <span class="hint">Aplica a cantidades (stock, presentaciones, equivalencias, costo por unidad). Los precios en pesos siempre se muestran con 0 decimales.</span>
+            </div>
+            <div class="fg">
+                <label>Separador de miles</label>
+                <select id="ap-num-sep-miles">
+                    <option value="." <?= $v['num_sep_miles'] === '.' ? 'selected' : '' ?>>Punto (1.234)</option>
+                    <option value="," <?= $v['num_sep_miles'] === ',' ? 'selected' : '' ?>>Coma (1,234)</option>
+                    <option value=" " <?= $v['num_sep_miles'] === ' ' ? 'selected' : '' ?>>Espacio (1 234)</option>
+                    <option value="'" <?= $v['num_sep_miles'] === "'" ? 'selected' : '' ?>>Apóstrofe (1'234)</option>
+                </select>
+            </div>
+            <div class="fg">
+                <label>Separador decimal</label>
+                <select id="ap-num-sep-decimal">
+                    <option value="," <?= $v['num_sep_decimal'] === ',' ? 'selected' : '' ?>>Coma (0,50)</option>
+                    <option value="." <?= $v['num_sep_decimal'] === '.' ? 'selected' : '' ?>>Punto (0.50)</option>
+                </select>
+                <span class="hint">Los campos editables (inputs numéricos) siempre usan punto como separador decimal — limitación del navegador. Estos separadores solo afectan a textos, etiquetas y vistas previas de solo lectura.</span>
+            </div>
+        </div>
+
         <button class="btn-save" onclick="guardarApariencia()">Guardar cambios</button>
     </div>
 
@@ -518,6 +552,9 @@ async function guardarApariencia(){
     fd.append('font_size_small',  document.getElementById('ap-fs-small').value);
     fd.append('color_text',       document.getElementById('ap-color-text-txt').value.trim());
     fd.append('color_text_sec',   document.getElementById('ap-color-sec-txt').value.trim());
+    fd.append('num_decimales',    document.getElementById('ap-num-decimales').value);
+    fd.append('num_sep_miles',    document.getElementById('ap-num-sep-miles').value);
+    fd.append('num_sep_decimal',  document.getElementById('ap-num-sep-decimal').value);
     fd.append('logo_quitar',       document.getElementById('logo-quitar').value);
     fd.append('logo_login_quitar', document.getElementById('logo-login-quitar').value);
 

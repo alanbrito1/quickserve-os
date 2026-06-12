@@ -126,6 +126,14 @@ try {
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color_text))     $color_text     = '#111827';
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color_text_sec)) $color_text_sec = '#6b7280';
 
+    // ── Validar formato de números (migración 040) ────────────────────────────
+    $numDecimales = max(0, min(4, (int)($_POST['num_decimales'] ?? 2)));
+    $sepMilesOk   = ['.', ',', ' ', "'"];
+    $sepDecOk     = ['.', ','];
+    $numSepMiles   = in_array($_POST['num_sep_miles']   ?? '.', $sepMilesOk, true) ? $_POST['num_sep_miles']   : '.';
+    $numSepDecimal = in_array($_POST['num_sep_decimal'] ?? ',', $sepDecOk, true)   ? $_POST['num_sep_decimal'] : ',';
+    if ($numSepMiles === $numSepDecimal) { $numSepMiles = '.'; $numSepDecimal = ','; }
+
     // ── Guardar en configuracion_app ─────────────────────────────────────────
     $pares = [
         'nombre_negocio'    => $nombre,
@@ -140,6 +148,9 @@ try {
         'font_size_small'   => (string)$fs_small,
         'color_text'        => $color_text,
         'color_text_sec'    => $color_text_sec,
+        'num_decimales'     => (string)$numDecimales,
+        'num_sep_miles'     => $numSepMiles,
+        'num_sep_decimal'   => $numSepDecimal,
     ];
     if ($logo_url       !== null) $pares['logo_url']       = $logo_url;
     if ($logo_login_url !== null) $pares['logo_url_login'] = $logo_login_url;
