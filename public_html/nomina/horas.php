@@ -238,17 +238,17 @@ $TIPOS_HORA = [
                     <br><small style="color:var(--g5)"><?= htmlspecialchars($e['cargo']) ?></small>
                     <?php endif; ?>
                 </td>
-                <td>$<?= number_format($e['valor_hora'],0,',','.') ?>/h
-                    <br><small style="color:var(--g5)"><?= number_format($horas_mes_std,2,'.','') ?>h/mes (jornada legal)</small>
+                <td>$<?= fmt_moneda($e['valor_hora']) ?>/h
+                    <br><small style="color:var(--g5)"><?= fmt_cantidad($horas_mes_std, 2) ?>h/mes (jornada legal)</small>
                 </td>
                 <td style="text-align:center"><?= $e['dias_trabajados'] ?></td>
                 <td style="text-align:right">
-                    <strong><?= number_format((float)$e['horas_total'],2,'.','') ?>h</strong>
+                    <strong><?= fmt_cantidad((float)$e['horas_total'], 2) ?>h</strong>
                     <?php if ($tieneRecargos): ?>
-                    <br><small style="color:#7c3aed" title="Horas ajustadas por recargos"><?= number_format((float)$e['horas_ponderadas'],2,'.','') ?>h ponderadas</small>
+                    <br><small style="color:#7c3aed" title="Horas ajustadas por recargos"><?= fmt_cantidad((float)$e['horas_ponderadas'], 2) ?>h ponderadas</small>
                     <?php endif; ?>
                 </td>
-                <td style="text-align:right;font-weight:700;color:var(--brand)">$<?= number_format($pago,0,',','.') ?></td>
+                <td style="text-align:right;font-weight:700;color:var(--brand)">$<?= fmt_moneda($pago) ?></td>
                 <td>
                     <a href="?mes=<?= $mes ?>&anio=<?= $anio ?>&emp=<?= $e['id'] ?>"
                        class="btn-sel">Registrar horas</a>
@@ -278,21 +278,21 @@ $TIPOS_HORA = [
             <div class="rb-lbl">Contrato por horas — <?= $meses[$mes] ?> <?= $anio ?></div>
         </div>
         <div>
-            <div class="rb-val"><?= number_format($totalHoras,2,'.','') ?>h</div>
+            <div class="rb-val"><?= fmt_cantidad($totalHoras, 2) ?>h</div>
             <div class="rb-lbl">Horas registradas</div>
         </div>
         <?php if (abs($horasPonderadas - $totalHoras) > 0.01): ?>
         <div>
-            <div class="rb-val" style="color:#7c3aed"><?= number_format($horasPonderadas,2,'.','') ?>h</div>
+            <div class="rb-val" style="color:#7c3aed"><?= fmt_cantidad($horasPonderadas, 2) ?>h</div>
             <div class="rb-lbl">Horas con recargos</div>
         </div>
         <?php endif; ?>
         <div>
-            <div class="rb-val">$<?= number_format($valorHora,2,'.','') ?></div>
+            <div class="rb-val">$<?= fmt_cantidad($valorHora, 2) ?></div>
             <div class="rb-lbl">Valor/hora base</div>
         </div>
         <div>
-            <div class="rb-val" style="color:var(--green)">$<?= number_format($pagoEst,0,',','.') ?></div>
+            <div class="rb-val" style="color:var(--green)">$<?= fmt_moneda($pagoEst) ?></div>
             <div class="rb-lbl">Pago estimado<?= abs($horasPonderadas-$totalHoras)>0.01 ? ' (c/recargos)' : '' ?></div>
         </div>
     </div>
