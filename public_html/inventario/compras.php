@@ -822,7 +822,7 @@ function selectInsumo(n) {
             // Reconstruir opciones del selector
             let opts = '<option value="">— Seleccionar presentación —</option>';
             cats.forEach(p => {
-                const prec = p.precio_referencia > 0 ? ` · $${Math.round(p.precio_referencia).toLocaleString('es-CO')}` : '';
+                const prec = p.precio_referencia > 0 ? ` · $${formatMiles(p.precio_referencia)}` : '';
                 opts += `<option value="${p.id}" data-base="${p.cantidad_base}" data-ucomp="${escHtml(p.unidad_compra)}" data-ref="${p.precio_referencia||0}">${escHtml(p.nombre)} (${p.cantidad_base} ${escHtml(ins.unidad)}/${p.unidad_compra||'und'})${prec}</option>`;
             });
             presCatSel.innerHTML = opts;
@@ -917,11 +917,11 @@ function _actualizarHintCant(n) {
         if (ins.cant_pres > 1) {
             // Presentación con múltiples unidades: ej. "3 frascos = 2700 ml"
             const total = cant * ins.cant_pres;
-            hint = `= ${total.toLocaleString('es-CO', {maximumFractionDigits:2})} ${ins.unidad} total`;
+            hint = `= ${formatDecimal(total, 2)} ${ins.unidad} total`;
         } else if (ins.equiv_cant > 0 && ins.equiv_unidad) {
             // Equivalencia física: ej. "3 lonchas = 90 g"
             const totalF = cant * ins.equiv_cant;
-            hint = `= ${totalF.toLocaleString('es-CO', {maximumFractionDigits:2})} ${ins.equiv_unidad} total`;
+            hint = `= ${formatDecimal(totalF, 2)} ${ins.equiv_unidad} total`;
         }
     }
 
@@ -1182,9 +1182,9 @@ function _mActualizarHintCant(n) {
     let hint = '';
     if (ins && cant > 0) {
         if (ins.cant_pres > 1) {
-            hint = `= ${(cant * ins.cant_pres).toLocaleString('es-CO', {maximumFractionDigits:3})} ${ins.unidad} total`;
+            hint = `= ${formatDecimal(cant * ins.cant_pres, 3)} ${ins.unidad} total`;
         } else if (ins.equiv_cant > 0 && ins.equiv_unidad) {
-            hint = `= ${(cant * ins.equiv_cant).toLocaleString('es-CO', {maximumFractionDigits:2})} ${ins.equiv_unidad} total`;
+            hint = `= ${formatDecimal(cant * ins.equiv_cant, 2)} ${ins.equiv_unidad} total`;
         }
     }
     if (hintEl) { hintEl.textContent = hint; hintEl.style.display = hint ? '' : 'none'; }
@@ -1351,8 +1351,8 @@ function calcDesdePres(n) {
     if (hint) {
         if (numPres > 0 && base > 0) {
             const cantC = numPres * base;
-            const precioU = pPres > 0 ? '$' + (pPres / base).toLocaleString('es-CO', {minimumFractionDigits:2, maximumFractionDigits:2}) + '/' + ins.unidad : '—';
-            hint.textContent = `${numPres} × ${base} ${ins.unidad}/${pres.unidad_compra||'und'} = ${cantC.toLocaleString('es-CO', {maximumFractionDigits:2})} ${ins.unidad} · ${precioU}`;
+            const precioU = pPres > 0 ? '$' + formatDecimal(pPres / base, 2) + '/' + ins.unidad : '—';
+            hint.textContent = `${numPres} × ${base} ${ins.unidad}/${pres.unidad_compra||'und'} = ${formatDecimal(cantC, 2)} ${ins.unidad} · ${precioU}`;
             hint.style.display = '';
         }
     }
