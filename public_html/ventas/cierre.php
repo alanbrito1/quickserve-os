@@ -183,7 +183,7 @@ if ($meta_diaria_c > 0) {
 }
 
 // ── 6. Texto para compartir por WhatsApp ──────────────────────────────────────
-function fmt_cop(float $n): string { return '$' . number_format($n, 0, ',', '.'); }
+function fmt_cop(float $n): string { return '$' . fmt_moneda($n); }
 
 $txt_share = '';
 if ($n_ventas_total > 0) {
@@ -395,7 +395,7 @@ $metodo_icons = [
         <div class="metodo-card <?= $cls ?>">
             <div class="metodo-icon"><?= $metodo_icons[$m] ?></div>
             <div class="metodo-label"><?= $label ?></div>
-            <div class="metodo-total">$<?= number_format((float)$row['total_pesos'], 0, ',', '.') ?></div>
+            <div class="metodo-total">$<?= fmt_moneda((float)$row['total_pesos']) ?></div>
             <div class="metodo-n"><?= (int)$row['n_ventas'] ?> venta<?= $row['n_ventas'] != 1 ? 's' : '' ?></div>
         </div>
         <?php endforeach; ?>
@@ -412,15 +412,15 @@ $metodo_icons = [
         <div class="totales-grid">
             <div class="tot-item">
                 <div class="tot-lbl">Fondo apertura</div>
-                <div class="tot-val">$<?= number_format($fondo, 0, ',', '.') ?></div>
+                <div class="tot-val">$<?= fmt_moneda($fondo) ?></div>
             </div>
             <div class="tot-item">
                 <div class="tot-lbl">Efectivo cobrado</div>
-                <div class="tot-val green">$<?= number_format($ef_total, 0, ',', '.') ?></div>
+                <div class="tot-val green">$<?= fmt_moneda($ef_total) ?></div>
             </div>
             <div class="tot-item">
                 <div class="tot-lbl">Total en caja</div>
-                <div class="tot-val" style="font-size:22px">$<?= number_format($total_caja, 0, ',', '.') ?></div>
+                <div class="tot-val" style="font-size:22px">$<?= fmt_moneda($total_caja) ?></div>
             </div>
             <div class="tot-item">
                 <div class="tot-lbl">Turno</div>
@@ -447,19 +447,19 @@ $metodo_icons = [
         <div class="totales-grid">
             <div class="tot-item">
                 <div class="tot-lbl">Cobrado hoy</div>
-                <div class="tot-val green">$<?= number_format($total_cobrado, 0, ',', '.') ?></div>
+                <div class="tot-val green">$<?= fmt_moneda($total_cobrado) ?></div>
             </div>
             <div class="tot-item">
                 <div class="tot-lbl">Fiado pendiente</div>
-                <div class="tot-val yellow">$<?= number_format($total_fiado, 0, ',', '.') ?></div>
+                <div class="tot-val yellow">$<?= fmt_moneda($total_fiado) ?></div>
             </div>
             <div class="tot-item">
                 <div class="tot-lbl">Obsequios</div>
-                <div class="tot-val gray">$<?= number_format($total_obsequio, 0, ',', '.') ?></div>
+                <div class="tot-val gray">$<?= fmt_moneda($total_obsequio) ?></div>
             </div>
             <div class="tot-item">
                 <div class="tot-lbl">Total ventas del día</div>
-                <div class="tot-val">$<?= number_format($total_ventas, 0, ',', '.') ?></div>
+                <div class="tot-val">$<?= fmt_moneda($total_ventas) ?></div>
             </div>
         </div>
         <?php if ($n_anuladas > 0): ?>
@@ -472,7 +472,7 @@ $metodo_icons = [
         <hr class="tot-sep">
         <p style="font-size:12px;color:#9ca3af">
             🏷 <?= $n_descuentos ?> venta<?= $n_descuentos != 1 ? 's' : '' ?> con descuento — total descontado:
-            <strong style="color:#92400e">−$<?= number_format($total_descuentos, 0, ',', '.') ?></strong>
+            <strong style="color:#92400e">−$<?= fmt_moneda($total_descuentos) ?></strong>
         </p>
         <?php endif; ?>
         <?php if ($meta_diaria_c > 0): ?>
@@ -482,7 +482,7 @@ $metodo_icons = [
         $mc_txt = $meta_pct_c >= 80 ? '#065f46' : ($meta_pct_c >= 50 ? '#92400e' : '#991b1b');
         ?>
         <p style="font-size:12px;color:#9ca3af;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            🎯 Meta del día: <strong style="color:var(--dark)">$<?= number_format($meta_diaria_c, 0, ',', '.') ?></strong>
+            🎯 Meta del día: <strong style="color:var(--dark)">$<?= fmt_moneda($meta_diaria_c) ?></strong>
             <span style="background:<?= $mc_bg ?>;color:<?= $mc_txt ?>;border-radius:99px;padding:2px 8px;font-weight:700;font-size:11px">
                 <?= $meta_pct_c ?>%<?= $meta_alcanzada_c ? ' ✓ ¡Alcanzada!' : '' ?>
             </span>
@@ -502,7 +502,7 @@ $metodo_icons = [
         <div class="prod-row">
             <span class="prod-nombre"><?= htmlspecialchars($prod) ?></span>
             <span class="prod-u"><?= $d['total_u'] ?> u</span>
-            <span class="prod-val">$<?= number_format($d['total_pesos'], 0, ',', '.') ?></span>
+            <span class="prod-val">$<?= fmt_moneda($d['total_pesos']) ?></span>
         </div>
         <?php if (!empty($d['variantes'])): ?>
         <div class="var-row">
@@ -515,7 +515,7 @@ $metodo_icons = [
         <div class="prod-row" style="margin-top:6px;padding-top:10px;border-top:2px solid var(--g8);border-bottom:none">
             <span class="prod-nombre" style="color:var(--g5)">Total unidades</span>
             <span class="prod-u" style="font-weight:700;color:var(--dark)"><?= $total_u_todos ?> u</span>
-            <span class="prod-val">$<?= number_format(array_sum(array_column($detalle, 'total_pesos')), 0, ',', '.') ?></span>
+            <span class="prod-val">$<?= fmt_moneda(array_sum(array_column($detalle, 'total_pesos'))) ?></span>
         </div>
     </div>
     <?php endif; ?>
@@ -536,7 +536,7 @@ $metodo_icons = [
                 <span class="<?= $f['estado'] === 'completada' ? 'fiado-estado-ok' : 'fiado-estado-pend' ?>">
                     <?= $f['estado'] === 'completada' ? '✓ pagado' : 'pendiente' ?>
                 </span>
-                <strong>$<?= number_format((float)$f['total'], 0, ',', '.') ?></strong>
+                <strong>$<?= fmt_moneda((float)$f['total']) ?></strong>
             </span>
         </div>
         <?php endforeach; ?>
