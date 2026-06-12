@@ -1,5 +1,5 @@
-# ClanDestino ERP v4.87 — Memoria de Sesión
-# Última sesión: 2026-06-11 | Próxima sesión: continuar desde este punto
+# ClanDestino ERP v4.88 — Memoria de Sesión
+# Última sesión: 2026-06-12 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -2394,3 +2394,95 @@ costos, clientes — un módulo por versión, igual que v4.81→v4.86.
 `inventario/index.php` y `inventario/conteo.php`. Precios se mantienen en 0 decimales.
 Pendiente prueba manual en navegador (default + config alternativa) antes de extender a
 v4.88+.*
+
+---
+
+## Estado v4.88 (2026-06-12)
+
+### Formato numérico configurable — módulo Productos completo
+
+Continuación de v4.87: se replicó el patrón `fmt_cantidad()`/`fmt_moneda()`/`NUM_FORMAT`/
+`formatDecimal()`/`formatMiles()`/`step="any"` en los 4 archivos del módulo **productos**, uno
+por bloque/commit, siguiendo el ritmo v4.81→v4.87.
+
+**Categorización aplicada (consistente con v4.87):** "decimales" configurable solo en
+CANTIDADES (stock, presentaciones, equivalencias, cantidades de receta, costo por unidad,
+unidades de producción) vía `fmt_cantidad()`/`formatDecimal()`/`NUM_FORMAT.decimales`;
+precios/montos en pesos siempre 0 decimales vía `fmt_moneda()`; separadores configurables en
+ambos. Quedan **fuera de alcance** (sin cambios): campos "factor" multiplicador
+(`factor_receta`/`factor_calc`, `step` fijo 0.1-0.001), valores internos de precisión solo
+para envío a API (`.toFixed(6)`), salidas PHP crudas no envueltas en `number_format` (para no
+cambiar el redondeo por defecto), y el `value`/`step` del input de precio de variante en
+consolidar.php (precisión fija de 2 decimales con `.` requerido por `<input type=number>`).
+
+### `productos/index.php` (commit `45492a3`)
+
+- Costos fijos prorrateados por unidad y precios/costos de la tabla de productos →
+  `fmt_moneda()`; "Dep. diaria" → `fmt_cantidad($x, 2)`.
+- JS: `renderReceta` (`cantidad_requerida` ×2) → `.toFixed(NUM_FORMAT.decimales)`; hint de
+  equivalencia y total de calculadora de producción → `formatDecimal()`.
+- Inputs de cantidad de receta/combo (`ci-*`, `calc-qty-*`, `combo-qty-*`,
+  `combo-add-qty-*`) → `step="any"` (antes `step="0.001"`).
+- Sin cambios: `.toFixed(6)` interno (envío a API) y campos `factor_receta` (`step="0.1"`).
+
+### `productos/analisis.php` (commit `c3f55f2`)
+
+Página 100% server-rendered, sin JS de formato. 52 sustituciones en 49 líneas vía script
+Python temporal (line-anchored, borrado tras aplicar):
+- Unidades (producción, ventas, proyecciones, punto de equilibrio) → `fmt_cantidad($x, 0)`.
+- Montos en pesos (KPIs, desglose de costos) → `fmt_moneda($x)`.
+- Costos fijos por unidad (cap./real) → `fmt_cantidad($x, 2)`.
+- Sin cambios: salidas PHP crudas (`round($x,1)`, `$prom_dia`, `$util_pct`, etc.) no envueltas
+  previamente en `number_format`.
+
+### `productos/consolidar.php` (commit `ab1056f`)
+
+- Comparativa de ingredientes (`cantidad_requerida` base/fuente) → `fmt_cantidad($x, 3)`
+  (corrige separadores `number_format($x,3)` que usaba el formato US por defecto de PHP,
+  preservando los 3 decimales de precisión).
+- Precio de venta en listas de selección de producto base/absorber → `fmt_moneda()`.
+- Sin cambios: `value` del input de precio de variante (2 decimales fijos, `.` requerido por
+  `<input type=number>`), `factor_calc`/`factor_receta` (campo multiplicador) y stock crudo
+  (`$f['stock']`, `array_sum(...)` — enteros no envueltos en `number_format`).
+
+### `productos/produccion.php` (commit `c849f63`)
+
+- "Prom./día" en la tabla de sugerencia de producción → `fmt_cantidad($x, 1)`.
+- "Costo/u (al producir)" de cada tanda → `fmt_moneda()`.
+- **Fuera de alcance**: `descuento`/`restante` del preview de insumos usan
+  `toLocaleString('es-CO', {maximumFractionDigits:4})` — el mismo patrón
+  `toLocaleString('es-CO', ...)` aparece en ~20 sitios de otros módulos (ventas, clientes,
+  costos, activos, nómina, inventario/compras.php); se migrará en un bloque dedicado
+  (candidato a v4.89) en vez de crear un helper especial solo para estas 2 líneas.
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `productos/index.php` | `fmt_cantidad()`/`fmt_moneda()`, `NUM_FORMAT.decimales`, `step="any"` |
+| `productos/analisis.php` | `fmt_cantidad()`/`fmt_moneda()` (52 sustituciones) |
+| `productos/consolidar.php` | `fmt_cantidad($x,3)` comparativa de ingredientes, `fmt_moneda()` precios |
+| `productos/produccion.php` | `fmt_cantidad($x,1)` prom./día, `fmt_moneda()` costo/u |
+| `app/config/app.php` | APP_VERSION → 4.88 |
+
+### Verificación
+
+`php -l` sin errores en los 4 archivos (4 bloques, 4 commits separados, push tras cada uno).
+**Pendiente prueba manual en navegador** (igual que v4.87, sin acceso a navegador/BD desde
+este entorno): confirmar con config por defecto (2/`.`/`,`) que las 4 páginas se ven igual
+que antes, y con config alternativa (3 decimales, separadores en-US) que cantidades/precios
+muestran los nuevos formatos correctamente.
+
+### v4.89+ (futuro)
+
+Candidatos: (a) migrar `toLocaleString('es-CO', {maximumFractionDigits:N})` (~20 sitios en
+ventas, clientes, costos, activos, nómina, inventario/compras.php) a un helper con
+`NUM_FORMAT`; (b) continuar el patrón v4.87/v4.88 en el resto de módulos (ventas, nómina,
+compras, reportes, activos, costos, clientes) — uno por versión.
+
+*Última actualización: 2026-06-12 | v4.88 — formato numérico configurable
+(`fmt_cantidad()`/`fmt_moneda()`/`NUM_FORMAT`) aplicado a los 4 archivos del módulo Productos
+(index, analisis, consolidar, produccion), 4 commits separados. Precios siguen en 0
+decimales. `toLocaleString('es-CO')` de produccion.php queda fuera de alcance (patrón
+compartido con ~20 sitios de otros módulos, candidato a v4.89). Pendiente prueba manual en
+navegador.*
