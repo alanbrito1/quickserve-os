@@ -659,9 +659,9 @@ function actualizarPreview() {
         html += '<div class="preview-row">';
         html += '<span>' + ing.nombre + '</span>';
         html += '<span class="' + cls + '">';
-        html += '−' + descuento.toLocaleString('es-CO', {maximumFractionDigits:4}) + ' ' + ing.unidad_medida;
+        html += '−' + formatDecimal(descuento, 4) + ' ' + ing.unidad_medida;
         html += suficiente
-            ? ' (quedan ' + restante.toLocaleString('es-CO', {maximumFractionDigits:4}) + ')'
+            ? ' (quedan ' + formatDecimal(restante, 4) + ')'
             : ' ⚠ INSUFICIENTE';
         html += '</span></div>';
     });
