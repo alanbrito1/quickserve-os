@@ -102,7 +102,7 @@ if (isset($_GET['export'])) {
     $w->download('ClanDestino_Nomina_' . $mes . '_' . $anio . '.xlsx');
 }
 
-$fmt = fn(float $n) => '$' . number_format($n, 0, ',', '.');
+$fmt = fn(float $n) => '$' . fmt_moneda($n);
 ?>
 <!DOCTYPE html>
 <html lang="es">
