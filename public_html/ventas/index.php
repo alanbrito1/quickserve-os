@@ -1288,7 +1288,7 @@ function acRenderDropdown() {
         const nombreMostrar = c.nombre + (c.apellido ? ' ' + c.apellido : '');
         const empresa = c.empresa ? `<div class="cli-opt-empresa">${escAc(c.empresa)}</div>` : '';
         const deuda   = c.saldo > 0
-            ? `<span class="cli-opt-deuda">Deuda $${Math.round(c.saldo).toLocaleString('es-CO')}</span>`
+            ? `<span class="cli-opt-deuda">Deuda $${formatMiles(c.saldo)}</span>`
             : '';
         return `<div class="cli-opt" data-idx="${i}" data-id="${c.id}"
                      onclick="acSeleccionar(${i})"
@@ -1344,7 +1344,7 @@ function acSeleccionar(idx) {
 
     const deudaEl = document.getElementById('cliente-chip-deuda');
     if (cli.saldo > 0) {
-        deudaEl.textContent = 'Deuda: $' + Math.round(cli.saldo).toLocaleString('es-CO');
+        deudaEl.textContent = 'Deuda: $' + formatMiles(cli.saldo);
         deudaEl.style.display = '';
     } else {
         deudaEl.style.display = 'none';
