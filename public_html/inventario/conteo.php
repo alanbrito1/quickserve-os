@@ -169,13 +169,13 @@ ksort($grupos);
                     </div>
                     <div class="ins-meta">
                         <span class="badge b-<?= $est ?>"><?= $est === 'ok' ? 'OK' : strtoupper($est) ?></span>
-                        &nbsp;Actual: <strong><?= number_format($stock_actual, 2, '.', '') ?></strong> <?= htmlspecialchars($ins['unidad_medida']) ?>
+                        &nbsp;Actual: <strong><?= fmt_cantidad($stock_actual) ?></strong> <?= htmlspecialchars($ins['unidad_medida']) ?>
                     </div>
                     <div class="ins-input-wrap">
                         <input type="number" class="ins-input"
                                id="inp-<?= $ins['id'] ?>"
-                               step="0.01" min="0"
-                               placeholder="<?= number_format($stock_actual, 2, '.', '') ?>"
+                               step="any" min="0"
+                               placeholder="<?= number_format($stock_actual, config_numeros()['decimales'], '.', '') ?>"
                                oninput="marcarCambio(<?= $ins['id'] ?>, <?= $stock_actual ?>)"
                                data-insumo-id="<?= $ins['id'] ?>">
                         <span class="ins-unidad"><?= htmlspecialchars($ins['unidad_medida']) ?></span>
@@ -185,7 +185,7 @@ ksort($grupos);
                         <select id="pc-sel-<?= $ins['id'] ?>" title="Convertir desde presentación">
                             <?php foreach ($ins['pres_cat'] as $p): ?>
                             <option value="<?= $p['cantidad_base'] ?>">
-                                <?= htmlspecialchars($p['nombre']) ?> (<?= number_format($p['cantidad_base'], 2, ',', '.') ?> <?= htmlspecialchars($ins['unidad_medida']) ?>/u)
+                                <?= htmlspecialchars($p['nombre']) ?> (<?= fmt_cantidad($p['cantidad_base']) ?> <?= htmlspecialchars($ins['unidad_medida']) ?>/u)
                             </option>
                             <?php endforeach; ?>
                         </select>
@@ -235,7 +235,7 @@ function convertirDesdePresentacionConteo(id) {
     if (cantBase <= 0 || nro <= 0) return;
     const inp  = document.getElementById('inp-' + id);
     const card = document.getElementById('card-' + id);
-    inp.value = (nro * cantBase).toFixed(2);
+    inp.value = (nro * cantBase).toFixed(NUM_FORMAT.decimales);
     marcarCambio(id, parseFloat(card.dataset.stock));
 }
 
@@ -307,9 +307,9 @@ async function guardar() {
                     const meta = card.querySelector('.ins-meta');
                     if (meta) {
                         const strong = meta.querySelector('strong');
-                        if (strong) strong.textContent = c.stock_contado.toFixed(2);
+                        if (strong) strong.textContent = formatDecimal(c.stock_contado);
                     }
-                    inp.placeholder = c.stock_contado.toFixed(2);
+                    inp.placeholder = c.stock_contado.toFixed(NUM_FORMAT.decimales);
                     inp.value = '';
                 }
             });
