@@ -791,7 +791,7 @@ function actualizarHint() {
     var mens = val / (FREC_MESES[frec] || 1);
     var hint = document.getElementById('mc-hint-mensual');
     if (hint) hint.textContent = frec !== 'mensual' && val > 0
-        ? '= $' + Math.round(mens).toLocaleString('es-CO') + ' / mes'
+        ? '= $' + formatMiles(mens) + ' / mes'
         : 'Monto que se paga por período';
 }
 document.getElementById('mc-valor')      && document.getElementById('mc-valor').addEventListener('input', actualizarHint);
