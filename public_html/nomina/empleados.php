@@ -439,10 +439,10 @@ try {
                     var vhManual = parseFloat(document.getElementById(
                         p === 'n' ? 'n-valor-hora' : 'edit-valor-hora')?.value) || 0;
                     if (vhManual > 0) {
-                        vhEl.textContent = 'Valor/hora definido manualmente: $' + vhManual.toLocaleString('es-CO');
+                        vhEl.textContent = 'Valor/hora definido manualmente: $' + formatMiles(vhManual);
                     } else {
-                        vhEl.textContent = 'Automático: $' + salario.toLocaleString('es-CO')
-                            + ' ÷ ' + horasMes.toFixed(2) + ' h = $' + vh.toLocaleString('es-CO') + '/hora';
+                        vhEl.textContent = 'Automático: $' + formatMiles(salario)
+                            + ' ÷ ' + formatDecimal(horasMes, 2) + ' h = $' + formatMiles(vh) + '/hora';
                     }
                 }
             }
