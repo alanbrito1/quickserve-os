@@ -389,7 +389,7 @@ foreach ($productos as $prod) {
                 ?>
                 <tr>
                     <td style="font-weight:600"><?= htmlspecialchars($s['nombre']) ?></td>
-                    <td style="text-align:right;color:var(--g5)"><?= number_format($s['avg'], 1) ?></td>
+                    <td style="text-align:right;color:var(--g5)"><?= fmt_cantidad($s['avg'], 1) ?></td>
                     <td style="text-align:right;<?= $clsStock ?>"><?= $s['stock'] ?></td>
                     <td style="text-align:right">
                         <span class="sug-sugerido <?= $clsSug ?>">
@@ -491,7 +491,7 @@ foreach ($productos as $prod) {
                     <td><strong><?= (int)$l['cantidad'] ?></strong> unidades</td>
                     <td class="hide-xs">
                         <?php if ($l['costo_unitario']): ?>
-                        $<?= number_format((float)$l['costo_unitario'], 0, ',', '.') ?>
+                        $<?= fmt_moneda((float)$l['costo_unitario']) ?>
                         <?php else: ?>
                         <span style="color:var(--g5)">—</span>
                         <?php endif; ?>
