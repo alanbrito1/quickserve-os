@@ -1,5 +1,5 @@
 # ClanDestino ERP v4.95 — Memoria de Sesión
-# Última sesión: 2026-06-12 | Próxima sesión: continuar desde este punto
+# Última sesión: 2026-06-13 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -3216,4 +3216,7 @@ en Admin → Apariencia; `tests/suite.php` G33 nuevo (33 grupos) prueba `fmt_agr
 aparte de placeholder en inventario (45a4e5d); fix del campo "Costo por unidad" del modal
 Ajustar (`<input type=number>` → `type=text` formateado con `parseNum()` nuevo en nav.php,
 d98118d) y fix de redondeo del costo al guardar (precio derivado `toFixed(0)` → `toFixed(2)`,
-conserva decimales; a55c7ed). `APP_VERSION` → 4.95.*
+conserva decimales; a55c7ed). Los 2 fixes del campo "Costo por unidad" verificados en
+producción (2026-06-13); auditoría proactiva confirmó que compras (`calcLinea`/`calcDesdePres`,
+precisión a 4 decimales) y `precio_referencia` (peso entero consistente) no tienen el bug.
+`APP_VERSION` → 4.95.*
