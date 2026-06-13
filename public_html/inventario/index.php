@@ -513,7 +513,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
     </div>
     <div class="fg">
       <label>Costo por unidad ($)</label>
-      <input type="number" id="aj-costo" step="any" min="0" oninput="calcCostoAj('costo')">
+      <input type="text" inputmode="decimal" id="aj-costo" oninput="calcCostoAj('costo')" onfocus="costoFocusRaw()" onblur="costoBlurFormat()">
       <span class="hint">Llena cualquier par de campos y el tercero se calcula automáticamente</span>
     </div>
 
@@ -851,7 +851,7 @@ function abrirEditar(ins) {
         document.getElementById('aj-unidad').value    = ins.unidad_medida || 'unidad';
         document.getElementById('aj-cant-pres').value = ins.cantidad_presentacion ? parseFloat(ins.cantidad_presentacion).toFixed(NUM_FORMAT.decimales) : '';
         document.getElementById('aj-precio-pres').value = ins.precio_presentacion ? parseFloat(ins.precio_presentacion).toFixed(0) : '';
-        document.getElementById('aj-costo').value     = (parseFloat(ins.costo_actual) || 0).toFixed(NUM_FORMAT.decimales);
+        document.getElementById('aj-costo').value     = formatDecimal(parseFloat(ins.costo_actual) || 0);
         document.getElementById('aj-notas').value     = ins.notas || '';
         // Cargar equivalencia física si existe
         document.getElementById('aj-equiv-cant').value   = ins.equiv_cantidad ? parseFloat(ins.equiv_cantidad).toFixed(NUM_FORMAT.decimales) : '';
@@ -890,27 +890,53 @@ function calcCostoAj(source) {
 
     var cant  = parseFloat(cantEl.value)   || 0;
     var precio = parseFloat(precioEl.value) || 0;
-    var costo  = parseFloat(costoEl.value)  || 0;
+    // El campo costo se muestra formateado salvo mientras tiene el foco (se edita
+    // en crudo). costoValorNum() devuelve el número correcto en ambos estados.
+    var costo  = costoValorNum();
 
     if (source === 'cant') {
-        if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(NUM_FORMAT.decimales); }
+        if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = formatDecimal(costo); }
         else if (costo > 0 && cant > 0)   { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
     } else if (source === 'precio') {
-        if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = costo.toFixed(NUM_FORMAT.decimales); }
+        if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = formatDecimal(costo); }
         else if (costo > 0 && precio > 0) { cant  = precio / costo; cantEl.value   = cant.toFixed(NUM_FORMAT.decimales); }
     } else if (source === 'costo') {
+        // El usuario edita costo (en crudo): NO reformatear el campo aquí (rompería el cursor).
         if (cant > 0 && costo > 0)        { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
         else if (precio > 0 && costo > 0) { cant   = precio / costo; cantEl.value  = cant.toFixed(NUM_FORMAT.decimales); }
     }
 
-    // Re-leer tras el cálculo para mostrar el resultado correcto en la vista previa
-    costo = parseFloat(costoEl.value) || 0;
+    // Vista previa (siempre formateada): usar la variable numérica, no releer el
+    // input (que puede estar en crudo mientras se edita).
     if (costo > 0) {
         if (calc) calc.innerHTML = '<strong>$' + formatDecimal(costo) + '</strong>';
         if (prev) prev.style.display = 'block';
     } else {
         if (prev) prev.style.display = 'none';
     }
+}
+
+// ── Estado del campo "Costo por unidad" (text input formateado, v4.95) ────────
+// Se muestra formateado (separadores configurables) salvo mientras tiene el foco,
+// cuando pasa a crudo ('.' decimal, sin agrupación) para edición inequívoca.
+function costoValorNum() {
+    var el = document.getElementById('aj-costo');
+    if (!el) return 0;
+    // Enfocado → contiene el número crudo escrito por el usuario; si no, formateado.
+    return (document.activeElement === el) ? (parseFloat(el.value) || 0)
+                                           : parseNum(el.value);
+}
+function costoFocusRaw() {
+    var el = document.getElementById('aj-costo');
+    if (!el || el.readOnly) return;
+    var n = parseNum(el.value);          // valor mostrado: formateado → crudo
+    el.value = n === 0 ? '' : String(n);
+}
+function costoBlurFormat() {
+    var el = document.getElementById('aj-costo');
+    if (!el || el.readOnly) return;
+    var n = parseFloat(el.value) || 0;   // valor editado: crudo → formateado
+    el.value = n === 0 ? '' : formatDecimal(n);
 }
 
 // ── Cambiar etiqueta de "Cantidad a ajustar" según el tipo seleccionado ───────
@@ -976,7 +1002,7 @@ async function confirmarAjuste() {
         fd2.append('unidad_medida',         document.getElementById('aj-unidad')?.value || 'unidad');
         fd2.append('cantidad_presentacion', document.getElementById('aj-cant-pres')?.value || '0');
         fd2.append('precio_presentacion',   document.getElementById('aj-precio-pres')?.value || '0');
-        fd2.append('costo_actual',          document.getElementById('aj-costo')?.value || '0');
+        fd2.append('costo_actual',          String(costoValorNum()));
         fd2.append('stock_seguridad',       seg);
         fd2.append('notas',                 document.getElementById('aj-notas')?.value || '');
         // Equivalencia física (solo si la sección es visible)

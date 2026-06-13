@@ -1153,4 +1153,18 @@ function formatDecimal(n, dec) {
 function formatMiles(n) {
     return formatDecimal(n, 0);
 }
+/* Inverso de formatDecimal(): convierte un texto formateado a Number, quitando
+   separadores de agrupación (miles/millones) y normalizando el decimal a '.'.
+   Para texto YA en crudo ('.' decimal, sin agrupación) usar parseFloat directo
+   (parseNum quitaría un '.' usado como separador de miles).                     */
+function parseNum(str) {
+    if (typeof str !== 'string') return Number(str) || 0;
+    var s = str.trim();
+    if (s === '') return 0;
+    s = s.split(NUM_FORMAT.sepMiles).join('');
+    if (NUM_FORMAT.sepMillones !== NUM_FORMAT.sepMiles) s = s.split(NUM_FORMAT.sepMillones).join('');
+    if (NUM_FORMAT.sepDecimal !== '.') s = s.split(NUM_FORMAT.sepDecimal).join('.');
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+}
 </script>
