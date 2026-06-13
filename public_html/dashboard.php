@@ -679,7 +679,7 @@ $nivel_labels = [
             <div class="stat-card" style="cursor:pointer" onclick="location.href='<?= APP_BASE ?>/ventas/cierre.php'">
                 <p class="stat-label">Ventas hoy</p>
                 <p class="stat-value"><?= $stats['ventas_hoy'] ?></p>
-                <p class="stat-sub">$<?= number_format($stats['ventas_total'], 0, ',', '.') ?> &middot; <span style="color:var(--brand)">Cierre →</span></p>
+                <p class="stat-sub">$<?= fmt_moneda($stats['ventas_total']) ?> &middot; <span style="color:var(--brand)">Cierre →</span></p>
             </div>
             <?php
             // Turno de caja (mig.037)
@@ -704,7 +704,7 @@ $nivel_labels = [
                 <p class="stat-label">Turno de caja</p>
                 <?php if ($turno_dashboard && $turno_dashboard['estado'] === 'abierto'): ?>
                 <p class="stat-value" style="font-size:18px;color:var(--green)">● Abierto</p>
-                <p class="stat-sub">Fondo: $<?= number_format((float)$turno_dashboard['fondo_inicial'], 0, ',', '.') ?> &middot; <span style="color:var(--brand)">Ver →</span></p>
+                <p class="stat-sub">Fondo: $<?= fmt_moneda($turno_dashboard['fondo_inicial']) ?> &middot; <span style="color:var(--brand)">Ver →</span></p>
                 <?php elseif ($turno_dashboard): ?>
                 <p class="stat-value" style="font-size:18px;color:var(--g5)">Cerrado</p>
                 <p class="stat-sub"><span style="color:var(--brand)">Ver historial →</span></p>
@@ -748,7 +748,7 @@ $nivel_labels = [
             <div class="stat-card">
                 <p class="stat-label">Fiado sin cobrar</p>
                 <p class="stat-value <?= $stats['fiado_total'] > 0 ? 'alert-yellow' : '' ?>">
-                    $<?= number_format($stats['fiado_total'], 0, ',', '.') ?>
+                    $<?= fmt_moneda($stats['fiado_total']) ?>
                 </p>
                 <p class="stat-sub">pendiente de cobro</p>
             </div>
@@ -758,7 +758,7 @@ $nivel_labels = [
             <div class="stat-card">
                 <p class="stat-label">Costos este mes</p>
                 <p class="stat-value" style="color:#6d28d9">
-                    $<?= number_format($stats['costos_mes'], 0, ',', '.') ?>
+                    $<?= fmt_moneda($stats['costos_mes']) ?>
                 </p>
                 <p class="stat-sub">costos indirectos activos</p>
             </div>
@@ -775,8 +775,8 @@ $nivel_labels = [
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                     <?php if ($meta_diaria > 0): ?>
                     <span style="font-size:13px;font-weight:700;color:var(--dark)">
-                        $<?= number_format($stats['ventas_total'], 0, ',', '.') ?>
-                        <span style="color:var(--gray-5);font-weight:400">/ $<?= number_format($meta_diaria, 0, ',', '.') ?></span>
+                        $<?= fmt_moneda($stats['ventas_total']) ?>
+                        <span style="color:var(--gray-5);font-weight:400">/ $<?= fmt_moneda($meta_diaria) ?></span>
                     </span>
                     <?php
                     $meta_color_bg  = $meta_pct >= 80 ? '#d1fae5' : ($meta_pct >= 50 ? '#fef3c7' : '#fee2e2');
@@ -838,7 +838,7 @@ $nivel_labels = [
                 <span class="meta-lbl">Ventas — últimos 7 días</span>
                 <?php if ($total_7d > 0): ?>
                 <span style="font-size:13px;font-weight:700;color:var(--dark)">
-                    $<?= number_format($total_7d, 0, ',', '.') ?>
+                    $<?= fmt_moneda($total_7d) ?>
                     <span style="color:var(--gray-5);font-weight:400;font-size:11px"> semana</span>
                 </span>
                 <?php endif; ?>
@@ -849,7 +849,7 @@ $nivel_labels = [
                     $bg = $g['hoy'] ? 'var(--brand)' : '#d1d5db';
                 ?>
                 <div style="height:<?= $px ?>px;background:<?= $bg ?>"
-                     title="$<?= number_format($g['total'], 0, ',', '.') ?>"></div>
+                     title="$<?= fmt_moneda($g['total']) ?>"></div>
                 <?php endforeach; ?>
             </div>
             <div class="chart-lbls">
@@ -876,9 +876,9 @@ $nivel_labels = [
                 </span>
             </div>
             <p style="font-size:12px;color:var(--gray-5);margin-top:8px;line-height:1.6">
-                Llevas <strong style="color:var(--dark)">$<?= number_format($cmp['actual'], 0, ',', '.') ?></strong>
+                Llevas <strong style="color:var(--dark)">$<?= fmt_moneda($cmp['actual']) ?></strong>
                 en los primeros <?= $cmp['dias'] ?> día<?= $cmp['dias'] != 1 ? 's' : '' ?> de <?= $meses_es[$cmp['mes_act']] ?? '' ?>,
-                frente a <strong style="color:var(--dark)">$<?= number_format($cmp['anterior'], 0, ',', '.') ?></strong>
+                frente a <strong style="color:var(--dark)">$<?= fmt_moneda($cmp['anterior']) ?></strong>
                 en el mismo periodo de <?= $meses_es[$cmp['mes_ant']] ?? '' ?>
                 — <?= $cmp_subio ? 'vas mejor que el mes pasado 🎉' : 'un poco más flojo que el mes pasado, ¡a recuperar terreno!' ?>
             </p>
@@ -909,7 +909,7 @@ $nivel_labels = [
                     </div>
                 </div>
                 <div style="text-align:right">
-                    <div style="font-weight:800;color:var(--brand);font-size:14px">$<?= number_format($tc['total_comprado'], 0, ',', '.') ?></div>
+                    <div style="font-weight:800;color:var(--brand);font-size:14px">$<?= fmt_moneda($tc['total_comprado']) ?></div>
                     <?php if ($tel_tcw): ?>
                     <a href="https://wa.me/<?= $tel_tcw ?>?text=<?= $msg_tc ?>" target="_blank" rel="noopener noreferrer"
                        style="color:#25d366;font-weight:700;text-decoration:none;font-size:11px">🎉 Agradecer</a>
@@ -943,7 +943,7 @@ $nivel_labels = [
                     </div>
                 </div>
                 <div style="text-align:right">
-                    <div style="font-weight:800;color:var(--brand);font-size:14px">$<?= number_format($cr['total_historico'], 0, ',', '.') ?></div>
+                    <div style="font-weight:800;color:var(--brand);font-size:14px">$<?= fmt_moneda($cr['total_historico']) ?></div>
                     <?php if ($tel_crw): ?>
                     <a href="https://wa.me/<?= $tel_crw ?>?text=<?= $msg_cr ?>" target="_blank" rel="noopener noreferrer"
                        style="color:#25d366;font-weight:700;text-decoration:none;font-size:11px">💌 Reconectar</a>
@@ -1012,7 +1012,7 @@ $nivel_labels = [
                     </div>
                     <div style="text-align:right">
                         <div style="font-weight:800;color:var(--brand);font-size:14px"><?= (int)$tp['unidades'] ?> u</div>
-                        <div style="font-size:11px;color:var(--gray-5)">$<?= number_format($tp['total_vendido'], 0, ',', '.') ?></div>
+                        <div style="font-size:11px;color:var(--gray-5)">$<?= fmt_moneda($tp['total_vendido']) ?></div>
                     </div>
                 </div>
                 <div style="height:5px;background:var(--gray-9);border-radius:3px;overflow:hidden">
@@ -1042,11 +1042,11 @@ $nivel_labels = [
                         <span style="font-size:15px;margin-right:6px"><?= $medalla_tcj ?></span>
                         <strong style="font-size:13px"><?= htmlspecialchars($tcj['nombre']) ?></strong>
                         <div style="font-size:11px;color:var(--gray-5);margin-left:21px">
-                            <?= (int)$tcj['num_ventas'] ?> venta<?= $tcj['num_ventas'] != 1 ? 's' : '' ?> · ticket prom. $<?= number_format($ticket_prom, 0, ',', '.') ?>
+                            <?= (int)$tcj['num_ventas'] ?> venta<?= $tcj['num_ventas'] != 1 ? 's' : '' ?> · ticket prom. $<?= fmt_moneda($ticket_prom) ?>
                         </div>
                     </div>
                     <div style="text-align:right">
-                        <div style="font-weight:800;color:var(--brand);font-size:14px">$<?= number_format($tcj['total_vendido'], 0, ',', '.') ?></div>
+                        <div style="font-weight:800;color:var(--brand);font-size:14px">$<?= fmt_moneda($tcj['total_vendido']) ?></div>
                     </div>
                 </div>
                 <div style="height:5px;background:var(--gray-9);border-radius:3px;overflow:hidden">
@@ -1076,7 +1076,7 @@ $nivel_labels = [
             <div style="padding:7px 0;<?= $i < $n_hp - 1 ? 'border-bottom:1px solid var(--gray-9)' : '' ?>">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                     <strong style="font-size:13px"><?= $medallas[$i] ?? '' ?> <?= sprintf('%02d:00 – %02d:00', $hora_ini, $hora_fin) ?></strong>
-                    <span style="font-size:11px;color:var(--gray-5)"><?= (int)$hp['num_ventas'] ?> venta<?= $hp['num_ventas'] != 1 ? 's' : '' ?> · $<?= number_format($hp['monto'], 0, ',', '.') ?></span>
+                    <span style="font-size:11px;color:var(--gray-5)"><?= (int)$hp['num_ventas'] ?> venta<?= $hp['num_ventas'] != 1 ? 's' : '' ?> · $<?= fmt_moneda($hp['monto']) ?></span>
                 </div>
                 <div class="progress-track">
                     <div class="progress-fill" style="width:<?= $pct_hp ?>%;background:var(--brand)"></div>
@@ -1107,14 +1107,14 @@ $nivel_labels = [
                     <div class="alerta-sub"><?= htmlspecialchars($pr['nombre2']) ?></div>
                     <?php endif; ?>
                     <div style="font-size:11px;color:var(--gray-5)">
-                        Venta: $<?= number_format($pr['precio_venta'], 0, ',', '.') ?> · Costo: $<?= number_format($pr['costo_calculado'], 0, ',', '.') ?>
+                        Venta: $<?= fmt_moneda($pr['precio_venta']) ?> · Costo: $<?= fmt_moneda($pr['costo_calculado']) ?>
                     </div>
                 </div>
                 <div style="text-align:right">
                     <span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:<?= $mrg_bg ?>;color:<?= $mrg_txt ?>">
                         <?= number_format($margen_pct, 1) ?>%
                     </span>
-                    <div style="font-size:11px;color:var(--gray-5);margin-top:3px">+$<?= number_format($pr['margen_unitario'], 0, ',', '.') ?> c/u</div>
+                    <div style="font-size:11px;color:var(--gray-5);margin-top:3px">+$<?= fmt_moneda($pr['margen_unitario']) ?> c/u</div>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -1147,7 +1147,7 @@ $nivel_labels = [
                     <div>
                         <div class="alerta-nom"><?= htmlspecialchars($ins['nombre']) ?></div>
                         <div class="alerta-sub">
-                            Mín: <?= number_format($ins['stock_seguridad'],2,',','.') ?>
+                            Mín: <?= fmt_cantidad($ins['stock_seguridad']) ?>
                             <?= htmlspecialchars($ins['unidad_medida']) ?>
                             <?php if ($tel_ipw): ?>
                             &nbsp;·&nbsp;
@@ -1161,7 +1161,7 @@ $nivel_labels = [
                         </div>
                     </div>
                     <div class="alerta-val">
-                        <?= number_format($ins['stock_actual'],2,',','.') ?>
+                        <?= fmt_cantidad($ins['stock_actual']) ?>
                         <?= htmlspecialchars($ins['unidad_medida']) ?>
                     </div>
                 </div>
@@ -1179,7 +1179,7 @@ $nivel_labels = [
                 <?php
                 $tel_da  = preg_replace('/[^0-9]/', '', $cli['telefono'] ?? '');
                 $tel_wad = (strlen($tel_da) === 10 && str_starts_with($tel_da, '3')) ? '57'.$tel_da : $tel_da;
-                $sf_fmt  = '$' . number_format($cli['saldo_fiado'], 0, ',', '.');
+                $sf_fmt  = '$' . fmt_moneda($cli['saldo_fiado']);
                 $msg_wad = rawurlencode(
                     "Hola {$cli['nombre']}, te recordamos que tienes un saldo pendiente de {$sf_fmt} en "
                     . APP_NAME . ". ¿Cuándo podemos acordar el pago? ¡Gracias! 🙏"
@@ -1199,7 +1199,7 @@ $nivel_labels = [
                         </div>
                         <?php endif; ?>
                     </div>
-                    <div class="alerta-val">$<?= number_format($cli['saldo_fiado'],0,',','.') ?></div>
+                    <div class="alerta-val">$<?= fmt_moneda($cli['saldo_fiado']) ?></div>
                 </div>
                 <?php endforeach; ?>
             </div>
