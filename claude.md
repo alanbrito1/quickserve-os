@@ -3161,6 +3161,30 @@ configurable:
 - Verificado por el usuario en producción. Commit: `d98118d` `fix: campo Costo por unidad
   respeta separadores configurables (v4.95)`.
 
+### 6. Fix — "Costo por unidad" conserva decimales al guardar (no redondea a entero)
+
+Tras el fix anterior, el usuario notó que al guardar un costo con decimales (ej. `1000.50`) se
+guardaba redondeado al entero (`1001`; `1000.20` → `1000`). Causa — el modelo de datos:
+`insumos.costo_actual` (DECIMAL 12,4) **siempre se deriva** de `precio_presentacion ÷
+cantidad_presentacion`, por trigger DB (`trg_insumos_costo_from_presentacion_update`) **y** por
+PHP (`inventario/api/insumo_crud.php:128-130`). El JS de `calcCostoAj()` calculaba el precio
+derivado con `precio.toFixed(0)` (redondeo a peso entero); al recalcular el trigger
+`costo = precio / cant`, los decimales del costo se perdían (costo `1000.50`, cant `1` → precio
+`1001` → costo `1001`).
+
+- `precio_presentacion` es `DECIMAL(12,2)` (admite centavos); el `toFixed(0)` era un redondeo
+  de más. Corregido: el precio derivado y su carga inicial usan `toFixed(2)`, conservando los
+  centavos y por tanto los decimales del costo. Input precio: `step="1"` → `step="any"`.
+- Consecuencia esperada: si el costo tiene decimales y la cantidad es 1, "Precio por
+  presentación" mostrará esos decimales (ej. `1000.5`) — matemáticamente correcto
+  (`costo = precio ÷ cantidad`). Para cantidades > 1 (caso normal, ej. precio 1005 / cant 1000 →
+  costo 1.005) no había regresión.
+- Decisión de alcance (confirmada con el usuario): "Cantidad por presentación" y "Precio por
+  presentación" se dejan como `<input type="number">` crudo, consistente con la convención
+  documentada de toda la app (inputs de precio/cantidad no se formatean con separadores). Solo
+  "Costo por unidad" usa el campo de texto formateado (§5), por su preview contiguo.
+- Commit: `a55c7ed` `fix: Costo por unidad conserva decimales al guardar (no redondea a entero)`.
+
 ### Cambios de versión
 
 - `app/config/app.php`: `APP_VERSION` → `4.95`.
@@ -3191,4 +3215,5 @@ la agrupación de miles de `number_format()` con agrupación propia de 2 separad
 en Admin → Apariencia; `tests/suite.php` G33 nuevo (33 grupos) prueba `fmt_agrupar()`; fix
 aparte de placeholder en inventario (45a4e5d); fix del campo "Costo por unidad" del modal
 Ajustar (`<input type=number>` → `type=text` formateado con `parseNum()` nuevo en nav.php,
-d98118d). `APP_VERSION` → 4.95.*
+d98118d) y fix de redondeo del costo al guardar (precio derivado `toFixed(0)` → `toFixed(2)`,
+conserva decimales; a55c7ed). `APP_VERSION` → 4.95.*
