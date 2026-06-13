@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.94'); // 2026-06-12: v4.94 migracion fmt_moneda()/fmt_cantidad() en 8 archivos (~58 sitios: clientes, activos, admin, costos, dashboard); suite.php G32 (32 grupos) audita number_format hardcodeado
+define('APP_VERSION', '4.95'); // 2026-06-12: v4.95 separador de millones independiente (migracion 041): fmt_agrupar() en FormatoHelper.php + formatDecimal() en nav.php; nuevo selector en Admin > Apariencia; suite.php G33 (33 grupos) prueba fmt_agrupar()
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

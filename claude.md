@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.94 — Memoria de Sesión
+# ClanDestino ERP v4.95 — Memoria de Sesión
 # Última sesión: 2026-06-12 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -3060,3 +3060,105 @@ inventario/index, clientes/estado_cuenta, clientes/index, activos/index, admin/b
 costos/index, dashboard) en 7 commits; 5 excepciones documentadas (literales JS, porcentajes/
 ratios, atributos de `<input type="number">`, multiplicadores); `tests/suite.php` G32 nuevo
 (32 grupos) audita `number_format` hardcodeado en todo el proyecto. `APP_VERSION` → 4.94.*
+
+---
+
+## Estado v4.95 (2026-06-12)
+
+### 1. Separador de millones independiente — migración 041 + `fmt_agrupar()`
+
+v4.87-v4.94 dejaron el formato numérico configurable (decimales, separador de miles,
+separador decimal) vía `fmt_cantidad()`/`fmt_moneda()` (`FormatoHelper.php`, basados en
+`number_format()`) y `window.NUM_FORMAT` + `formatDecimal()`/`formatMiles()` en `nav.php`.
+Como `number_format()` solo soporta UN separador de miles repetido, no era posible que el
+grupo de "millones" (y superiores) usara un separador distinto al del grupo más cercano al
+decimal.
+
+- **Migración 041** (`database/migrations/041_config_sep_millones.sql`): nueva clave
+  `num_sep_millones` en `configuracion_app`, default `'.'` (= `num_sep_miles` por defecto →
+  formato uniforme, sin cambios para instalaciones existentes).
+- **`FormatoHelper.php`**: `config_numeros()` agrega `'sep_millones' => '.'` a los defaults y
+  lee `num_sep_millones`. Nueva función `fmt_agrupar(float $n, int $dec, array $cfg): string`
+  — agrupación propia de la parte entera en bloques de 3 dígitos: el grupo junto al decimal
+  usa `sep_miles`, todos los grupos a la izquierda usan `sep_millones`. `number_format()` se
+  usa solo para redondeo/relleno decimal (sin separadores). `fmt_cantidad()`/`fmt_moneda()`
+  ahora llaman a `fmt_agrupar()` — sin cambios de firma.
+- **`nav.php`**: carga `num_sep_millones` (con la misma whitelist `['.', ',', ' ', "'"]` que
+  `num_sep_miles`; colisión con `sep_decimal` cae a `sep_miles`). `window.NUM_FORMAT.sepMillones`
+  nuevo. `formatDecimal()` reescrito con agrupación manual por bloques de 3 (igual lógica que
+  `fmt_agrupar()` en PHP); `formatMiles()` sin cambios (sigue llamando `formatDecimal(n, 0)`).
+- Ejemplo con `sep_miles='.'`, `sep_millones="'"`: `1234567` → `1'234.567`; `1234567890` →
+  `1'234'567.890`. Con `sep_millones = sep_miles` (default) el resultado es idéntico al actual
+  (ej. `1.234.567`) — los ~96 archivos auditados por G32 (v4.94) no cambian.
+- Commit: `f8ce48e` `feat: separador de millones independiente en formato numerico (migracion 041)`.
+
+### 2. Admin > Apariencia — nuevo selector "Separador de millones"
+
+- `admin/apariencia.php`: nuevo `<select id="ap-num-sep-millones">` (Punto/Coma/Espacio/
+  Apóstrofe) junto al selector "Separador de miles", con ejemplos de 7 cifras y hint explicando
+  que solo se nota en números ≥ 1.000.000 y que, si coincide con el separador de miles, el
+  formato es uniforme (como hasta ahora). `guardarApariencia()` envía `num_sep_millones` en el
+  FormData.
+- `admin/api/guardar_apariencia.php`: valida `num_sep_millones` con la misma whitelist
+  `$sepMilesOk` que `num_sep_miles`; si coincide con `num_sep_decimal`, cae a `num_sep_miles`
+  (que en ese punto ya está resuelto y validado). Se persiste en `configuracion_app` junto a las
+  demás claves de formato. Mismo permiso existente (superadmin/admin), sin cambios de permisos.
+- Incluido en el commit `f8ce48e` (mismo commit del punto 1).
+
+### 3. `tests/suite.php` — de 32 a 33 grupos (G01-G33)
+
+- **G33 Separador millones** (nuevo): prueba `fmt_agrupar()` directamente con arrays `$cfg`
+  construidos a mano (no toca `configuracion_app`, para no afectar la config en vivo):
+  1. `config_numeros()` incluye la clave `'sep_millones'` con valor no vacío.
+  2. Formato uniforme (`sep_miles = sep_millones = '.'`, `sep_decimal = ','`):
+     `fmt_agrupar(1234567, 0, $cfg) === '1.234.567'`.
+  3. Separadores distintos (`sep_miles='.'`, `sep_millones="'"`):
+     `fmt_agrupar(1234567.89, 2, $cfg) === "1'234.567,89"`.
+  4. 4 grupos / miles de millones: `fmt_agrupar(1234567890, 0, $cfg) === "1'234'567.890"`.
+  5. Negativos: `fmt_agrupar(-1234567, 0, $cfg) === "-1'234.567"`.
+  6. Sin agrupación (< 1000): `fmt_agrupar(45, 2, $cfg) === '45,00'`.
+- G32 (auditoría de `number_format` hardcodeado) sigue intacto y en PASS — ningún sitio de los
+  96 archivos auditados cambia, solo el motor interno de `fmt_cantidad()`/`fmt_moneda()`.
+- Docblock y meta HTML actualizados ("32 grupos" → "33 grupos"). `php -l` sin errores.
+- Commit: `e6c3afb` `test: agregar G33 - separador de millones independiente (v4.95)`.
+
+### 4. Fix aparte — placeholder de "Cantidad a ajustar" respeta decimales configurados
+
+Bug detectado al revisar `inventario/index.php`: `actualizarLabelCantidadAjuste()` usaba
+placeholders hardcodeados (`'0.00'` / `'Ej: 12.50'`) en vez de `NUM_FORMAT.decimales`
+(migración 040, v4.87+), por lo que el placeholder no reflejaba la cantidad de decimales
+configurada en Admin → Apariencia. Corregido a `(0).toFixed(NUM_FORMAT.decimales)` y
+`'Ej: ' + (12.5).toFixed(NUM_FORMAT.decimales)`. Sin relación con el resto de v4.95 — commit
+separado por convención (commits frecuentes y acotados por cambio).
+
+- Commit: `45a4e5d` `fix: placeholder de Cantidad a ajustar respeta decimales configurados`.
+
+### Cambios de versión
+
+- `app/config/app.php`: `APP_VERSION` → `4.95`.
+
+### Pendiente
+
+Sin tareas de desarrollo pendientes de v4.95. Próxima sesión, verificación manual (no
+automatizable por `tests/suite.php`):
+
+1. Con la config recién migrada (`sep_millones='.'`, igual a `sep_miles`), confirmar en el
+   navegador que todo se ve exactamente igual que antes (Inventario/Dashboard/Reportes).
+2. En Admin → Apariencia, cambiar "Separador de millones" a Apóstrofe (miles=Punto,
+   decimal=Coma), guardar, y confirmar que un valor ≥ 1.000.000 (ej. "Inversión total" en
+   Activos) se ve `1'234.567`.
+3. Probar colisión: "Separador de millones" = Coma con "Separador decimal" = Coma → guardar →
+   confirmar que el backend cae a `sep_millones = sep_miles` sin error.
+4. Volver "Separador de millones" a Punto (uniforme) antes de cerrar la sesión.
+
+Además, sigue pendiente (pausado desde v4.83) reanudar el Bloque A2-A4/B1-B5 de pruebas
+manuales acumuladas v4.83-v4.92 (cambiar Admin → Apariencia a 3 decimales + separadores en-US,
+verificar, revertir; luego presentaciones/equivalencias) — ver
+`C:\Users\alan_\.claude\plans\curried-napping-hollerith.md`.
+
+*Última actualización: 2026-06-12 | v4.95 — separador de "millones" independiente del
+separador de "miles" (migración 041): `fmt_agrupar()` nuevo en `FormatoHelper.php` reemplaza
+la agrupación de miles de `number_format()` con agrupación propia de 2 separadores;
+`formatDecimal()` (nav.php) con la misma lógica en JS; nuevo selector "Separador de millones"
+en Admin → Apariencia; `tests/suite.php` G33 nuevo (33 grupos) prueba `fmt_agrupar()`; fix
+aparte de placeholder en inventario (45a4e5d). `APP_VERSION` → 4.95.*
