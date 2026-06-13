@@ -392,8 +392,8 @@ $total_kb    = array_sum(array_column($tabla_stats, 'kb'));
     <!-- KPIs -->
     <div class="kpi-row">
         <div class="kpi"><div class="kpi-val"><?= count($tabla_stats) ?></div><div class="kpi-lbl">Tablas</div></div>
-        <div class="kpi"><div class="kpi-val"><?= number_format($total_filas, 0, ',', '.') ?></div><div class="kpi-lbl">Registros totales</div></div>
-        <div class="kpi"><div class="kpi-val"><?= number_format($total_kb, 0, ',', '.') ?> KB</div><div class="kpi-lbl">Tamaño estimado</div></div>
+        <div class="kpi"><div class="kpi-val"><?= fmt_cantidad($total_filas, 0) ?></div><div class="kpi-lbl">Registros totales</div></div>
+        <div class="kpi"><div class="kpi-val"><?= fmt_cantidad($total_kb, 0) ?> KB</div><div class="kpi-lbl">Tamaño estimado</div></div>
         <div class="kpi"><div class="kpi-val" style="font-size:16px"><?= date('d/m/Y') ?></div><div class="kpi-lbl">Fecha actual</div></div>
     </div>
 
@@ -523,8 +523,8 @@ $total_kb    = array_sum(array_column($tabla_stats, 'kb'));
                 <?php foreach ($tabla_stats as $t): ?>
                 <tr>
                     <td><code><?= htmlspecialchars($t['nombre']) ?></code></td>
-                    <td class="r"><?= number_format((int)$t['filas'], 0, ',', '.') ?></td>
-                    <td class="r"><?= number_format((float)$t['kb'], 2, ',', '.') ?></td>
+                    <td class="r"><?= fmt_cantidad((int)$t['filas'], 0) ?></td>
+                    <td class="r"><?= fmt_cantidad((float)$t['kb'], 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>
