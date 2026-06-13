@@ -506,7 +506,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
       <div class="fg"><label>Cantidad por presentación</label>
         <input type="number" id="aj-cant-pres" step="any" min="0" oninput="calcCostoAj('cant')"></div>
       <div class="fg"><label>Precio por presentación ($)</label>
-        <input type="number" id="aj-precio-pres" step="1" min="0" oninput="calcCostoAj('precio')"></div>
+        <input type="number" id="aj-precio-pres" step="any" min="0" oninput="calcCostoAj('precio')"></div>
     </div>
     <div class="costo-preview" id="aj-costo-preview">
       <strong>Costo por unidad:</strong> <span id="aj-costo-calc">—</span>
@@ -850,7 +850,7 @@ function abrirEditar(ins) {
         document.getElementById('aj-pres').value      = ins.presentacion || '';
         document.getElementById('aj-unidad').value    = ins.unidad_medida || 'unidad';
         document.getElementById('aj-cant-pres').value = ins.cantidad_presentacion ? parseFloat(ins.cantidad_presentacion).toFixed(NUM_FORMAT.decimales) : '';
-        document.getElementById('aj-precio-pres').value = ins.precio_presentacion ? parseFloat(ins.precio_presentacion).toFixed(0) : '';
+        document.getElementById('aj-precio-pres').value = ins.precio_presentacion ? parseFloat(ins.precio_presentacion).toFixed(2) : '';
         document.getElementById('aj-costo').value     = formatDecimal(parseFloat(ins.costo_actual) || 0);
         document.getElementById('aj-notas').value     = ins.notas || '';
         // Cargar equivalencia física si existe
@@ -896,13 +896,13 @@ function calcCostoAj(source) {
 
     if (source === 'cant') {
         if (precio > 0 && cant > 0)       { costo = precio / cant;  costoEl.value  = formatDecimal(costo); }
-        else if (costo > 0 && cant > 0)   { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
+        else if (costo > 0 && cant > 0)   { precio = costo * cant;  precioEl.value = precio.toFixed(2); }
     } else if (source === 'precio') {
         if (cant > 0 && precio > 0)       { costo = precio / cant;  costoEl.value  = formatDecimal(costo); }
         else if (costo > 0 && precio > 0) { cant  = precio / costo; cantEl.value   = cant.toFixed(NUM_FORMAT.decimales); }
     } else if (source === 'costo') {
         // El usuario edita costo (en crudo): NO reformatear el campo aquí (rompería el cursor).
-        if (cant > 0 && costo > 0)        { precio = costo * cant;  precioEl.value = precio.toFixed(0); }
+        if (cant > 0 && costo > 0)        { precio = costo * cant;  precioEl.value = precio.toFixed(2); }
         else if (precio > 0 && costo > 0) { cant   = precio / costo; cantEl.value  = cant.toFixed(NUM_FORMAT.decimales); }
     }
 
