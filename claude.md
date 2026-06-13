@@ -3133,6 +3133,34 @@ separado por convención (commits frecuentes y acotados por cambio).
 
 - Commit: `45a4e5d` `fix: placeholder de Cantidad a ajustar respeta decimales configurados`.
 
+### 5. Fix — campo "Costo por unidad" (modal Ajustar) respeta separadores configurables
+
+Al revisar la config con separadores no-default, el usuario notó que el campo "Costo por
+unidad" del modal Ajustar (`inventario/index.php`) seguía mostrando el valor en crudo (ej.
+`1000.00`) mientras que el preview formateado justo encima mostraba `$1.000,00`. Causa: era un
+`<input type="number">`, que por especificación del navegador **siempre** usa `.` decimal y
+nunca muestra separador de miles (la misma limitación documentada para los otros number inputs
+en v4.88/v4.94). Solución — convertirlo a `<input type="text" inputmode="decimal">` con formato
+configurable:
+
+- **`app/views/nav.php`**: nueva función global `parseNum(str)` (inverso de `formatDecimal()`):
+  texto formateado → `Number`, quitando separadores de miles/millones y normalizando el decimal
+  a `.`. Para texto ya en crudo se usa `parseFloat` directo (parseNum quitaría un `.` usado como
+  separador de miles).
+- **`inventario/index.php`**: el campo se muestra **formateado** salvo mientras tiene el foco,
+  cuando pasa a **crudo** (`.` decimal, sin agrupación) para edición inequívoca y sin saltos de
+  cursor. Helpers `costoValorNum()` (lee el número correcto según el campo esté enfocado o no,
+  vía `document.activeElement`), `costoFocusRaw()` (foco → crudo) y `costoBlurFormat()` (blur →
+  formateado). `calcCostoAj()` lee/escribe el costo según estado (al editar costo NO reformatea
+  el campo; al calcularlo desde cantidad/precio sí); carga inicial usa `formatDecimal()` y el
+  envío del form manda el número crudo a PHP vía `costoValorNum()`. Respeta `readOnly` cuando
+  hay presentaciones catalogadas (mig 039).
+- Los otros dos campos del modal ("Cantidad por presentación", "Precio por presentación") siguen
+  como `<input type="number">` por decisión de alcance — no tienen preview formateado encima que
+  evidencie el contraste; pendiente solo si se quiere consistencia visual del modal.
+- Verificado por el usuario en producción. Commit: `d98118d` `fix: campo Costo por unidad
+  respeta separadores configurables (v4.95)`.
+
 ### Cambios de versión
 
 - `app/config/app.php`: `APP_VERSION` → `4.95`.
@@ -3161,4 +3189,6 @@ separador de "miles" (migración 041): `fmt_agrupar()` nuevo en `FormatoHelper.p
 la agrupación de miles de `number_format()` con agrupación propia de 2 separadores;
 `formatDecimal()` (nav.php) con la misma lógica en JS; nuevo selector "Separador de millones"
 en Admin → Apariencia; `tests/suite.php` G33 nuevo (33 grupos) prueba `fmt_agrupar()`; fix
-aparte de placeholder en inventario (45a4e5d). `APP_VERSION` → 4.95.*
+aparte de placeholder en inventario (45a4e5d); fix del campo "Costo por unidad" del modal
+Ajustar (`<input type=number>` → `type=text` formateado con `parseNum()` nuevo en nav.php,
+d98118d). `APP_VERSION` → 4.95.*
