@@ -12,6 +12,16 @@ require_once __DIR__ . '/../../app/helpers/AuditoriaHelper.php';
 header('Content-Type: application/json; charset=utf-8');
 permiso_requerir('ventas', 'editar_existentes');
 
+// Detectar migración 042 (ventas.metodo_cobro) — con qué se cobró un fiado.
+$tiene042 = false;
+try {
+    $tiene042 = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+           AND COLUMN_NAME='metodo_cobro'"
+    )->fetchColumn() > 0;
+} catch (\Exception $e) { $tiene042 = false; }
+
 // ── GET: cargar datos para el modal ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $id = (int)($_GET['id'] ?? 0);
@@ -22,10 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $pdo = db();
 
+    $colCobroSel = $tiene042 ? ', v.metodo_cobro' : ', NULL AS metodo_cobro';
     $stmt = $pdo->prepare(
-        'SELECT v.id, v.cliente_id, v.metodo_pago, v.notas, v.estado,
-                v.fecha_venta, v.fecha_pago, v.total
-         FROM ventas v WHERE v.id = ?'
+        "SELECT v.id, v.cliente_id, v.metodo_pago, v.notas, v.estado,
+                v.fecha_venta, v.fecha_pago, v.total{$colCobroSel}
+         FROM ventas v WHERE v.id = ?"
     );
     $stmt->execute([$id]);
     $venta = $stmt->fetch();
@@ -132,6 +143,16 @@ if ($metodo_pago === 'fiado') {
     $fp = trim($_POST['fecha_pago'] ?? '');
     if ($fp && preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/', $fp)) {
         $fecha_pago = str_replace('T', ' ', substr($fp, 0, 16)) . ':00';
+    }
+}
+
+// metodo_cobro: con qué se cobró el fiado. Solo aplica a fiado YA cobrado
+// (con fecha_pago); para los demás casos se descarta (NULL).
+$metodo_cobro = null;
+if ($metodo_pago === 'fiado' && $fecha_pago) {
+    $mc = $_POST['metodo_cobro'] ?? '';
+    if (in_array($mc, ['efectivo', 'nequi', 'daviplata', 'bancolombia'], true)) {
+        $metodo_cobro = $mc;
     }
 }
 
@@ -398,13 +419,8 @@ try {
     $estadoNuevo = ($metodo_pago === 'fiado' && !$fecha_pago) ? 'pendiente_pago' : 'completada';
 
     // ── 6. Actualizar cabecera ──────────────────────────────────────────────────
-    $pdo->prepare(
-        'UPDATE ventas
-         SET cliente_id = :cid, metodo_pago = :metodo, total = :total, notas = :notas,
-             estado = :estado, fecha_pago = :fpago, es_combo = :combo,
-             fecha_venta = COALESCE(:fventa, fecha_venta), updated_by = :uid
-         WHERE id = :id'
-    )->execute([
+    $setCobro    = $tiene042 ? ', metodo_cobro = :mcobro' : '';
+    $paramsVenta = [
         ':cid'    => $cliente_id,
         ':metodo' => $metodo_pago,
         ':total'  => $total,
@@ -415,7 +431,16 @@ try {
         ':fventa' => $fecha_venta,
         ':uid'    => $uid,
         ':id'     => $id,
-    ]);
+    ];
+    if ($tiene042) $paramsVenta[':mcobro'] = $metodo_cobro;
+
+    $pdo->prepare(
+        "UPDATE ventas
+         SET cliente_id = :cid, metodo_pago = :metodo, total = :total, notas = :notas,
+             estado = :estado, fecha_pago = :fpago, es_combo = :combo,
+             fecha_venta = COALESCE(:fventa, fecha_venta), updated_by = :uid{$setCobro}
+         WHERE id = :id"
+    )->execute($paramsVenta);
 
     // ── 7. Ajustar fiado del nuevo cliente ──────────────────────────────────────
     if ($metodo_pago === 'fiado' && $cliente_id) {

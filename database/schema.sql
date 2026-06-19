@@ -408,6 +408,9 @@ CREATE TABLE `ventas` (
     `id`           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `fecha_venta`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `fecha_pago`   DATETIME        DEFAULT NULL,   -- NULL en fiados no cobrados
+    -- Método con que se cobró una venta fiada (mig. 042); NULL = no aplica o aún sin cobrar.
+    -- metodo_pago permanece en 'fiado' (origen); metodo_cobro guarda con qué se saldó.
+    `metodo_cobro` ENUM('efectivo','nequi','daviplata','bancolombia') DEFAULT NULL,
     `cliente_id`   INT UNSIGNED    DEFAULT NULL,   -- NULL = venta mostrador
     `metodo_pago`  ENUM('efectivo','nequi','daviplata','bancolombia','fiado','obsequio') NOT NULL,
     -- obsequio (mig. 026): NO genera ingreso, solo descuenta stock

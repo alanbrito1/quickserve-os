@@ -63,9 +63,20 @@ try {
 } catch (\Exception $e) {}
 $col_desc038h = $tiene_038h ? 'v.descuento_pct,' : '0 AS descuento_pct,';
 
+// Detectar migración 042 (metodo_cobro en ventas)
+$tiene_042h = false;
+try {
+    $tiene_042h = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+           AND COLUMN_NAME='metodo_cobro'"
+    )->fetchColumn() > 0;
+} catch (\Exception $e) {}
+$col_cobro042h = $tiene_042h ? 'v.metodo_cobro,' : 'NULL AS metodo_cobro,';
+
 $stmt = db()->prepare(
     "SELECT v.id, v.fecha_venta, v.metodo_pago, v.total, v.estado, v.notas,
-            v.fecha_pago, v.es_combo, {$col_desc038h}
+            v.fecha_pago, v.es_combo, {$col_desc038h} {$col_cobro042h}
             IFNULL(c.nombre, 'Mostrador') AS cliente_nombre,
             u.nombre                       AS cajero_nombre,
             -- Usar nombre_snap si existe (migración 034); si no, usar nombre actual del producto
@@ -451,7 +462,7 @@ foreach ($ventas as $v) {
                 <td>
                     <span class="badge badge-<?= $estBadge ?>"><?= $estLabel ?></span>
                     <?php if ($v['fecha_pago']): ?>
-                    <br><small class="muted">Cobrado <?= date('d/m H:i', strtotime($v['fecha_pago'])) ?></small>
+                    <br><small class="muted">Cobrado <?= date('d/m H:i', strtotime($v['fecha_pago'])) ?><?php if (!empty($v['metodo_cobro'])): ?> · <?= htmlspecialchars(ucfirst($v['metodo_cobro'])) ?><?php endif; ?></small>
                     <?php endif; ?>
                 </td>
                 <td>
@@ -521,7 +532,16 @@ foreach ($ventas as $v) {
                         <label>Fecha de cobro (fiado)</label>
                         <input type="datetime-local" id="edit-fecha-pago" max="<?= date('Y-m-d\TH:i') ?>">
                     </div>
-                    <div></div>
+                    <div class="fg-m">
+                        <label>Método de cobro</label>
+                        <select id="edit-metodo-cobro">
+                            <option value="">— Sin especificar —</option>
+                            <option value="efectivo">Efectivo</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                            <option value="bancolombia">Bancolombia</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-row full">
                     <div class="fg-m">
@@ -669,6 +689,7 @@ function abrirEditar(id) {
             document.getElementById('edit-fecha-venta').value = fv ? fv.substring(0,16).replace(' ','T') : '';
             var fp = d.venta.fecha_pago;
             document.getElementById('edit-fecha-pago').value = fp ? fp.substring(0,16).replace(' ','T') : '';
+            document.getElementById('edit-metodo-cobro').value = d.venta.metodo_cobro || '';
             onMetodoChange();
 
             d.items.forEach(function(item){ agregarItemFila(item); });
@@ -687,7 +708,10 @@ function cerrarEditar() {
 function onMetodoChange() {
     var esF = document.getElementById('edit-metodo').value === 'fiado';
     document.getElementById('row-fecha-pago').style.display = esF ? '' : 'none';
-    if (!esF) document.getElementById('edit-fecha-pago').value = '';
+    if (!esF) {
+        document.getElementById('edit-fecha-pago').value = '';
+        document.getElementById('edit-metodo-cobro').value = '';
+    }
 }
 
 function agregarItemFila(item) {
@@ -764,6 +788,7 @@ async function guardarEdicion() {
     var notas     = document.getElementById('edit-notas').value;
     var fechaVenta = document.getElementById('edit-fecha-venta').value;
     var fechaPago  = document.getElementById('edit-fecha-pago').value;
+    var metodoCobro = document.getElementById('edit-metodo-cobro').value;
 
     var items = [];
     document.querySelectorAll('#edit-items-body tr').forEach(function(tr) {
@@ -792,6 +817,7 @@ async function guardarEdicion() {
     fd.append('notas',       notas);
     fd.append('fecha_venta', fechaVenta ? fechaVenta.replace('T', ' ') : '');
     fd.append('fecha_pago',  fechaPago  ? fechaPago.replace('T', ' ')  : '');
+    fd.append('metodo_cobro', metodoCobro || '');
     fd.append('items_json', JSON.stringify(items));
 
     try {
