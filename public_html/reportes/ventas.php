@@ -17,6 +17,12 @@ permiso_requerir('reportes', 'solo_ver');
 $desde = $_GET['desde'] ?? date('Y-m-d', strtotime('-30 days'));
 $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
+// Filtro por forma de pago (origen de la venta) — 'todos' = sin filtro.
+// Aplica al detalle, stats de cabecera y export; la discriminación de ingresos
+// por forma de pago (más abajo) se calcula sobre TODO el período, sin filtrar.
+$metodos_filtro_ok = ['efectivo','nequi','daviplata','bancolombia','fiado','obsequio'];
+$metodo_filtro = in_array($_GET['metodo'] ?? '', $metodos_filtro_ok, true) ? $_GET['metodo'] : 'todos';
+
 // Filtro solo_propios
 $solo_uid = permiso_es_solo_propios('ventas') ? (int)$usuario_activo['id'] : null;
 $ventas   = VentaModel::historial($desde, $hasta, $solo_uid);
@@ -152,6 +158,73 @@ try {
     }
 } catch (\Exception $e) {}
 
+// ── Método de cobro de fiados (mig.042) ─────────────────────────────────────
+// $cobro_map: con qué método se cobró cada venta fiada del período (para la
+// columna del detalle/Excel). $ingresos_forma: DISCRIMINA cuánto dinero entró
+// por cada forma de pago, separando ventas directas de cobros de fiado, para
+// saber exactamente el origen del efectivo/digital recibido.
+$tiene042r = false;
+$cobro_map = [];                 // [venta_id => metodo_cobro]
+$formas_pago      = ['efectivo','nequi','daviplata','bancolombia'];
+$ingresos_forma   = [];          // [forma => ['directo'=>x, 'fiado'=>y]]
+foreach ($formas_pago as $f) $ingresos_forma[$f] = ['directo' => 0.0, 'fiado' => 0.0];
+$total_fiado_cobrado = 0.0;
+
+// Ventas directas por forma de pago (no fiado/obsequio, no anulada), por fecha_venta
+$stDir = db()->prepare(
+    "SELECT metodo_pago, SUM(total) AS t
+     FROM ventas
+     WHERE DATE(fecha_venta) BETWEEN :desde AND :hasta
+       AND estado != 'anulada'
+       AND metodo_pago IN ('efectivo','nequi','daviplata','bancolombia')
+     GROUP BY metodo_pago"
+);
+$stDir->execute([':desde' => $desde, ':hasta' => $hasta]);
+foreach ($stDir->fetchAll() as $r) $ingresos_forma[$r['metodo_pago']]['directo'] = (float)$r['t'];
+
+try {
+    $tiene042r = (int)db()->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ventas'
+           AND COLUMN_NAME='metodo_cobro'"
+    )->fetchColumn() > 0;
+    if ($tiene042r) {
+        // Mapa por venta (las fiadas del período por fecha_venta)
+        $stMap = db()->prepare(
+            "SELECT id, metodo_cobro FROM ventas
+             WHERE DATE(fecha_venta) BETWEEN :desde AND :hasta
+               AND metodo_pago = 'fiado' AND metodo_cobro IS NOT NULL"
+        );
+        $stMap->execute([':desde' => $desde, ':hasta' => $hasta]);
+        foreach ($stMap->fetchAll() as $r) $cobro_map[(int)$r['id']] = $r['metodo_cobro'];
+
+        // Cobros de fiado del período (por fecha_pago) agrupados por metodo_cobro
+        $stCob = db()->prepare(
+            "SELECT metodo_cobro, SUM(total) AS t
+             FROM ventas
+             WHERE metodo_pago = 'fiado' AND metodo_cobro IS NOT NULL
+               AND fecha_pago IS NOT NULL AND DATE(fecha_pago) BETWEEN :desde AND :hasta
+               AND estado != 'anulada'
+             GROUP BY metodo_cobro"
+        );
+        $stCob->execute([':desde' => $desde, ':hasta' => $hasta]);
+        foreach ($stCob->fetchAll() as $r) {
+            if (isset($ingresos_forma[$r['metodo_cobro']])) {
+                $ingresos_forma[$r['metodo_cobro']]['fiado'] = (float)$r['t'];
+                $total_fiado_cobrado += (float)$r['t'];
+            }
+        }
+    }
+} catch (\Exception $e) {}
+
+// Aplicar el filtro de forma de pago al detalle/stats/export (la discriminación
+// de arriba ya quedó calculada sobre todo el período).
+if ($metodo_filtro !== 'todos') {
+    $ventas = array_values(array_filter($ventas, function ($v) use ($metodo_filtro) {
+        return $v['metodo_pago'] === $metodo_filtro;
+    }));
+}
+
 // ── EXPORTAR EXCEL ──────────────────────────────────────────────────────────
 if (isset($_GET['export'])) {
     $w = new XlsxWriter();
@@ -162,7 +235,7 @@ if (isset($_GET['export'])) {
     $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $cols038h = $tiene038r ? ['Desc. %', 'Desc. $'] : [];
-    $w->addRow(array_merge(['#', 'Fecha', 'Hora', 'Cliente', 'Items', 'Método Pago', 'Total'], $cols038h, ['Estado', 'Cajero']), true);
+    $w->addRow(array_merge(['#', 'Fecha', 'Hora', 'Cliente', 'Items', 'Método Pago', 'Total'], $cols038h, ['Estado', 'Cajero', 'Método Cobro']), true);
 
     $total_pesos = 0; // solo ingresos reales (excluye obsequio)
     foreach ($ventas as $v) {
@@ -183,14 +256,15 @@ if (isset($_GET['export'])) {
         ], $row038, [
             $v['estado'],
             $v['cajero'] ?? '',
+            isset($cobro_map[(int)$v['id']]) ? ($metodo_label[$cobro_map[(int)$v['id']]] ?? $cobro_map[(int)$v['id']]) : '',
         ]));
         if (!$es_obsequio) $total_pesos += (float)$v['total'];
     }
     $w->addEmptyRow();
     $blank038 = $tiene038r ? ['', ''] : [];
-    $w->addRow(array_merge(['', '', '', '', '', 'TOTAL INGRESOS (sin obsequios)', $total_pesos], $blank038, ['', '']), false, true);
+    $w->addRow(array_merge(['', '', '', '', '', 'TOTAL INGRESOS (sin obsequios)', $total_pesos], $blank038, ['', '', '']), false, true);
     if ($tiene038r && $total_descuentos_periodo > 0) {
-        $w->addRow(array_merge(['', '', '', '', '', 'TOTAL DESCONTADO (' . $n_descuentos_periodo . ' ventas con dto)', ''], [0, $total_descuentos_periodo], ['', '']), false, true);
+        $w->addRow(array_merge(['', '', '', '', '', 'TOTAL DESCONTADO (' . $n_descuentos_periodo . ' ventas con dto)', ''], [0, $total_descuentos_periodo], ['', '', '']), false, true);
     }
 
     // Resumen por método de pago
@@ -209,6 +283,20 @@ if (isset($_GET['export'])) {
         $nota  = $metodo === 'obsequio' ? ' (no es ingreso)' : '';
         $w->addRow([$label . $nota, $datos['count'], $datos['total']]);
     }
+
+    // Discriminación: ingresos por forma de pago, separando ventas directas de
+    // cobros de fiado (por fecha de cobro). Calculado sobre todo el período.
+    $w->addEmptyRow();
+    $w->addRow(['Ingresos por Forma de Pago (directo vs cobro de fiado)'], true);
+    $w->addRow(['Forma de pago', 'Ventas directas', 'Cobro de fiados', 'Total recibido'], true);
+    $xd = 0.0; $xf = 0.0;
+    foreach ($formas_pago as $f) {
+        $d  = $ingresos_forma[$f]['directo'];
+        $fi = $ingresos_forma[$f]['fiado'];
+        $xd += $d; $xf += $fi;
+        $w->addRow([$metodo_label[$f], $d, $fi, $d + $fi]);
+    }
+    $w->addRow(['TOTAL', $xd, $xf, $xd + $xf], false, true);
 
     // ── Hoja 2: Rentabilidad ────────────────────────────────────────────────
     $w->setSheet('Rentabilidad');
@@ -420,8 +508,16 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
     <form class="filter-row" method="GET">
         <div class="fg"><label>Desde</label><input type="date" name="desde" value="<?= htmlspecialchars($desde) ?>"></div>
         <div class="fg"><label>Hasta</label><input type="date" name="hasta" value="<?= htmlspecialchars($hasta) ?>"></div>
+        <div class="fg"><label>Forma de pago</label>
+            <select name="metodo" style="padding:9px 12px;border:2px solid var(--g8);border-radius:10px;font-size:14px;outline:none">
+                <option value="todos"<?= $metodo_filtro==='todos'?' selected':'' ?>>Todas</option>
+                <?php foreach ($metodos_filtro_ok as $mf): ?>
+                <option value="<?= $mf ?>"<?= $metodo_filtro===$mf?' selected':'' ?>><?= htmlspecialchars($metodo_label[$mf] ?? $mf) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
         <button type="submit" class="btn-ver">Filtrar</button>
-        <a href="?desde=<?= urlencode($desde) ?>&hasta=<?= urlencode($hasta) ?>&export=1" class="btn-xl">
+        <a href="?desde=<?= urlencode($desde) ?>&hasta=<?= urlencode($hasta) ?>&metodo=<?= urlencode($metodo_filtro) ?>&export=1" class="btn-xl">
             ⬇ Exportar Excel
         </a>
     </form>
@@ -465,9 +561,60 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
     </div>
     <?php endif; ?>
 
+    <!-- Ingresos por forma de pago (discriminado: directo vs cobro de fiado) -->
+    <div class="card">
+        <div class="card-title">Ingresos por Forma de Pago
+            <small style="font-weight:400;color:var(--g5)">(todo el período — separa ventas directas de cobros de fiado)</small>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Forma de pago</th>
+                    <th class="r">Ventas directas</th>
+                    <th class="r">Cobro de fiados</th>
+                    <th class="r">Total recibido</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $tot_dir = 0.0; $tot_fia = 0.0;
+                foreach ($formas_pago as $f):
+                    $d  = $ingresos_forma[$f]['directo'];
+                    $fi = $ingresos_forma[$f]['fiado'];
+                    $tot_dir += $d; $tot_fia += $fi;
+                ?>
+                <tr>
+                    <td><?= htmlspecialchars($metodo_label[$f]) ?></td>
+                    <td class="r">$<?= fmt_moneda($d) ?></td>
+                    <td class="r"><?= $fi > 0 ? '$'.fmt_moneda($fi) : '<span style="color:var(--g8)">—</span>' ?></td>
+                    <td class="r"><strong>$<?= fmt_moneda($d + $fi) ?></strong></td>
+                </tr>
+                <?php endforeach; ?>
+                <tr style="background:var(--g9)">
+                    <td><strong>Total</strong></td>
+                    <td class="r"><strong>$<?= fmt_moneda($tot_dir) ?></strong></td>
+                    <td class="r"><strong>$<?= fmt_moneda($tot_fia) ?></strong></td>
+                    <td class="r"><strong>$<?= fmt_moneda($tot_dir + $tot_fia) ?></strong></td>
+                </tr>
+            </tbody>
+        </table>
+        <div style="padding:10px 14px;font-size:12px;color:var(--g5)">
+            <?php if (!$tiene042r): ?>
+            El desglose de "Cobro de fiados" requiere aplicar la migración 042 (<code>metodo_cobro</code>).
+            <?php else: ?>
+            "Cobro de fiados" = ventas fiadas marcadas como cobradas en este período (por fecha de cobro),
+            según el método con que se saldaron. Es independiente de los abonos por cliente (hoja "Abonos a Fiado").
+            <?php endif; ?>
+        </div>
+    </div>
+
     <!-- Tabla de ventas -->
     <div class="card">
-        <div class="card-title">Detalle de Ventas — <?= htmlspecialchars($desde) ?> al <?= htmlspecialchars($hasta) ?></div>
+        <div class="card-title">Detalle de Ventas — <?= htmlspecialchars($desde) ?> al <?= htmlspecialchars($hasta) ?>
+            <?php if ($metodo_filtro !== 'todos'): ?>
+            <small style="font-weight:400;color:var(--brand)">· filtrado: <?= htmlspecialchars($metodo_label[$metodo_filtro] ?? $metodo_filtro) ?></small>
+            <?php endif; ?>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -487,7 +634,12 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
                     <td><?= date('d/m H:i', strtotime($v['fecha_venta'])) ?></td>
                     <td class="hide-m"><?= htmlspecialchars($v['cliente']) ?></td>
                     <td class="hide-m"><?= $v['num_items'] ?></td>
-                    <td class="hide-m"><?= htmlspecialchars($metodo_label[$v['metodo_pago']] ?? $v['metodo_pago']) ?></td>
+                    <td class="hide-m">
+                        <?= htmlspecialchars($metodo_label[$v['metodo_pago']] ?? $v['metodo_pago']) ?>
+                        <?php if ($v['metodo_pago'] === 'fiado' && !empty($cobro_map[(int)$v['id']])): ?>
+                        <br><small style="color:var(--green)">↳ cobrado: <?= htmlspecialchars($metodo_label[$cobro_map[(int)$v['id']]] ?? $cobro_map[(int)$v['id']]) ?></small>
+                        <?php endif; ?>
+                    </td>
                     <td class="r">
                         <strong>$<?= fmt_moneda($v['total']) ?></strong>
                         <?php if (isset($descuentos_map[(int)$v['id']])): ?>
