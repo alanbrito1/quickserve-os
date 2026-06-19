@@ -311,7 +311,11 @@ try {
     // También trae nombre y nombre2 para el snapshot (migración 034)
     $stmtProdInfo  = $pdo->prepare('SELECT stock_disponible, unidades_por_receta, nombre, nombre2 FROM productos WHERE id = ? FOR UPDATE');
     $stmtStockProd = $pdo->prepare('UPDATE productos SET stock_disponible = stock_disponible - ?, updated_by = ? WHERE id = ? AND stock_disponible >= ?');
-    $stmtReceta    = $pdo->prepare("SELECT insumo_id, cantidad_requerida{$colEsBaseEv} FROM recetas WHERE producto_id = :pid");
+    // NOTA: es_base no se usa al re-descontar (la re-edición no soporta variante →
+    // factor 1.0), por eso NO se inyecta $colEsBaseEv aquí (esta query no aliasa la
+    // tabla como 'r', y r.es_base rompería el SELECT). $colEsBaseEv sí se usa arriba
+    // en la query de restauración (JOIN recetas r).
+    $stmtReceta    = $pdo->prepare("SELECT insumo_id, cantidad_requerida FROM recetas WHERE producto_id = :pid");
     $stmtDescuento = $pdo->prepare('UPDATE insumos SET stock_actual = stock_actual - :desc, updated_by = :uid WHERE id = :id AND stock_actual >= :desc2');
     $stmtComboIns  = $pdo->prepare('SELECT ci.insumo_id, ci.cantidad, i.nombre AS insumo_nombre FROM combo_insumos ci JOIN insumos i ON i.id = ci.insumo_id WHERE ci.combo_id = ?');
     $stmtComboId   = $pdo->prepare('SELECT id FROM combo_configs WHERE producto_id = ? AND activo = 1 LIMIT 1');
