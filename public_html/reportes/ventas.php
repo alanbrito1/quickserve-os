@@ -609,13 +609,13 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
     </div>
 
     <!-- Tabla de ventas -->
-    <div class="card">
+    <div class="card rcards-wrap">
         <div class="card-title">Detalle de Ventas — <?= htmlspecialchars($desde) ?> al <?= htmlspecialchars($hasta) ?>
             <?php if ($metodo_filtro !== 'todos'): ?>
             <small style="font-weight:400;color:var(--brand)">· filtrado: <?= htmlspecialchars($metodo_label[$metodo_filtro] ?? $metodo_filtro) ?></small>
             <?php endif; ?>
         </div>
-        <table>
+        <table class="rcards">
             <thead>
                 <tr>
                     <th>#</th>
@@ -631,22 +631,22 @@ $estado_c = ['completada'=>'b-ok','anulada'=>'b-ano','pendiente_pago'=>'b-pend']
                 <?php foreach ($ventas as $v): ?>
                 <tr <?= $v['estado'] === 'anulada' ? 'style="opacity:.5"' : '' ?>>
                     <td><?= $v['id'] ?></td>
-                    <td><?= date('d/m H:i', strtotime($v['fecha_venta'])) ?></td>
-                    <td class="hide-m"><?= htmlspecialchars($v['cliente']) ?></td>
-                    <td class="hide-m"><?= $v['num_items'] ?></td>
-                    <td class="hide-m">
+                    <td data-label="Fecha"><?= date('d/m H:i', strtotime($v['fecha_venta'])) ?></td>
+                    <td class="hide-m" data-label="Cliente"><?= htmlspecialchars($v['cliente']) ?></td>
+                    <td class="hide-m" data-label="Items"><?= $v['num_items'] ?></td>
+                    <td class="hide-m" data-label="Método">
                         <?= htmlspecialchars($metodo_label[$v['metodo_pago']] ?? $v['metodo_pago']) ?>
                         <?php if ($v['metodo_pago'] === 'fiado' && !empty($cobro_map[(int)$v['id']])): ?>
                         <br><small style="color:var(--green)">↳ cobrado: <?= htmlspecialchars($metodo_label[$cobro_map[(int)$v['id']]] ?? $cobro_map[(int)$v['id']]) ?></small>
                         <?php endif; ?>
                     </td>
-                    <td class="r">
+                    <td class="r" data-label="Total">
                         <strong>$<?= fmt_moneda($v['total']) ?></strong>
                         <?php if (isset($descuentos_map[(int)$v['id']])): ?>
                         <br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px">−<?= fmt_cantidad($descuentos_map[(int)$v['id']]['pct'], 0) ?>% dto</span>
                         <?php endif; ?>
                     </td>
-                    <td><span class="badge <?= $estado_c[$v['estado']] ?? 'b-ok' ?>"><?= htmlspecialchars($v['estado']) ?></span></td>
+                    <td data-label="Estado"><span class="badge <?= $estado_c[$v['estado']] ?? 'b-ok' ?>"><?= htmlspecialchars($v['estado']) ?></span></td>
                 </tr>
                 <?php endforeach; ?>
                 <?php if (empty($ventas)): ?>
