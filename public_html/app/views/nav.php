@@ -1071,25 +1071,25 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
 .ic svg { display: block; flex-shrink: 0; }
 
 /* Colores semánticos para botones-icono — reutilizables en TODOS los módulos.
-   El icono usa stroke="currentColor", así que basta con fijar `color`. El
-   hover agrega un tinte suave del mismo tono (requiere que el botón tenga
-   borde/fondo, como .btn-acc/.btn-ajuste). Mantienen una línea consistente:
+   El icono usa stroke="currentColor" y el recuadro lleva FONDO tintado del
+   mismo tono (borde igual al fondo → caja de color plana, como en Compras).
+   Hover = tinte un paso más oscuro. Línea consistente:
    editar=azul, ver=gris, info=celeste, fusionar=violeta, ok/cobro=verde,
    whatsapp=verde WA, eliminar/peligro=rojo. */
-.ic-edit  { color:#1d4ed8; }
-.ic-view  { color:#374151; }
-.ic-info  { color:#0369a1; }
-.ic-merge { color:#6d28d9; }
-.ic-ok    { color:#059669; }
-.ic-wa    { color:#16a34a; }
-.ic-del   { color:#dc2626; }
-.ic-edit:hover  { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
-.ic-view:hover  { background:#f3f4f6; border-color:#d1d5db; color:#111827; }
-.ic-info:hover  { background:#f0f9ff; border-color:#bae6fd; color:#0369a1; }
-.ic-merge:hover { background:#f5f3ff; border-color:#ddd6fe; color:#6d28d9; }
-.ic-ok:hover    { background:#ecfdf5; border-color:#a7f3d0; color:#047857; }
-.ic-wa:hover    { background:#f0fdf4; border-color:#bbf7d0; color:#16a34a; }
-.ic-del:hover   { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+.ic-edit  { color:#1d4ed8; background:#dbeafe; border-color:#dbeafe; }
+.ic-view  { color:#374151; background:#f3f4f6; border-color:#f3f4f6; }
+.ic-info  { color:#0369a1; background:#e0f2fe; border-color:#e0f2fe; }
+.ic-merge { color:#6d28d9; background:#ede9fe; border-color:#ede9fe; }
+.ic-ok    { color:#065f46; background:#d1fae5; border-color:#d1fae5; }
+.ic-wa    { color:#16a34a; background:#dcfce7; border-color:#dcfce7; }
+.ic-del   { color:#991b1b; background:#fee2e2; border-color:#fee2e2; }
+.ic-edit:hover  { color:#1d4ed8; background:#bfdbfe; border-color:#bfdbfe; }
+.ic-view:hover  { color:#111827; background:#e5e7eb; border-color:#e5e7eb; }
+.ic-info:hover  { color:#0369a1; background:#bae6fd; border-color:#bae6fd; }
+.ic-merge:hover { color:#6d28d9; background:#ddd6fe; border-color:#ddd6fe; }
+.ic-ok:hover    { color:#047857; background:#a7f3d0; border-color:#a7f3d0; }
+.ic-wa:hover    { color:#16a34a; background:#bbf7d0; border-color:#bbf7d0; }
+.ic-del:hover   { color:#b91c1c; background:#fecaca; border-color:#fecaca; }
 
 /* Mayor touch target en móvil */
 @media (max-width: 640px) {
