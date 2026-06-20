@@ -293,6 +293,23 @@ $nav_activo = 'ayuda';
             <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
             <div class="tip"><strong>Panel de alertas en el Dashboard:</strong> Al ingresar al sistema, la página de inicio muestra automáticamente alertas operativas si hay insumos con stock bajo, clientes con fiado pendiente o productos con stock por debajo del mínimo configurado. Cada alerta tiene un enlace directo al módulo correspondiente para actuar de inmediato.</div>
 
+            <div class="sub-title">Interfaz — iconos de acción y uso en móvil (v4.97)</div>
+            <p>En las listas, los botones de acción usan un <strong>código de color</strong> consistente en todo el sistema:</p>
+            <table class="data-table">
+                <thead><tr><th>Color</th><th>Acción</th></tr></thead>
+                <tbody>
+                    <tr><td>🔵 Azul</td><td>Editar</td></tr>
+                    <tr><td>🟢 Verde</td><td>Duplicar/Copiar, Activar, Abonar, Marcar pagado</td></tr>
+                    <tr><td>🔴 Rojo</td><td>Eliminar / Anular</td></tr>
+                    <tr><td>🟡 Ámbar</td><td>Desactivar / Pausar / Dar de baja (reversible)</td></tr>
+                    <tr><td>⚪ Gris</td><td>Ver detalle / Expandir</td></tr>
+                    <tr><td>🔵 Celeste</td><td>Estado de cuenta / Subir foto</td></tr>
+                    <tr><td>🟣 Violeta</td><td>Fusionar</td></tr>
+                    <tr><td>🩷 Rosa</td><td>Regalar / Obsequio</td></tr>
+                </tbody>
+            </table>
+            <div class="tip"><strong>En el teléfono (vertical):</strong> las tablas largas se muestran como <strong>tarjetas</strong> — una por cliente/producto/insumo/venta — con los datos etiquetados y los botones de acción debajo del nombre, sin necesidad de desplazarse hacia los lados. En computador o tablet la vista de tabla se conserva igual.</div>
+
             <div class="sub-title">Módulos del sistema</div>
             <table class="data-table">
                 <tr><th>Módulo</th><th>Función principal</th><th>Acceso</th></tr>

@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.96'); // 2026-06-19: v4.96 metodo de cobro de fiados (migracion 042 ventas.metodo_cobro) + reporte de ventas por forma de pago con discriminacion ventas directas vs cobro de fiados; fixes: Conteo Rapido CSRF (header X-CSRF-Token) y editar venta (Unknown column r.es_base)
+define('APP_VERSION', '4.97'); // 2026-06-20: v4.97 UI - iconos de accion con color consistente (clases .ic-* en nav.php) + tablas a tarjetas en movil vertical (.rcards/.rcards-wrap) sin scroll horizontal, en todos los modulos con tablas de accion
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

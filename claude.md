@@ -1,5 +1,5 @@
-# ClanDestino ERP v4.96 — Memoria de Sesión
-# Última sesión: 2026-06-19 | Próxima sesión: continuar desde este punto
+# ClanDestino ERP v4.97 — Memoria de Sesión
+# Última sesión: 2026-06-20 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -3329,3 +3329,77 @@ editar venta `Unknown column 'r.es_base'` (927f53b) y fecha de cobro que no guar
 (`datetime-local` → `date`, d8afc19). Sincronizados `schema.sql` (seed de claves de formato) y
 CLAUDE.md con las migraciones 040/041/042 (076486c). Todo verificado en producción
 (2026-06-19). `APP_VERSION` → 4.96.*
+
+---
+
+## Estado v4.97 (2026-06-20)
+
+UI: unificación de iconos de acción y layout móvil. Sin cambios de BD ni de lógica.
+
+### 1. Iconos de acción con color consistente — clases reutilizables `.ic-*` (nav.php §16)
+
+Los botones-icono de acción eran inconsistentes entre módulos (Clientes monocromo; otros con
+colores/clases propias). Se centralizó la paleta en `app/views/nav.php` como modificadores
+reutilizables sobre la clase `.ic` (icono SVG `currentColor` + recuadro tintado del mismo tono,
+borde = fondo, hover un paso más oscuro — estilo de Compras):
+
+| Clase | Color | Acción |
+|-------|-------|--------|
+| `.ic-edit`  | azul     | Editar |
+| `.ic-ok`    | verde    | Duplicar/Copiar, Activar, Abonar, Marcar pagado |
+| `.ic-del`   | rojo     | Eliminar, Anular |
+| `.ic-warn`  | ámbar    | Desactivar/Pausar/Dar de baja (reversible) |
+| `.ic-view`  | gris     | Ver/Detalle/Expandir, Desechar |
+| `.ic-info`  | celeste  | Estado de cuenta/Extracto, Foto |
+| `.ic-merge` | violeta  | Fusionar |
+| `.ic-wa`    | verde WA | WhatsApp |
+| `.ic-gift`  | rosa     | Regalar/Obsequio |
+
+Uso: `<button class="btn-x ic ic-edit">…</button>`. Cualquier botón nuevo de acción debe usar
+estas clases para mantener la línea. Aplicado en: Clientes, Inventario, Productos, Ventas,
+Proveedores, Activos, Nómina (empleados), Admin (usuarios), Costos. Compras ya usaba la misma
+paleta (fue la referencia).
+
+### 2. Tablas → tarjetas en móvil vertical — clases reutilizables `.rcards` (nav.php §17)
+
+En `<480px` (teléfono vertical) las tablas anchas hacían scroll horizontal. Se centralizó un
+patrón reutilizable en `nav.php`:
+
+- `class="rcards-wrap"` en el contenedor (`.card`/`.tbl-card`/`.table-wrap`) → quita el
+  `overflow-x:auto`.
+- `class="rcards"` en la `<table>` → en `<480px` cada `<tr>` se vuelve una **tarjeta** (sin
+  scroll horizontal); `≥480px` no cambia nada.
+- `data-label="Etiqueta"` en cada `<td>` → la etiqueta aparece a la izquierda y el valor a la
+  derecha en la tarjeta. La 1ª celda es el título (ancho completo, sin etiqueta).
+- `class="acc-cell"` en la celda de acciones → fila propia con los botones envueltos abajo.
+- `class="rcard-title"` marca la celda título cuando no es la 1ª; `class="rcard-hide"` oculta
+  una columna en modo tarjeta (ej. la foto en Activos).
+- Filas expandibles (`recipe-row`/`det-row`/`exp-row`, que usan `.open`): se muestran como
+  bloque continuo bajo la tarjeta; respetan `display:none`/`.open` (override en el `<480px` de
+  cada página).
+
+Aplicado en: Clientes, Inventario, Productos, Ventas (historial), Activos, Nómina (empleados,
+liquidaciones, horas), Admin (usuarios, listas), Costos, y la tabla "Detalle de Ventas" del
+reporte de Ventas. **Decisión:** el resto de tablas de **Reportes** se dejan con scroll
+horizontal en móvil (son numéricas, para comparación lado a lado y exportación a Excel en
+escritorio). Conteo y Proveedores ya eran grillas de tarjetas. La barra de resumen del POS
+(`ventas/index.php`) ahora envuelve en móvil en vez de scrollear.
+
+### Cambios de versión
+
+- `app/config/app.php`: `APP_VERSION` → `4.97`. Sin migraciones (cambio solo de UI/CSS).
+
+### Pendiente
+
+- Verificación visual del usuario (escritorio sin cambios; teléfono vertical = tarjetas sin
+  scroll). Especial atención a tablas anchas (Activos, Costos, Nómina) y filas expandibles
+  (Productos/Ventas/Nómina).
+- Opcional si se desea: convertir a tarjetas las demás tablas de Reportes (operativo, nómina,
+  costos, compras, precios) — hoy con scroll por diseño.
+
+*Última actualización: 2026-06-20 | v4.97 — UI: iconos de acción con color consistente
+(`.ic-*` reutilizables en nav.php) y tablas a tarjetas en móvil vertical (`.rcards`/
+`.rcards-wrap`/`.rcard-title`/`.rcard-hide`/`.acc-cell`) sin scroll horizontal, en todos los
+módulos con tablas de acción (Clientes, Inventario, Productos, Ventas, Proveedores, Activos,
+Nómina, Admin, Costos) + Detalle del reporte de Ventas + barra de resumen del POS. Sin cambios
+de BD. `APP_VERSION` → 4.97.*
