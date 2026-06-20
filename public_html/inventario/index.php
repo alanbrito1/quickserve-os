@@ -317,7 +317,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
                             onclick="abrirEditar(<?= htmlspecialchars(json_encode($ins)) ?>)">
                             <?= IC_EDIT ?>
                         </button>
-                        <button class="btn-ajuste ic ic-info" title="Copiar"
+                        <button class="btn-ajuste ic ic-ok" title="Copiar"
                             onclick="duplicarInsumo(<?= htmlspecialchars(json_encode($ins)) ?>)">
                             <?= IC_COPY ?>
                         </button>

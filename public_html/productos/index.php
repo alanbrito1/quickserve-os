@@ -202,9 +202,14 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
         @media (max-width: 479px) {
             /* Banner con 4 métricas: 2 columnas en móvil */
             .banner-grid { grid-template-columns: 1fr 1fr !important; }
-            /* Margen (col 6) también se oculta en móvil muy pequeño, dejando: Producto, CostoTotal, Acciones */
-            table thead tr th:nth-child(6), table tbody tr td:nth-child(6) { display: none; }
             .main { padding: 12px 10px 40px; }
+            /* La tabla se vuelve tarjetas vía .rcards (nav.php). La fila de receta
+               expandible (recipe-row) no es una tarjeta: se muestra como bloque
+               continuo bajo el producto. */
+            .rcards tr.recipe-row { border:none; box-shadow:none; padding:0;
+                                    margin:-8px 0 10px; background:transparent; }
+            .rcards tr.recipe-row td { display:block; padding:0; border:none !important; }
+            .rcards tr.recipe-row td::before { content:none; }
             /* Paneles de receta/combo: inputs de ancho fijo se adaptan al contenedor */
             .combo-form-row > div { flex: 0 0 100%; }
             .combo-form-row input, .combo-form-row select { width: 100% !important; box-sizing: border-box; }
@@ -325,14 +330,14 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
         </div>
     </div>
 
-    <div class="card">
+    <div class="card rcards-wrap">
         <div class="card-title">
             Catálogo de Productos
             <?php if (permiso_tiene('productos','editar_existentes')): ?>
             <button class="btn-add" onclick="document.getElementById('modal-np').classList.add('on')">+ Nuevo</button>
             <?php endif; ?>
         </div>
-        <table>
+        <table class="rcards">
             <thead><tr>
                 <th>Producto</th>
                 <th class="r hide-m">Precio</th>
@@ -368,19 +373,19 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
                     </span>
                     <?php endif; ?>
                 </td>
-                <td class="r hide-m"><?= (float)$p['precio_venta'] > 0 ? '$'.fmt_moneda($p['precio_venta']) : '<em style="color:var(--g5)">—</em>' ?></td>
-                <td class="r hide-m">$<?= fmt_moneda($p['costo_ing']) ?></td>
-                <td class="r hide-m">$<?= fmt_moneda($fijos_u) ?></td>
-                <td class="r"><strong>$<?= fmt_moneda($p['costo_total']) ?></strong></td>
-                <td class="r">
+                <td class="r hide-m" data-label="Precio"><?= (float)$p['precio_venta'] > 0 ? '$'.fmt_moneda($p['precio_venta']) : '<em style="color:var(--g5)">—</em>' ?></td>
+                <td class="r hide-m" data-label="Insumos">$<?= fmt_moneda($p['costo_ing']) ?></td>
+                <td class="r hide-m" data-label="Fijos+RH">$<?= fmt_moneda($fijos_u) ?></td>
+                <td class="r" data-label="Costo Total"><strong>$<?= fmt_moneda($p['costo_total']) ?></strong></td>
+                <td class="r" data-label="Margen">
                     <?php if ((float)$p['precio_venta'] > 0): ?>
                     <span class="<?= $mc ?>"><?= $mg ?>%</span>
                     <span class="mg-bar"><span class="mg-fill" style="width:<?= max(0,min(100,$mg)) ?>%;background:<?= $fc ?>"></span></span>
                     <?php else: ?><span style="color:var(--g5)">—</span><?php endif; ?>
                 </td>
-                <td style="white-space:nowrap">
+                <td class="acc-cell" style="white-space:nowrap">
                     <?php if (permiso_tiene('productos','editar_existentes')): ?>
-                    <button class="exp-btn ic" title="Editar"
+                    <button class="exp-btn ic ic-edit" title="Editar"
                             onclick="abrirEditarProd(<?= htmlspecialchars(json_encode([
                                 'id'                  => $p['id'],
                                 'nombre'              => $p['nombre'],
@@ -391,22 +396,22 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
                                 'unidades_por_receta' => (int)$p['unidades_por_receta'],
                                 'stock_minimo'        => (int)$p['stock_minimo'],
                             ])) ?>)"
-                            style="color:#3b82f6"><?= IC_EDIT ?></button>
-                    <button class="exp-btn ic" title="Duplicar"
+                            ><?= IC_EDIT ?></button>
+                    <button class="exp-btn ic ic-ok" title="Duplicar"
                             onclick="duplicarProd(<?= $p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nombre'])) ?>')"
-                            style="color:#059669"><?= IC_COPY ?></button>
+                            ><?= IC_COPY ?></button>
                     <?php if ((int)$p['stock_disponible'] > 0): ?>
                     <!-- Regalar unidades de producto terminado (obsequio) -->
-                    <button class="exp-btn ic" title="Regalar / Obsequio"
+                    <button class="exp-btn ic ic-gift" title="Regalar / Obsequio"
                             onclick="abrirAjuste(<?= $p['id'] ?>,'<?= htmlspecialchars(addslashes($p['nombre'])) ?>',<?= (int)$p['stock_disponible'] ?>,'obsequio')"
-                            style="color:#9d174d"><?= IC_GIFT ?></button>
+                            ><?= IC_GIFT ?></button>
                     <!-- Desechar producto dañado o vencido -->
-                    <button class="exp-btn ic" title="Desechar / Dar de baja"
+                    <button class="exp-btn ic ic-view" title="Desechar / Dar de baja"
                             onclick="abrirAjuste(<?= $p['id'] ?>,'<?= htmlspecialchars(addslashes($p['nombre'])) ?>',<?= (int)$p['stock_disponible'] ?>,'desecho')"
-                            style="color:#6b7280"><?= IC_TRASH ?></button>
+                            ><?= IC_TRASH ?></button>
                     <?php endif; ?>
                     <?php endif; ?>
-                    <button class="exp-btn ic" title="Ver receta"
+                    <button class="exp-btn ic ic-view" title="Ver receta"
                             onclick="toggleReceta(<?= $p['id'] ?>,<?= $p['precio_venta'] ?>,<?= (int)$p['unidades_por_receta'] ?>)"><?= IC_CHEV ?></button>
                 </td>
             </tr>

@@ -1083,6 +1083,7 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
 .ic-ok    { color:#065f46; background:#d1fae5; border-color:#d1fae5; }
 .ic-wa    { color:#16a34a; background:#dcfce7; border-color:#dcfce7; }
 .ic-del   { color:#991b1b; background:#fee2e2; border-color:#fee2e2; }
+.ic-gift  { color:#9d174d; background:#fce7f3; border-color:#fce7f3; }
 .ic-edit:hover  { color:#1d4ed8; background:#bfdbfe; border-color:#bfdbfe; }
 .ic-view:hover  { color:#111827; background:#e5e7eb; border-color:#e5e7eb; }
 .ic-info:hover  { color:#0369a1; background:#bae6fd; border-color:#bae6fd; }
@@ -1090,6 +1091,7 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
 .ic-ok:hover    { color:#047857; background:#a7f3d0; border-color:#a7f3d0; }
 .ic-wa:hover    { color:#16a34a; background:#bbf7d0; border-color:#bbf7d0; }
 .ic-del:hover   { color:#b91c1c; background:#fecaca; border-color:#fecaca; }
+.ic-gift:hover  { color:#9d174d; background:#fbcfe8; border-color:#fbcfe8; }
 
 /* Mayor touch target en móvil */
 @media (max-width: 640px) {
@@ -1118,8 +1120,8 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
         padding: 10px 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.05);
     }
     .rcards tr.inactivo, .rcards tr.anulada, .rcards tr.is-inactivo { opacity: .6; }
-    /* Re-mostrar columnas que se ocultaban con scroll */
-    .rcards .hide-xs, .rcards .hide-sm { display: flex !important; }
+    /* Re-mostrar columnas que se ocultaban con scroll (todas se ven en la tarjeta) */
+    .rcards .hide-xs, .rcards .hide-sm, .rcards .hide-m { display: flex !important; }
     /* Cada celda: etiqueta a la izquierda, valor a la derecha */
     .rcards td {
         display: flex; justify-content: space-between; align-items: center; gap: 12px;
