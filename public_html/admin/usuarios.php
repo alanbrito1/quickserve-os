@@ -182,8 +182,8 @@ foreach ($permisos_todos as $p) {
     <?php if ($msg_ok):  ?><div class="alert-ok"><?= htmlspecialchars($msg_ok) ?></div><?php endif; ?>
     <?php if ($msg_err): ?><div class="alert-err"><?= htmlspecialchars($msg_err) ?></div><?php endif; ?>
 
-    <div class="tbl-wrap">
-        <table class="tbl">
+    <div class="tbl-wrap rcards-wrap">
+        <table class="tbl rcards">
             <thead>
                 <tr>
                     <th>Nombre</th>
@@ -207,17 +207,17 @@ foreach ($permisos_todos as $p) {
                     <span style="font-size:11px;background:var(--g9);padding:1px 6px;border-radius:20px;margin-left:4px">Tú</span>
                     <?php endif; ?>
                 </td>
-                <td style="color:var(--g5);font-size:13px"><?= htmlspecialchars($u['email']) ?></td>
-                <td><span class="badge <?= $rolBadge ?>"><?= ucfirst($u['rol']) ?></span></td>
-                <td style="color:var(--g5);font-size:13px">
+                <td data-label="Email" style="color:var(--g5);font-size:13px"><?= htmlspecialchars($u['email']) ?></td>
+                <td data-label="Rol"><span class="badge <?= $rolBadge ?>"><?= ucfirst($u['rol']) ?></span></td>
+                <td data-label="Módulos" style="color:var(--g5);font-size:13px">
                     <?= $u['rol'] === 'superadmin' ? 'Todos (superadmin)' : ((int)$u['n_permisos'] . '/' . count($MODULOS) . ' módulos') ?>
                 </td>
-                <td style="color:var(--g5);font-size:12px">
+                <td data-label="Último acceso" style="color:var(--g5);font-size:12px">
                     <?= $u['ultimo_login'] ? date('d/m/Y H:i', strtotime($u['ultimo_login'])) : '—' ?>
                 </td>
-                <td><span class="badge <?= $u['activo'] ? 'b-act' : 'b-ina' ?>"><?= $u['activo'] ? 'Activo' : 'Inactivo' ?></span></td>
-                <td>
-                    <button class="btn-tbl ic btn-edit" title="Editar"
+                <td data-label="Estado"><span class="badge <?= $u['activo'] ? 'b-act' : 'b-ina' ?>"><?= $u['activo'] ? 'Activo' : 'Inactivo' ?></span></td>
+                <td class="acc-cell">
+                    <button class="btn-tbl ic ic-edit" title="Editar"
                             onclick="abrirEditar(<?= htmlspecialchars(json_encode([
                                 'id'     => $u['id'],
                                 'nombre' => $u['nombre'],
@@ -228,7 +228,7 @@ foreach ($permisos_todos as $p) {
                         <?= IC_EDIT ?>
                     </button>
                     <?php if (!$esSelf): ?>
-                    <button class="btn-tbl ic <?= $u['activo'] ? 'btn-toggle-d' : 'btn-toggle-a' ?>"
+                    <button class="btn-tbl ic <?= $u['activo'] ? 'ic-warn' : 'ic-ok' ?>"
                             title="<?= $u['activo'] ? 'Desactivar' : 'Activar' ?>"
                             onclick="toggleUsuario(<?= $u['id'] ?>, <?= (int)$u['activo'] ?>, '<?= htmlspecialchars(addslashes($u['nombre'])) ?>')">
                         <?= $u['activo'] ? IC_PAUSE : IC_PLAY ?>

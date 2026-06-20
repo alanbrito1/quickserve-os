@@ -579,14 +579,14 @@ $CAT_COLOR = [
     </div>
 
     <!-- ── Tabla ───────────────────────────────────────────────────────── -->
-    <div class="tbl-wrap">
+    <div class="tbl-wrap rcards-wrap">
         <?php if (empty($costos)): ?>
         <div class="empty-state">
             <strong>Sin costos para <?= $meses_nombres[$mes] ?> <?= $anio ?></strong>
             <p>No hay costos vigentes en este período. Ajusta las fechas de un costo existente o agrega uno nuevo.</p>
         </div>
         <?php else: ?>
-        <table class="tbl" id="tabla-costos">
+        <table class="tbl rcards" id="tabla-costos">
             <thead>
                 <tr>
                     <th>Nombre</th>
@@ -621,51 +621,51 @@ $CAT_COLOR = [
                         <br><small style="color:var(--g5)"><?= htmlspecialchars($c['descripcion']) ?></small>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="Categoría">
                         <span class="badge"
                               style="background:<?= $catCol[0] ?>;color:<?= $catCol[1] ?>">
                             <?= htmlspecialchars($catLbl) ?>
                         </span>
                     </td>
-                    <td>
+                    <td data-label="Clasificación">
                         <span class="badge badge-<?= $clasif ?>">
                             <?= $clasif === 'directo' ? 'Directo' : 'Indirecto' ?>
                         </span>
                     </td>
-                    <td>
+                    <td data-label="Frecuencia / Valor">
                         <span style="color:var(--g5);font-size:11px"><?= $frecLbl ?></span><br>
                         <span class="amt">$<?= fmt_moneda($c['valor']) ?></span>
                     </td>
-                    <td>
+                    <td data-label="Val. mensual">
                         <span class="amt amt-men">
                             $<?= fmt_moneda($c['valor_mensual']) ?>
                         </span>
                     </td>
-                    <td>
+                    <td data-label="Tipo">
                         <span class="badge badge-<?= htmlspecialchars($c['tipo']) ?>">
                             <?= $c['tipo'] === 'fijo' ? 'Fijo' : 'Variable' ?>
                         </span>
                     </td>
-                    <td style="font-size:12px;color:var(--g5)">
+                    <td data-label="Vigencia" style="font-size:12px;color:var(--g5)">
                         <?php if (!empty($c['fecha_fin'])): ?>
                             Hasta <?= date('d/m/Y', strtotime($c['fecha_fin'])) ?>
                         <?php else: ?>
                             Vigente
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                         <span class="badge badge-<?= $esActivo ? 'activo' : 'pausado' ?>">
                             <?= $esActivo ? 'Activo' : 'Pausado' ?>
                         </span>
                     </td>
                     <?php if (permiso_tiene('costos', 'editar_existentes')): ?>
-                    <td>
+                    <td class="acc-cell">
                         <div class="tbl-actions">
-                            <button class="btn-tbl ic btn-edit" title="Editar"
+                            <button class="btn-tbl ic ic-edit" title="Editar"
                                     onclick="abrirEditar(<?= htmlspecialchars(json_encode($c)) ?>)">
                                 <?= IC_EDIT ?>
                             </button>
-                            <button class="btn-tbl ic <?= $esActivo ? 'btn-pause' : 'btn-resume' ?>"
+                            <button class="btn-tbl ic <?= $esActivo ? 'ic-warn' : 'ic-ok' ?>"
                                     title="<?= $esActivo ? 'Pausar' : 'Activar' ?>"
                                     onclick="toggleCosto(<?= $c['id'] ?>, <?= (int)$esActivo ?>)">
                                 <?= $esActivo ? IC_PAUSE : IC_PLAY ?>
