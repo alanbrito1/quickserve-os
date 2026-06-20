@@ -375,11 +375,11 @@ $VIDA_ESTADO = [
     </div>
 
     <!-- Tabla de activos -->
-    <div class="card">
-        <table class="activos-table">
+    <div class="card rcards-wrap">
+        <table class="activos-table rcards">
             <thead>
                 <tr>
-                    <?php if ($v5): ?><th style="width:54px">Foto</th><?php endif; ?>
+                    <?php if ($v5): ?><th style="width:54px" class="rcard-hide">Foto</th><?php endif; ?>
                     <th class="sortable" data-col="nombre" onclick="sortActivos('nombre')" style="min-width:186px">
                         Activo <i class="sort-icon"></i>
                     </th>
@@ -420,7 +420,7 @@ $VIDA_ESTADO = [
                     data-estado="<?= htmlspecialchars($est) ?>"
                     <?= !$a['activo'] ? 'style="opacity:.45"' : '' ?>>
                     <?php if ($v5): ?>
-                    <td>
+                    <td class="rcard-hide">
                         <?php if (!empty($a['foto_url'])): ?>
                         <img src="<?= APP_BASE ?>/<?= htmlspecialchars($a['foto_url']) ?>"
                              class="thumb" onclick="verFoto('<?= APP_BASE ?>/<?= htmlspecialchars($a['foto_url']) ?>', <?= htmlspecialchars(json_encode($a['nombre'])) ?>)"
@@ -432,7 +432,7 @@ $VIDA_ESTADO = [
                         <?php endif; ?>
                     </td>
                     <?php endif; ?>
-                    <td style="min-width:186px">
+                    <td class="rcard-title" style="min-width:186px">
                         <strong><?= htmlspecialchars($a['nombre']) ?></strong>
                         <?php if (!empty($a['descripcion'])): ?>
                         <br><small style="color:var(--g5)"><?= htmlspecialchars($a['descripcion']) ?></small>
@@ -477,16 +477,16 @@ $VIDA_ESTADO = [
                         <!-- ── Acciones dentro de la celda Activo ──────────── -->
                         <?php if (permiso_tiene('activos','editar_existentes')): ?>
                         <div class="act-btns">
-                            <button class="btn-ic ic btn-edit" title="Editar"
+                            <button class="btn-ic ic ic-edit" title="Editar"
                                 onclick="abrirEditar(<?= htmlspecialchars(json_encode($a)) ?>)">
                                 <?= IC_EDIT ?>
                             </button>
-                            <button class="btn-ic ic btn-dup" title="Duplicar"
+                            <button class="btn-ic ic ic-ok" title="Duplicar"
                                 onclick="duplicar(<?= $a['id'] ?>, <?= htmlspecialchars(json_encode($a['nombre'])) ?>)">
                                 <?= IC_COPY ?>
                             </button>
                             <?php if ($v5): ?>
-                            <button class="btn-ic ic btn-photo" title="Subir foto" onclick="subirFoto(<?= $a['id'] ?>)">
+                            <button class="btn-ic ic ic-info" title="Subir foto" onclick="subirFoto(<?= $a['id'] ?>)">
                                 <?= IC_CAMERA ?>
                             </button>
                             <?php endif; ?>
@@ -495,7 +495,7 @@ $VIDA_ESTADO = [
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                 <input type="hidden" name="accion" value="toggle">
                                 <input type="hidden" name="id" value="<?= $a['id'] ?>">
-                                <button type="submit" class="btn-ic ic <?= $a['activo'] ? 'btn-baja' : 'btn-act' ?>"
+                                <button type="submit" class="btn-ic ic <?= $a['activo'] ? 'ic-warn' : 'ic-ok' ?>"
                                         title="<?= $a['activo'] ? 'Dar de baja' : 'Activar' ?>">
                                     <?= $a['activo'] ? IC_PAUSE : IC_PLAY ?>
                                 </button>
@@ -505,24 +505,24 @@ $VIDA_ESTADO = [
                         <?php endif; ?>
                     </td>
                     <?php if ($v5): ?>
-                    <td><small><?= htmlspecialchars($CATEGORIAS[$a['categoria_activo'] ?? 'otro'] ?? '—') ?></small></td>
-                    <td style="font-family:monospace;font-size:11px"><?= htmlspecialchars($a['serial'] ?? '—') ?></td>
-                    <td style="text-align:center"><?= (int)($a['numero_unidades'] ?? 1) ?></td>
-                    <td style="text-align:right">
+                    <td data-label="Categoría"><small><?= htmlspecialchars($CATEGORIAS[$a['categoria_activo'] ?? 'otro'] ?? '—') ?></small></td>
+                    <td data-label="Serial" style="font-family:monospace;font-size:11px"><?= htmlspecialchars($a['serial'] ?? '—') ?></td>
+                    <td data-label="Unidades" style="text-align:center"><?= (int)($a['numero_unidades'] ?? 1) ?></td>
+                    <td data-label="Precio/u" style="text-align:right">
                         <?= !empty($a['precio_unitario']) ? '$'.fmt_moneda($a['precio_unitario']) : '—' ?>
                     </td>
                     <?php endif; ?>
-                    <td style="text-align:right;font-weight:700">$<?= fmt_moneda($a['costo_inicial']) ?></td>
+                    <td data-label="Total" style="text-align:right;font-weight:700">$<?= fmt_moneda($a['costo_inicial']) ?></td>
                     <?php
                     // Activo depreciado = ya cumplió su vida útil → dep/día = $0
                     $depDiaActivo = ($est === 'depreciado' || $est === 'en_espera')
                         ? 0
                         : (float)($a['depreciacion_diaria'] ?? 0);
                     ?>
-                    <td style="text-align:right;color:<?= $depDiaActivo > 0 ? 'var(--brand)' : 'var(--g5)' ?>">
+                    <td data-label="Dep/día" style="text-align:right;color:<?= $depDiaActivo > 0 ? 'var(--brand)' : 'var(--g5)' ?>">
                         <?= $depDiaActivo > 0 ? '$'.fmt_cantidad($depDiaActivo, 2) : '—' ?>
                     </td>
-                    <td>
+                    <td data-label="Vida útil">
                         <div class="vida-wrap">
                             <div class="vida-bar">
                                 <div class="vida-fill" style="width:<?= $pct ?>%;background:<?= $vstyle['fill'] ?>"></div>
@@ -533,7 +533,7 @@ $VIDA_ESTADO = [
                         </div>
                     </td>
                     <!-- Estado: columna independiente restaurada -->
-                    <td>
+                    <td data-label="Estado">
                         <span class="badge" style="<?= $eStyle ?>"><?= $eLabel ?></span>
                         <?php if ($est === 'depreciado'): ?>
                         <br><span class="badge" style="background:#fef3c7;color:#92400e;margin-top:3px">Dep. total</span>

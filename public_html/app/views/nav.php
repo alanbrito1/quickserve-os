@@ -1135,12 +1135,15 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
         font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
         color: var(--g5, #6b7280); text-align: left; flex: 0 0 auto;
     }
-    /* Primera celda (nombre/título): ancho completo, destacada, sin etiqueta */
-    .rcards td:first-child {
+    /* Primera celda (nombre/título): ancho completo, destacada, sin etiqueta.
+       Si el título no es la primera celda, márcalo con class="rcard-title" y
+       oculta columnas que no aplican en tarjeta con class="rcard-hide". */
+    .rcards td:first-child, .rcards td.rcard-title {
         display: block; text-align: left;
         border-bottom: 1px solid var(--g9, #f3f4f6) !important;
         padding-bottom: 8px; margin-bottom: 4px;
     }
+    .rcards .rcard-hide { display: none !important; }
     /* Acciones: fila propia abajo, botones envueltos */
     .rcards td.acc-cell {
         display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px;
