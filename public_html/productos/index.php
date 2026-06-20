@@ -206,8 +206,9 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
             /* La tabla se vuelve tarjetas vía .rcards (nav.php). La fila de receta
                expandible (recipe-row) no es una tarjeta: se muestra como bloque
                continuo bajo el producto. */
-            .rcards tr.recipe-row { border:none; box-shadow:none; padding:0;
+            .rcards tr.recipe-row { display:none; border:none; box-shadow:none; padding:0;
                                     margin:-8px 0 10px; background:transparent; }
+            .rcards tr.recipe-row.open { display:block; }
             .rcards tr.recipe-row td { display:block; padding:0; border:none !important; }
             .rcards tr.recipe-row td::before { content:none; }
             /* Paneles de receta/combo: inputs de ancho fijo se adaptan al contenedor */

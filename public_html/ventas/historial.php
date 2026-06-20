@@ -239,8 +239,9 @@ foreach ($ventas as $v) {
         /* ── Teléfono vertical (< 480px): la tabla se vuelve TARJETAS (.rcards) ── */
         @media (max-width: 479px) {
             /* Fila de detalle expandible: bloque continuo, no tarjeta */
-            .rcards tr.det-row { border:none; box-shadow:none; padding:0;
+            .rcards tr.det-row { display:none; border:none; box-shadow:none; padding:0;
                                  margin:-8px 0 10px; background:transparent; }
+            .rcards tr.det-row.open { display:block; }
             .rcards tr.det-row td { display:block; padding:0; border:none !important; }
             .rcards tr.det-row td::before { content:none; }
             /* La lista de productos (con max-width inline) se muestra completa */

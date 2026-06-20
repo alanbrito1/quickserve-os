@@ -122,8 +122,13 @@ $msg_err = $_GET['err'] ?? '';
 
         /* ── Teléfono vertical (< 480px) ── */
         @media (max-width: 479px) {
-            /* Estado (col 7) también oculto → visible: Empleado, CostoTotal, Acciones */
-            table thead tr th:nth-child(7), table tbody tr td:nth-child(7) { display: none; }
+            /* La tabla se vuelve tarjetas (.rcards). Fila expandible (desglose) como
+               bloque continuo bajo la tarjeta. */
+            .rcards tr.exp-row { display:none; border:none; box-shadow:none; padding:0;
+                                 margin:-8px 0 10px; background:transparent; }
+            .rcards tr.exp-row.open { display:block; }
+            .rcards tr.exp-row td { display:block; padding:14px; border:none !important; }
+            .rcards tr.exp-row td::before { content:none; }
             .resumen-grid { grid-template-columns: 1fr 1fr !important; }
             .btn-primary  { width: 100%; }
         }
@@ -214,7 +219,7 @@ $msg_err = $_GET['err'] ?? '';
     <?php endif; ?>
 
     <!-- Tabla de liquidaciones -->
-    <div class="card">
+    <div class="card rcards-wrap">
         <div class="card-title">
             <span>Liquidaciones — <?= $meses_nombres[$mes] ?> <?= $anio ?></span>
             <?php if (!empty($liquidaciones) && permiso_tiene('nomina','admin_total')): ?>
@@ -235,7 +240,7 @@ $msg_err = $_GET['err'] ?? '';
             <?php endif; ?>
         </div>
         <?php else: ?>
-        <table>
+        <table class="rcards">
             <?php
             $TIPO_LABELS = [
                 'tiempo_completo' => ['label'=>'Tiempo completo', 'bg'=>'#dbeafe','c'=>'#1d4ed8'],
@@ -313,34 +318,34 @@ $msg_err = $_GET['err'] ?? '';
                         <br><small style="color:var(--g5)"><?= htmlspecialchars(substr($liq['descripcion_pago'],0,50)) ?></small>
                         <?php endif; ?>
                     </td>
-                    <td class="hide-m">
+                    <td class="hide-m" data-label="Contrato">
                         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
                                      background:<?= $tipoCfg['bg'] ?>;color:<?= $tipoCfg['c'] ?>">
                             <?= $tipoCfg['label'] ?>
                         </span>
                     </td>
-                    <td class="r hide-m">
+                    <td class="r hide-m" data-label="Salario / Pago">
                         $<?= fmt_moneda($pago_base) ?>
                         <br><small style="color:var(--g5)"><?= $lbl_pago ?></small>
                     </td>
-                    <td class="r hide-m">
+                    <td class="r hide-m" data-label="Cargas">
                         <?php if ($tipo === 'por_servicio'): ?>
                         <span style="color:var(--g5)">—</span>
                         <?php else: ?>
                         $<?= fmt_moneda($liq['total_cargas']) ?>
                         <?php endif; ?>
                     </td>
-                    <td class="r hide-m">
+                    <td class="r hide-m" data-label="Provisiones">
                         <?php if ($tipo === 'por_servicio'): ?>
                         <span style="color:var(--g5)">—</span>
                         <?php else: ?>
                         $<?= fmt_moneda($liq['total_provisiones']) ?>
                         <?php endif; ?>
                     </td>
-                    <td class="r" style="font-weight:800; color:var(--brand)">
+                    <td class="r" data-label="Costo Total" style="font-weight:800; color:var(--brand)">
                         $<?= fmt_moneda($liq['costo_total_empleador']) ?>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                         <?php if ($esPagado): ?>
                         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
                                      background:#d1fae5;color:#065f46">&#10003; Pagado</span>
@@ -365,7 +370,7 @@ $msg_err = $_GET['err'] ?? '';
                         <?php endif; ?>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td class="acc-cell">
                         <button class="exp-btn" onclick="toggleLiq(<?= $liq['id'] ?>)">&#9662;</button>
                     </td>
                 </tr>
