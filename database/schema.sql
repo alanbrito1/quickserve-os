@@ -1059,7 +1059,12 @@ INSERT IGNORE INTO `configuracion_app` (`clave`, `valor`, `descripcion`) VALUES
 ('font_size_body',    '13',                                   'Tamaño fuente cuerpo'),
 ('font_size_small',   '11',                                   'Tamaño fuente texto pequeño'),
 ('color_text',        '#111827',                              'Color de texto principal'),
-('color_text_sec',    '#6b7280',                              'Color de texto secundario');
+('color_text_sec',    '#6b7280',                              'Color de texto secundario'),
+-- Formato numérico configurable (mig. 040 y 041) — leído por FormatoHelper.php / NUM_FORMAT
+('num_decimales',     '2', 'Decimales para cantidades (stock, presentaciones, equivalencias, costo por unidad)'),
+('num_sep_miles',     '.', 'Caracter separador de miles para todos los numeros'),
+('num_sep_decimal',   ',', 'Caracter separador decimal para todos los numeros'),
+('num_sep_millones',  '.', 'Caracter separador para el grupo de millones (y superiores); si es igual al separador de miles, el formato es uniforme');
 
 
 -- ── listas_sistema — presentaciones ──────────────────────────────────────

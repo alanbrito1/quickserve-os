@@ -192,6 +192,7 @@ Claves completas (post-migración 040):
 | `num_decimales` | 2 | Decimales para cantidades (stock, presentaciones, equivalencias, costo/u) — migración 040 |
 | `num_sep_miles` | . | Separador de miles para todos los números — migración 040 |
 | `num_sep_decimal` | , | Separador decimal para todos los números — migración 040 |
+| `num_sep_millones` | . | Separador del grupo de millones (y superiores); si = `num_sep_miles`, formato uniforme — migración 041 |
 
 ### Tabla `permisos_modulos`
 ```sql
@@ -269,7 +270,7 @@ costo_total_empleador, pagado, fecha_pago_nomina
 > Fusión: atómica — transfiere ventas + pagos_fiado + saldo al principal, desactiva el secundario.
 
 ### Tabla `ventas`
-`id`, `fecha_venta`, `cliente_id`, `metodo_pago`, `total`, `estado`, `fecha_pago` (NULL=fiado sin cobrar), `es_combo` (derivado: 1 si algún ítem es combo), `tipo_sandwich`, `descuento_pct`/`descuento_valor` (**INMUTABLE**, snapshot del descuento aplicado — mig. 038; `total` = bruto − `descuento_valor`)
+`id`, `fecha_venta`, `cliente_id`, `metodo_pago`, `total`, `estado`, `fecha_pago` (NULL=fiado sin cobrar), `metodo_cobro` (ENUM efectivo/nequi/daviplata/bancolombia, NULL=no aplica o aún sin cobrar — con qué se saldó un fiado; `metodo_pago` se queda en 'fiado' — mig. 042), `es_combo` (derivado: 1 si algún ítem es combo), `tipo_sandwich`, `descuento_pct`/`descuento_valor` (**INMUTABLE**, snapshot del descuento aplicado — mig. 038; `total` = bruto − `descuento_valor`)
 
 ### Tabla `venta_detalles`
 `id`, `venta_id`, `producto_id`, `cantidad`, `precio_unitario`, `subtotal`, `from_stock` (1=del stock terminado, 0=de insumos), `es_combo` (0=solo, 1=vendido como combo), `combo_id` FK→combo_configs (NULL en ventas históricas), `variante_id` FK→producto_variantes, `variante_etiqueta`, `factor_receta_snap` (**INMUTABLE** — tamaño/variante vendido, mig. 035; NULL en ventas previas), `nombre_snap`/`nombre2_snap` (**INMUTABLE** — nombre del producto al vender, mig. 034)
@@ -642,6 +643,8 @@ schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas,
 038_descuento_venta.sql                → ALTER TABLE ventas ADD COLUMN descuento_pct DECIMAL(5,2) DEFAULT 0, ADD COLUMN descuento_valor DECIMAL(12,2) DEFAULT 0
 039_insumo_presentaciones.sql          → CREATE TABLE insumo_presentaciones (catálogo de presentaciones de compra por insumo); ALTER TABLE compra_detalles ADD COLUMN presentacion_id INT DEFAULT NULL (FK lógica)
 040_config_formato_numerico.sql        → INSERT IGNORE en configuracion_app: num_decimales, num_sep_miles, num_sep_decimal (formato numérico configurable — decimales y separadores, Admin → Apariencia)
+041_config_sep_millones.sql            → INSERT IGNORE en configuracion_app: num_sep_millones (separador independiente del grupo de millones; si = num_sep_miles → formato uniforme)
+042_venta_metodo_cobro.sql             → ALTER TABLE ventas ADD COLUMN metodo_cobro ENUM('efectivo','nequi','daviplata','bancolombia') DEFAULT NULL AFTER fecha_pago (con qué se cobró un fiado; metodo_pago se queda en 'fiado')
 
 ### Política de snapshots (principio de inmutabilidad extendido)
 Además de los precios, TODOS estos datos se guardan como snapshot al momento de la transacción:
