@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.98'); // 2026-06-20: v4.98 recetas - editar cantidades inline + copiar/combinar receta desde otro(s) producto(s) escalando por % y unificando insumos repetidos (api/copiar_receta.php); modos reemplazar/sumar
+define('APP_VERSION', '4.99'); // 2026-06-20: v4.99 productos - tab "Constructor de recetas" (producto + rinde + lista de ingredientes -> api/guardar_receta_completa.php; aplicar la receta a varios destinos con % via copiar_receta.php)
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

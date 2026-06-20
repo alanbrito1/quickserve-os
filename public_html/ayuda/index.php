@@ -1185,6 +1185,17 @@ descuento = (cantidad_requerida ÷ unidades_por_receta) × cantidad_vendida × <
             </div>
             <p>Al aplicar eliges entre <strong>Reemplazar receta</strong> (vacía la actual y la construye desde los orígenes) o <strong>Sumar a la actual</strong> (conserva lo que ya tiene y le suma). El sistema resuelve solo las banderas: un ingrediente "base" no puede ser "crítico", y se conserva un único ingrediente crítico por producto. Después puedes ajustar cantidades puntuales con la edición inline.</p>
 
+            <div class="sub-title">Tab "Constructor de recetas" (v4.99)</div>
+            <p>El módulo Productos tiene dos pestañas: <strong>Catálogo</strong> (la lista de siempre) y <strong>🧪 Constructor de recetas</strong>, una vista dedicada para armar recetas de forma rápida:</p>
+            <ol>
+                <li>Elige el <strong>producto</strong>.</li>
+                <li>Indica <strong>cuántos salen</strong> (el rinde / <code>unidades_por_receta</code>): cuántas unidades produce esa tanda de ingredientes. El costo por unidad se divide por ese número.</li>
+                <li>Arma la <strong>lista de ingredientes</strong> (insumo + cantidad, y opcionalmente crítico/base). Si el producto ya tenía receta, se carga para que la edites.</li>
+                <li><strong>💾 Guardar receta del producto</strong> → reemplaza la receta de ese producto y fija el rinde.</li>
+            </ol>
+            <p>Abajo, <strong>"Aplicar esta receta a otros productos"</strong>: agrega uno o varios productos destino, a cada uno con su <strong>porcentaje</strong> (ej. al L 60%, al XL 100%), y pulsa <strong>Reemplazar</strong> o <strong>Sumar</strong>. Es la forma de propagar una receta a todas sus variantes de tamaño en pocos clics.</p>
+            <div class="tip">Tras guardar desde el Constructor, las columnas de costo del Catálogo se actualizan al recargar la página; al expandir el producto verás la receta nueva de inmediato.</div>
+
             <div class="sub-title">Dar de baja stock terminado — 🎁 Regalar y 🗑 Desechar</div>
             <p>Cuando hay <code>stock_disponible &gt; 0</code>, cada tarjeta de producto muestra dos botones para bajar stock sin pasar por el POS:</p>
             <table class="data-table">

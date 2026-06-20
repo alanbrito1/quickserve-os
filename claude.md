@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.98 — Memoria de Sesión
+# ClanDestino ERP v4.99 — Memoria de Sesión
 # Última sesión: 2026-06-20 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -3456,3 +3456,45 @@ editable que guarda al salir) + copiar/combinar receta desde otro(s) producto(s)
 % y unificando insumos repetidos sumando (`api/copiar_receta.php`, modos reemplazar/sumar,
 resuelve crítico/base); re-render en sitio (`refrescarReceta`). Sin cambios de BD.
 `APP_VERSION` → 4.98.*
+
+---
+
+## Estado v4.99 (2026-06-20)
+
+Productos: tab **"Constructor de recetas"**. Sin cambios de BD.
+
+`productos/index.php` ahora tiene 2 pestañas (`#tab-catalogo` / `#tab-constructor`,
+toggle JS `mostrarTabProd`): **Catálogo** (la tabla de siempre) y **Constructor de recetas**.
+
+### Constructor de recetas
+- Eliges **producto** + **"cuántos salen"** (rinde = `unidades_por_receta`) + **lista de
+  ingredientes** (insumo + cantidad + crítico/base). Al seleccionar un producto se carga su
+  receta actual (editable). **Guardar** → reemplaza la receta y fija el rinde.
+- **Aplicar esta receta a otros productos**: agrega productos destino, cada uno con su **%**;
+  Reemplazar o Sumar. Internamente hace un `copiar_receta.php` por destino con
+  `fuentes=[{id: producto_fuente, factor: %}]` (uno→muchos).
+- Backend nuevo `productos/api/guardar_receta_completa.php`: transacción — fija
+  `unidades_por_receta`, `DELETE`+`INSERT` de la receta (unifica insumos repetidos sumando,
+  resuelve banderas: base anula crítico, máx 1 crítico), recalcula `costo_calculado`.
+- Frontend: `PRODUCTOS_RECETA` ahora incluye `rinde`; funciones `mostrarTabProd`,
+  `crInitConstructor`, `crCargarProducto`, `crAddIng`, `crGuardar`, `crAddTarget`, `crAplicar`.
+
+**Endpoints de receta (productos/api/):** `guardar_receta.php` (1 ingrediente, upsert/borrar),
+`copiar_receta.php` (combinar fuentes con %, v4.98), `guardar_receta_completa.php` (receta
+completa + rinde, v4.99), `ingredientes.php` (GET receta de un producto).
+
+### Cambios de versión
+
+- `app/config/app.php`: `APP_VERSION` → `4.99`. Sin migraciones.
+
+### Pendiente
+
+- Verificación del usuario: Constructor → elegir producto, fijar rinde, armar ingredientes,
+  guardar; luego aplicar a 1-2 destinos con % (Reemplazar/Sumar) y confirmar resultado.
+- (Nota UX) tras guardar desde el Constructor, las columnas de costo del Catálogo se actualizan
+  al recargar; expandir el producto muestra la receta nueva (cache invalidado).
+
+*Última actualización: 2026-06-20 | v4.99 — Productos: tab "Constructor de recetas" (producto +
+rinde + lista de ingredientes → `api/guardar_receta_completa.php`; aplicar la receta a varios
+destinos con % vía `copiar_receta.php`). Pestañas Catálogo/Constructor en `productos/index.php`.
+Sin cambios de BD. `APP_VERSION` → 4.99.*
