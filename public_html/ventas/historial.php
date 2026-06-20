@@ -236,17 +236,16 @@ foreach ($ventas as $v) {
                                  5=Método 6=Total 7=Estado 8=Acciones
            ════════════════════════════════════════════════════════════════ */
 
-        /* ── Teléfono vertical (< 480px): solo lo esencial ── */
+        /* ── Teléfono vertical (< 480px): la tabla se vuelve TARJETAS (.rcards) ── */
         @media (max-width: 479px) {
-            /* Ocultar: Productos (4), Método (5) */
-            .tbl th:nth-child(4),.tbl td:nth-child(4),
-            .tbl th:nth-child(5),.tbl td:nth-child(5) { display: none; }
-            /* Compactar # y fecha */
-            .tbl th:nth-child(1),.tbl td:nth-child(1) { white-space: nowrap; }
-            .tbl th:nth-child(2),.tbl td:nth-child(2) { white-space: nowrap; }
-            /* Botones de acción — iconos en fila compacta */
-            .tbl td:nth-child(8) { white-space: nowrap; padding: 6px 4px; }
-            .tbl td:nth-child(8) .btn-a { margin-left: 2px !important; }
+            /* Fila de detalle expandible: bloque continuo, no tarjeta */
+            .rcards tr.det-row { border:none; box-shadow:none; padding:0;
+                                 margin:-8px 0 10px; background:transparent; }
+            .rcards tr.det-row td { display:block; padding:0; border:none !important; }
+            .rcards tr.det-row td::before { content:none; }
+            /* La lista de productos (con max-width inline) se muestra completa */
+            .rcards td[data-label="Productos"] { max-width:none !important;
+                white-space:normal !important; overflow:visible !important; text-overflow:clip !important; }
             /* KPIs en 2 columnas */
             .kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
         }
@@ -257,8 +256,8 @@ foreach ($ventas as $v) {
             .tbl th:nth-child(4),.tbl td:nth-child(4) { display: none; }
         }
 
-        /* ── Legacy: ya existía — mantener para 680px ── */
-        @media (max-width: 680px) {
+        /* ── Legacy 480-680px (tabla, no tarjetas) ── */
+        @media (min-width: 480px) and (max-width: 680px) {
             .tbl th:nth-child(4),.tbl td:nth-child(4),
             .tbl th:nth-child(6),.tbl td:nth-child(6) { display: none; }
         }
@@ -405,14 +404,14 @@ foreach ($ventas as $v) {
     </div>
 
     <!-- Tabla -->
-    <div class="tbl-wrap">
+    <div class="tbl-wrap rcards-wrap">
         <?php if (empty($ventas)): ?>
         <div class="empty">
             <strong>Sin ventas en este período</strong>
             Ajusta el rango de fechas o los filtros.
         </div>
         <?php else: ?>
-        <table class="tbl" id="tbl-v">
+        <table class="tbl rcards" id="tbl-v">
             <thead>
                 <tr>
                     <th>#</th>
@@ -435,8 +434,8 @@ foreach ($ventas as $v) {
             <tr class="venta-row <?= $anulada ? 'anulada' : '' ?>"
                 data-cli="<?= htmlspecialchars(strtolower($v['cliente_nombre'])) ?>">
                 <td class="muted">#<?= $v['id'] ?></td>
-                <td class="muted"><?= date('d/m H:i', strtotime($v['fecha_venta'])) ?></td>
-                <td>
+                <td class="muted" data-label="Fecha / Hora"><?= date('d/m H:i', strtotime($v['fecha_venta'])) ?></td>
+                <td data-label="Cliente">
                     <?php if ($v['cliente_nombre'] !== 'Mostrador'): ?>
                         <strong><?= htmlspecialchars($v['cliente_nombre']) ?></strong>
                     <?php else: ?>
@@ -446,35 +445,35 @@ foreach ($ventas as $v) {
                         <br><small class="muted"><?= htmlspecialchars($v['cajero_nombre']) ?></small>
                     <?php endif; ?>
                 </td>
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--g2)">
+                <td data-label="Productos" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--g2)">
                     <?= htmlspecialchars($v['productos_lista'] ?? '—') ?>
                     <?php if ($v['es_combo']): ?>
                     <span class="badge" style="background:#e0e7ff;color:#3730a3">combo</span>
                     <?php endif; ?>
                 </td>
-                <td><span class="badge badge-<?= htmlspecialchars($v['metodo_pago']) ?>"><?= htmlspecialchars(ucfirst($v['metodo_pago'])) ?></span></td>
-                <td class="r">
+                <td data-label="Método"><span class="badge badge-<?= htmlspecialchars($v['metodo_pago']) ?>"><?= htmlspecialchars(ucfirst($v['metodo_pago'])) ?></span></td>
+                <td class="r" data-label="Total">
                     <strong>$<?= fmt_moneda((float)$v['total']) ?></strong>
                     <?php if ((float)($v['descuento_pct'] ?? 0) > 0): ?>
                     <br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px">−<?= fmt_cantidad((float)$v['descuento_pct'], 0) ?>% dto</span>
                     <?php endif; ?>
                 </td>
-                <td>
+                <td data-label="Estado">
                     <span class="badge badge-<?= $estBadge ?>"><?= $estLabel ?></span>
                     <?php if ($v['fecha_pago']): ?>
                     <br><small class="muted">Cobrado <?= date('d/m H:i', strtotime($v['fecha_pago'])) ?><?php if (!empty($v['metodo_cobro'])): ?> · <?= htmlspecialchars(ucfirst($v['metodo_cobro'])) ?><?php endif; ?></small>
                     <?php endif; ?>
                 </td>
-                <td>
-                    <button class="btn-a ic btn-ver" title="Detalle" onclick="toggleDet(<?= $v['id'] ?>)"><?= IC_EYE ?></button>
+                <td class="acc-cell">
+                    <button class="btn-a ic ic-view" title="Detalle" onclick="toggleDet(<?= $v['id'] ?>)"><?= IC_EYE ?></button>
                     <?php if (!$anulada && permiso_tiene('ventas','editar_existentes')): ?>
-                    <button class="btn-a ic btn-edit" title="Editar" onclick="abrirEditar(<?= $v['id'] ?>)"><?= IC_EDIT ?></button>
+                    <button class="btn-a ic ic-edit" title="Editar" onclick="abrirEditar(<?= $v['id'] ?>)"><?= IC_EDIT ?></button>
                     <?php endif; ?>
                     <?php if ($sinCobrar && permiso_tiene('ventas','editar_existentes')): ?>
-                    <button class="btn-a ic btn-pago" title="Marcar pagado" onclick="marcarPagado(<?= $v['id'] ?>)"><?= IC_CHECK ?></button>
+                    <button class="btn-a ic ic-ok" title="Marcar pagado" onclick="marcarPagado(<?= $v['id'] ?>)"><?= IC_CHECK ?></button>
                     <?php endif; ?>
                     <?php if (!$anulada && permiso_tiene('ventas','admin_total')): ?>
-                    <button class="btn-a ic btn-anul" title="Anular"
+                    <button class="btn-a ic ic-del" title="Anular"
                             onclick="anularVenta(<?= $v['id'] ?>,'<?= date('d/m/Y H:i',strtotime($v['fecha_venta'])) ?>')">
                         <?= IC_XMARK ?>
                     </button>
