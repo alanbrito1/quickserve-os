@@ -1070,6 +1070,27 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
 }
 .ic svg { display: block; flex-shrink: 0; }
 
+/* Colores semánticos para botones-icono — reutilizables en TODOS los módulos.
+   El icono usa stroke="currentColor", así que basta con fijar `color`. El
+   hover agrega un tinte suave del mismo tono (requiere que el botón tenga
+   borde/fondo, como .btn-acc/.btn-ajuste). Mantienen una línea consistente:
+   editar=azul, ver=gris, info=celeste, fusionar=violeta, ok/cobro=verde,
+   whatsapp=verde WA, eliminar/peligro=rojo. */
+.ic-edit  { color:#1d4ed8; }
+.ic-view  { color:#374151; }
+.ic-info  { color:#0369a1; }
+.ic-merge { color:#6d28d9; }
+.ic-ok    { color:#059669; }
+.ic-wa    { color:#16a34a; }
+.ic-del   { color:#dc2626; }
+.ic-edit:hover  { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+.ic-view:hover  { background:#f3f4f6; border-color:#d1d5db; color:#111827; }
+.ic-info:hover  { background:#f0f9ff; border-color:#bae6fd; color:#0369a1; }
+.ic-merge:hover { background:#f5f3ff; border-color:#ddd6fe; color:#6d28d9; }
+.ic-ok:hover    { background:#ecfdf5; border-color:#a7f3d0; color:#047857; }
+.ic-wa:hover    { background:#f0fdf4; border-color:#bbf7d0; color:#16a34a; }
+.ic-del:hover   { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+
 /* Mayor touch target en móvil */
 @media (max-width: 640px) {
     .ic { width: 38px !important; height: 38px !important; }

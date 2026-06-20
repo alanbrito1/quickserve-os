@@ -205,7 +205,9 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
            RESPONSIVE
            ════════════════════════════════════════════════════════════════ */
 
-        /* xs: < 480px — apilado, sin columnas secundarias */
+        /* xs: < 480px — móvil vertical: la tabla se convierte en TARJETAS apiladas
+           (sin scroll horizontal). Cada fila = una tarjeta: nombre arriba, campos
+           etiquetados, y los botones de acción en su propia fila abajo. */
         @media (max-width:479px) {
             .main    { padding:12px 10px 50px; }
             .kpis    { grid-template-columns:1fr 1fr; gap:8px; }
@@ -213,13 +215,45 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
             /* Barra de acciones en columna para que quepa en pantallas pequeñas */
             .actions-bar { flex-direction:column; align-items:stretch; }
             .search-input, .filter-sel, .btn { min-height:44px; width:100%; }
-            /* Ocultar columnas no esenciales en móvil vertical */
-            .hide-xs { display:none; }
-            /* Tabla scrollable horizontalmente */
-            table    { min-width:400px; }
             /* Modales en full-width, esquinas redondeadas arriba */
             .modal   { max-width:100% !important; border-radius:20px 20px 0 0 !important; }
             .fg-row  { grid-template-columns:1fr; }  /* columnas del form en vertical */
+
+            /* El contenedor deja de scrollear; las tarjetas son los <tr> */
+            .tbl-card { overflow:visible; background:transparent; box-shadow:none; border-radius:0; }
+            #tbl-clientes { min-width:0; }
+            #tbl-clientes thead { display:none; }
+            #tbl-clientes, #tbl-clientes tbody { display:block; width:100%; }
+            #tbl-clientes tr {
+                display:block; background:var(--white);
+                border:1px solid var(--g8); border-radius:12px;
+                padding:10px 12px; margin-bottom:10px;
+                box-shadow:0 1px 3px rgba(0,0,0,.05);
+            }
+            #tbl-clientes tr.inactivo { opacity:.6; }
+            /* Re-mostrar columnas que antes se ocultaban */
+            #tbl-clientes .hide-xs, #tbl-clientes .hide-sm { display:flex !important; }
+            /* Cada celda: etiqueta a la izquierda, valor a la derecha */
+            #tbl-clientes td {
+                display:flex; justify-content:space-between; align-items:center; gap:12px;
+                padding:5px 0; border:none; text-align:right; font-size:13px;
+            }
+            #tbl-clientes td[data-label]::before {
+                content:attr(data-label);
+                font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px;
+                color:var(--g5); text-align:left; flex:0 0 auto;
+            }
+            /* Nombre + badge: ancho completo, destacado, sin etiqueta */
+            #tbl-clientes td:first-child {
+                display:block; text-align:left;
+                border-bottom:1px solid var(--g9); padding-bottom:8px; margin-bottom:4px;
+            }
+            /* Acciones: fila propia abajo, botones envueltos */
+            #tbl-clientes td.acc-cell {
+                display:flex; flex-wrap:wrap; justify-content:flex-start; gap:8px;
+                white-space:normal !important;
+                border-top:1px solid var(--g9); padding-top:10px; margin-top:6px;
+            }
         }
 
         /* 360px: teléfonos Android pequeños */
@@ -328,23 +362,23 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
                     <span class="badge b-inac">Inactivo</span>
                     <?php endif; ?>
                 </td>
-                <td class="hide-sm" style="color:var(--g5)"><?= htmlspecialchars($c['empresa'] ?? '—') ?></td>
-                <td class="hide-sm" style="color:var(--g5)"><?= htmlspecialchars($c['telefono'] ?? '—') ?></td>
-                <td class="r">
+                <td class="hide-sm" data-label="Empresa" style="color:var(--g5)"><?= htmlspecialchars($c['empresa'] ?? '—') ?></td>
+                <td class="hide-sm" data-label="Teléfono" style="color:var(--g5)"><?= htmlspecialchars($c['telefono'] ?? '—') ?></td>
+                <td class="r" data-label="Deuda fiado">
                     <?php if ((float)$c['saldo_fiado'] > 0): ?>
                     <strong style="color:var(--red)">$<?= fmt_moneda($c['saldo_fiado']) ?></strong>
                     <?php else: ?>
                     <span style="color:var(--g5)">—</span>
                     <?php endif; ?>
                 </td>
-                <td class="r hide-xs"><?= (int)$c['total_ventas'] ?></td>
-                <td class="hide-xs" style="font-size:12px;color:var(--g5)">
+                <td class="r hide-xs" data-label="Ventas"><?= (int)$c['total_ventas'] ?></td>
+                <td class="hide-xs" data-label="Última compra" style="font-size:12px;color:var(--g5)">
                     <?= $c['ultima_compra'] ? date('d/m/Y', strtotime($c['ultima_compra'])) : '—' ?>
                 </td>
-                <td style="white-space:nowrap">
+                <td class="acc-cell" style="white-space:nowrap">
                     <?php if (permiso_tiene('ventas','editar_existentes')): ?>
                     <!-- Editar cliente: abre el modal de edición pre-cargado -->
-                    <button class="btn-acc ic" title="Editar cliente"
+                    <button class="btn-acc ic ic-edit" title="Editar cliente"
                             onclick="abrirEditar(<?= htmlspecialchars(json_encode([
                                 'id'       => (int)$c['id'],
                                 'nombre'   => $c['nombre'],
@@ -354,13 +388,13 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
                             ])) ?>)"><?= IC_EDIT ?></button>
                     <!-- Fusionar: solo disponible para clientes activos -->
                     <?php if ((int)$c['activo']): ?>
-                    <button class="btn-acc ic" title="Fusionar con otro cliente"
+                    <button class="btn-acc ic ic-merge" title="Fusionar con otro cliente"
                             onclick="abrirFusion(<?= (int)$c['id'] ?>, '<?= htmlspecialchars(addslashes($nc)) ?>', <?= (float)$c['saldo_fiado'] ?>)"
                             ><?= IC_MERGE ?></button>
                     <?php endif; ?>
                     <!-- Abonar: solo si tiene deuda pendiente -->
                     <?php if ((float)$c['saldo_fiado'] > 0): ?>
-                    <button class="btn-acc ic" title="Registrar pago de fiado" style="color:var(--green)"
+                    <button class="btn-acc ic ic-ok" title="Registrar pago de fiado"
                             onclick="abrirAbono(<?= (int)$c['id'] ?>, '<?= htmlspecialchars(addslashes($nc)) ?>', <?= number_format((float)$c['saldo_fiado'], 2, '.', '') ?>)"
                             ><?= IC_CASH ?></button>
                     <?php endif; ?>
@@ -368,7 +402,7 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
 
                     <?php if (permiso_tiene('ventas','admin_total')): ?>
                     <!-- Toggle activo/inactivo. No se puede desactivar si tiene deuda pendiente -->
-                    <button class="btn-acc ic <?= (int)$c['activo'] ? 'danger' : '' ?>"
+                    <button class="btn-acc ic <?= (int)$c['activo'] ? 'ic-del' : 'ic-ok' ?>"
                             title="<?= (int)$c['activo'] ? 'Desactivar cliente' : 'Reactivar cliente' ?>"
                             onclick="toggleCliente(<?= (int)$c['id'] ?>, <?= (int)$c['activo'] ?>)"
                             ><?= (int)$c['activo'] ? IC_PAUSE : IC_PLAY ?></button>
@@ -376,10 +410,10 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
 
                     <!-- Ver historial de ventas filtrado por este cliente -->
                     <a href="<?= APP_BASE ?>/ventas/historial.php?cliente_id=<?= (int)$c['id'] ?>"
-                       class="btn-acc ic" title="Ver historial de ventas"><?= IC_EYE ?></a>
+                       class="btn-acc ic ic-view" title="Ver historial de ventas"><?= IC_EYE ?></a>
                     <!-- Estado de cuenta: historial completo de cargos + abonos con saldo corriente -->
                     <a href="<?= APP_BASE ?>/clientes/estado_cuenta.php?id=<?= (int)$c['id'] ?>"
-                       class="btn-acc ic"
+                       class="btn-acc ic ic-info"
                        title="Estado de cuenta / Extracto"><?= IC_RECEIPT ?></a>
                     <!-- WhatsApp recordatorio: visible para todos si tiene teléfono y deuda -->
                     <?php if (!empty($c['telefono']) && (float)$c['saldo_fiado'] > 0): ?>
@@ -393,8 +427,8 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
                     );
                     ?>
                     <a href="https://wa.me/<?= $tel_wa ?>?text=<?= $msg_wa ?>" target="_blank"
-                       rel="noopener noreferrer" class="btn-acc ic"
-                       title="Recordatorio de pago por WhatsApp" style="color:#25d366"><?= IC_WA ?></a>
+                       rel="noopener noreferrer" class="btn-acc ic ic-wa"
+                       title="Recordatorio de pago por WhatsApp"><?= IC_WA ?></a>
                     <?php endif; ?>
                 </td>
             </tr>
