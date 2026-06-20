@@ -530,7 +530,7 @@ foreach ($ventas as $v) {
                 <div class="form-row" id="row-fecha-pago" style="display:none">
                     <div class="fg-m">
                         <label>Fecha de cobro (fiado)</label>
-                        <input type="datetime-local" id="edit-fecha-pago" max="<?= date('Y-m-d\TH:i') ?>">
+                        <input type="date" id="edit-fecha-pago" max="<?= date('Y-m-d') ?>">
                     </div>
                     <div class="fg-m">
                         <label>Método de cobro</label>
@@ -688,7 +688,7 @@ function abrirEditar(id) {
             var fv = d.venta.fecha_venta;
             document.getElementById('edit-fecha-venta').value = fv ? fv.substring(0,16).replace(' ','T') : '';
             var fp = d.venta.fecha_pago;
-            document.getElementById('edit-fecha-pago').value = fp ? fp.substring(0,16).replace(' ','T') : '';
+            document.getElementById('edit-fecha-pago').value = fp ? fp.substring(0,10) : '';
             document.getElementById('edit-metodo-cobro').value = d.venta.metodo_cobro || '';
             onMetodoChange();
 
@@ -816,7 +816,7 @@ async function guardarEdicion() {
     fd.append('metodo_pago', metodo); fd.append('cliente_id', clienteId || '');
     fd.append('notas',       notas);
     fd.append('fecha_venta', fechaVenta ? fechaVenta.replace('T', ' ') : '');
-    fd.append('fecha_pago',  fechaPago  ? fechaPago.replace('T', ' ')  : '');
+    fd.append('fecha_pago',  fechaPago || '');
     fd.append('metodo_cobro', metodoCobro || '');
     fd.append('items_json', JSON.stringify(items));
 

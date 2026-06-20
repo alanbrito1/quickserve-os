@@ -137,12 +137,17 @@ if ($fv_raw && preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/', $fv_raw)) {
     }
 }
 
-// fecha_pago solo aplica a fiado; para los demás se descarta
+// fecha_pago solo aplica a fiado; para los demás se descarta.
+// Acepta fecha sola ("YYYY-MM-DD", del <input type=date>) o fecha+hora
+// ("YYYY-MM-DD HH:MM"). Si viene solo fecha se usa el mediodía (evita
+// corrimiento de día por zona horaria al guardar el DATETIME).
 $fecha_pago = null;
 if ($metodo_pago === 'fiado') {
-    $fp = trim($_POST['fecha_pago'] ?? '');
-    if ($fp && preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/', $fp)) {
-        $fecha_pago = str_replace('T', ' ', substr($fp, 0, 16)) . ':00';
+    $fp = str_replace('T', ' ', trim($_POST['fecha_pago'] ?? ''));
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/', $fp, $m)) {
+        $fecha_pago = (isset($m[2]) && $m[2] !== '')
+            ? $m[1] . $m[2] . ':00'
+            : $m[1] . ' 12:00:00';
     }
 }
 
