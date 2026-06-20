@@ -158,16 +158,10 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
 
         /* ── Teléfono vertical (< 480px) ── */
         @media (max-width: 479px) {
-            /* Ocultar: Presentación (2) y Costo/u (4) — los menos críticos en campo */
-            table thead tr th:nth-child(2), table tbody tr td:nth-child(2),
-            table thead tr th:nth-child(4), table tbody tr td:nth-child(4) { display: none; }
-            /* Stats: 2 columnas ya controlado por nav.php global */
-            /* Barra de acciones: vertical */
+            /* La tabla se convierte en tarjetas vía .rcards / .rcards-wrap (nav.php). */
             .act-bar { flex-direction: column; align-items: stretch; }
             .act-bar .btn-primary,
             .act-bar .btn-sec { width: 100%; text-align: center; }
-            /* Tabla: menos min-width para reducir scroll */
-            table { min-width: 420px !important; }
         }
 
         /* ── Teléfono horizontal / tablet pequeña (480-639px) ── */
@@ -235,9 +229,9 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
     </div>
 
     <!-- Tabla de insumos -->
-    <div class="card">
-        <div class="table-wrap">
-        <table>
+    <div class="card rcards-wrap">
+        <div class="table-wrap rcards-wrap">
+        <table class="rcards">
             <thead>
                 <tr>
                     <th style="min-width:180px">Insumo</th>
@@ -279,7 +273,7 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
                         </small>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="Presentación">
                         <?php if ($pres): ?>
                         <span class="pres-tag"><?= ucfirst($pres) ?></span>
                         <?php if ($cant_pres > 0): ?>
@@ -295,13 +289,13 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
                         <small style="color:var(--g8)">Sin configurar</small>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="Stock">
                         <?= fmt_cantidad($ins['stock_actual']) ?>
                         <small style="color:var(--g5)"><?= htmlspecialchars($ins['unidad_medida']) ?></small>
                         <span class="sb"><span class="sf <?= $fillC ?>" style="width:<?= $pct ?>%"></span></span>
                         <br><small style="color:var(--g5)">Mín: <?= fmt_cantidad($ins['stock_seguridad']) ?></small>
                     </td>
-                    <td class="r">
+                    <td class="r" data-label="Costo / Unidad">
                         <strong>$<?= fmt_cantidad($ins['costo_actual']) ?></strong>
                         <br><small style="color:var(--g5)">/ <?= htmlspecialchars($ins['unidad_medida']) ?></small>
                         <?php
@@ -316,19 +310,19 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
                         </small>
                         <?php endif; ?>
                     </td>
-                    <td><span class="badge <?= $badgeC ?>"><?= $est ?></span></td>
+                    <td data-label="Estado"><span class="badge <?= $badgeC ?>"><?= $est ?></span></td>
                     <?php if (permiso_tiene('inventario','editar_existentes')): ?>
-                    <td style="display:flex;gap:5px;align-items:center;flex-wrap:nowrap">
-                        <button class="btn-ajuste ic" title="Ajustar"
+                    <td class="acc-cell" style="display:flex;gap:5px;align-items:center">
+                        <button class="btn-ajuste ic ic-edit" title="Ajustar"
                             onclick="abrirEditar(<?= htmlspecialchars(json_encode($ins)) ?>)">
                             <?= IC_EDIT ?>
                         </button>
-                        <button class="btn-ajuste ic" style="color:#0369a1;border-color:#bae6fd" title="Copiar"
+                        <button class="btn-ajuste ic ic-info" title="Copiar"
                             onclick="duplicarInsumo(<?= htmlspecialchars(json_encode($ins)) ?>)">
                             <?= IC_COPY ?>
                         </button>
                         <?php if (permiso_tiene('inventario','editar_existentes')): ?>
-                        <button class="btn-eliminar ic" title="Eliminar"
+                        <button class="btn-eliminar ic ic-del" title="Eliminar"
                             onclick="eliminarInsumo(<?= $ins['id'] ?>, <?= htmlspecialchars(json_encode($ins['nombre'])) ?>)">
                             <?= IC_TRASH ?>
                         </button>
