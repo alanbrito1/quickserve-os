@@ -552,8 +552,26 @@ const INSUMOS = <?= json_encode(array_map(
 
 const FIJOS_U = <?= json_encode(['fijo'=>$costo_fijo_u,'deprec'=>$costo_deprec_u,'rh'=>$costo_rh_u,'total'=>$fijos_u]) ?>;
 
+// Productos activos (para copiar/combinar recetas desde otro producto)
+const PRODUCTOS_RECETA = <?= json_encode(array_values(array_map(
+    fn($p) => ['id'=>(int)$p['id'],'nombre'=>$p['nombre'],'tamano'=>$p['tamano'] ?? '','nombre2'=>$p['nombre2'] ?? ''],
+    array_filter($productos, fn($p) => (int)($p['activo'] ?? 0) === 1)
+)), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
+
 const cache = {};
+const recetaParams = {};   // [prodId => {precio, rinde, combo, variantes}] para re-render en sitio
 const csrf  = () => document.getElementById('csrf-tk').value;
+
+// Re-renderiza la receta SIN colapsarla (re-lee ingredientes y reusa precio/rinde/
+// combo/variantes ya cargados). Para reflejar cambios y seguir editando.
+async function refrescarReceta(id) {
+    const p = recetaParams[id];
+    if (!p) { reloadReceta(id); return; }
+    try {
+        const r = await fetch('api/ingredientes.php?producto_id=' + id);
+        renderReceta(id, await r.json(), p.precio, p.rinde, p.combo, p.variantes);
+    } catch (e) { reloadReceta(id); }
+}
 
 // ── Expandir fila de receta ─────────────────────────────────────────────────
 async function toggleReceta(id, precio, rinde) {
@@ -582,6 +600,7 @@ async function toggleReceta(id, precio, rinde) {
 
 function renderReceta(id, ings, precio, rinde, combo, variantes) {
     rinde = parseInt(rinde) || 1;
+    recetaParams[id] = { precio, rinde, combo, variantes };   // para re-render en sitio
     let totalIng = 0;
     const puedEdt = <?= permiso_tiene('productos','editar_existentes') ? 'true' : 'false' ?>;
 
@@ -600,12 +619,20 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
         const base = i.es_base == 1
             ? '<span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:3px" title="Cantidad fija — no escala con variante de tamaño">🔒base</span>'
             : '';
-        const cantLabel = rinde > 1
-            ? `${(+i.cantidad_requerida).toFixed(NUM_FORMAT.decimales)} ${esc(i.unidad_medida)} <span style="color:#9ca3af;font-size:10px">(tanda)</span>`
-            : `${(+i.cantidad_requerida).toFixed(NUM_FORMAT.decimales)} ${esc(i.unidad_medida)}`;
+        const unidLbl = `${esc(i.unidad_medida)}${rinde > 1 ? ' <span style="color:#9ca3af;font-size:10px">(tanda)</span>' : ''}`;
+        // Cantidad editable inline (guarda al salir del campo / Enter); si no hay
+        // permiso, solo muestra el valor.
+        const cantCell = puedEdt
+            ? `<input type="number" value="${+i.cantidad_requerida}" step="any" min="0.0001"
+                      style="width:86px;padding:3px 6px;border:1px solid var(--g8);border-radius:6px;font-size:12px"
+                      title="Editar cantidad"
+                      onkeydown="if(event.key==='Enter')this.blur()"
+                      onchange="guardarCantIng(${id},${i.insumo_id},${i.es_insumo_critico==1?1:0},${i.es_base==1?1:0},this)">
+               <span style="font-size:11px;color:var(--g5)">${unidLbl}</span>`
+            : `${(+i.cantidad_requerida).toFixed(NUM_FORMAT.decimales)} ${unidLbl}`;
         tblRows += `<tr>
             <td>${esc(i.nombre)}${crit}${base}</td>
-            <td>${cantLabel}</td>
+            <td>${cantCell}</td>
             <td style="text-align:right">$${fmt(i.costo_actual)}</td>
             <td style="text-align:right"><strong>$${fmt(i.costo_linea)}</strong> <span style="color:#9ca3af;font-size:10px">/u</span></td>
             ${puedEdt ? `<td style="display:flex;gap:3px;align-items:center">
@@ -634,6 +661,21 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
             </label>
             <button class="btn-sm btn-grn" onclick="addIng(${id})">+ Agregar</button>
         </div>` : '';
+
+    // Copiar/combinar receta desde otro(s) producto(s) escalando por %
+    const copyForm = puedEdt ? `
+        <details class="copy-receta" style="margin-top:10px;border:1px solid var(--g8);border-radius:10px;padding:8px 10px;background:#fafafa">
+            <summary style="cursor:pointer;font-size:12px;font-weight:700;color:#1d4ed8">📋 Copiar / combinar receta de otro producto</summary>
+            <div style="margin-top:8px">
+                <div id="orig-list-${id}"></div>
+                <button class="btn-sm" onclick="addOrigen(${id})">+ Agregar origen</button>
+                <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="btn-sm btn-grn" onclick="aplicarCopia(${id},'reemplazar')">Reemplazar receta</button>
+                    <button class="btn-sm" style="background:#dbeafe;color:#1d4ed8" onclick="aplicarCopia(${id},'sumar')">Sumar a la actual</button>
+                </div>
+                <p style="font-size:11px;color:var(--g5);margin-top:6px">Cada origen aporta sus ingredientes al % indicado (ej. 60%); los ingredientes repetidos se <strong>suman</strong>. Crítico/base se resuelven solos.</p>
+            </div>
+        </details>` : '';
 
     // Desglose de costos
     const costoTotal = totalIng + FIJOS_U.total;
@@ -670,6 +712,7 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
                     <tbody>${tblRows || '<tr><td colspan="5" style="text-align:center;color:var(--g5);padding:16px">Sin ingredientes configurados</td></tr>'}</tbody>
                 </table>
                 ${addForm}
+                ${copyForm}
             </div>
             <div>
                 <p class="rcp-title">Desglose de costo</p>
@@ -706,7 +749,68 @@ function renderReceta(id, ings, precio, rinde, combo, variantes) {
     calcIngredientes(id, rinde);
 
     // Inicializar selector "Ingresar en" para el insumo preseleccionado
-    if (puedEdt) onSelectInsumoReceta(id);
+    if (puedEdt) { onSelectInsumoReceta(id); addOrigen(id); }
+}
+
+// ── Editar cantidad de un ingrediente directamente (inline) ─────────────────
+async function guardarCantIng(prodId, insumoId, esCritico, esBase, inputEl) {
+    const cant = parseFloat(inputEl.value);
+    if (!cant || cant <= 0) { toast('Cantidad inválida', 'err'); reloadReceta(prodId); return; }
+    const fd = new FormData();
+    fd.append('csrf_token', csrf()); fd.append('accion','guardar');
+    fd.append('producto_id', prodId); fd.append('insumo_id', insumoId);
+    fd.append('cantidad', cant); fd.append('es_critico', esCritico);
+    fd.append('es_base', esBase);
+    const r = await fetch('api/guardar_receta.php', {method:'POST',body:fd});
+    const d = await r.json();
+    if (d.success) { delete cache[prodId]; toast('Cantidad actualizada', 'ok'); refrescarReceta(prodId); }
+    else { toast(d.error || 'Error', 'err'); reloadReceta(prodId); }
+}
+
+// ── Copiar / combinar receta desde otro(s) producto(s) ──────────────────────
+function origenRowHtml(prodId) {
+    const opts = PRODUCTOS_RECETA
+        .filter(p => p.id !== prodId)
+        .map(p => {
+            const t = p.tamano && p.tamano !== 'unico' ? ' ' + p.tamano : '';
+            const n2 = p.nombre2 ? ' — ' + p.nombre2 : '';
+            return `<option value="${p.id}">${esc(p.nombre + t + n2)}</option>`;
+        }).join('');
+    return `<div class="orig-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <select class="orig-prod" style="flex:1;min-width:150px;padding:5px 7px;border:1px solid var(--g8);border-radius:6px;font-size:12px">${opts}</select>
+        <input type="number" class="orig-pct" value="100" min="1" max="1000" step="5"
+               style="width:74px;padding:5px 7px;border:1px solid var(--g8);border-radius:6px;font-size:12px" title="Porcentaje de los ingredientes a tomar">
+        <span style="font-size:12px;color:var(--g5)">%</span>
+        <button class="btn-sm btn-red" onclick="this.closest('.orig-row').remove()" title="Quitar origen">✕</button>
+    </div>`;
+}
+function addOrigen(prodId) {
+    const list = document.getElementById('orig-list-' + prodId);
+    if (list) list.insertAdjacentHTML('beforeend', origenRowHtml(prodId));
+}
+async function aplicarCopia(prodId, modo) {
+    const list = document.getElementById('orig-list-' + prodId);
+    const fuentes = [];
+    list.querySelectorAll('.orig-row').forEach(row => {
+        const id  = parseInt(row.querySelector('.orig-prod').value);
+        const pct = parseFloat(row.querySelector('.orig-pct').value);
+        if (id && pct > 0) fuentes.push({ id, factor: pct });
+    });
+    if (!fuentes.length) { toast('Agrega al menos un producto de origen con %', 'err'); return; }
+    if (modo === 'reemplazar' && !confirm('Esto REEMPLAZARÁ la receta actual por los orígenes seleccionados. ¿Continuar?')) return;
+
+    const fd = new FormData();
+    fd.append('csrf_token', csrf());
+    fd.append('producto_id', prodId);
+    fd.append('modo', modo);
+    fd.append('fuentes', JSON.stringify(fuentes));
+    const r = await fetch('api/copiar_receta.php', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.success) {
+        delete cache[prodId];
+        toast((modo === 'sumar' ? 'Sumado' : 'Receta construida') + ': ' + d.ingredientes + ' ingrediente(s)', 'ok');
+        refrescarReceta(prodId);
+    } else toast(d.error || 'Error', 'err');
 }
 
 // ── Conversión receta ↔ equivalencia física (mig 030) ──────────────────────
@@ -771,7 +875,7 @@ async function addIng(prodId) {
     fd.append('es_base', esBase);
     const r = await fetch('api/guardar_receta.php', {method:'POST',body:fd});
     const d = await r.json();
-    if (d.success) { delete cache[prodId]; toast('Guardado', 'ok'); reloadReceta(prodId); }
+    if (d.success) { delete cache[prodId]; toast('Guardado', 'ok'); refrescarReceta(prodId); }
     else toast(d.error || 'Error', 'err');
 }
 
@@ -786,7 +890,7 @@ async function toggleBase(prodId, insumoId, esBase, cantidad, esCritico) {
     if (d.success) {
         delete cache[prodId];
         toast(esBase ? 'Ingrediente ya escala con variante' : 'Ingrediente marcado como base (fijo)', 'ok');
-        reloadReceta(prodId);
+        refrescarReceta(prodId);
     } else toast(d.error || 'Error', 'err');
 }
 
@@ -797,7 +901,7 @@ async function delIng(prodId, insumoId) {
     fd.append('producto_id', prodId); fd.append('insumo_id', insumoId);
     const r = await fetch('api/guardar_receta.php', {method:'POST',body:fd});
     const d = await r.json();
-    if (d.success) { delete cache[prodId]; toast('Eliminado', 'ok'); reloadReceta(prodId); }
+    if (d.success) { delete cache[prodId]; toast('Eliminado', 'ok'); refrescarReceta(prodId); }
     else toast(d.error || 'Error', 'err');
 }
 
