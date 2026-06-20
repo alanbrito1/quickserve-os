@@ -1,4 +1,4 @@
-# ClanDestino ERP v4.97 — Memoria de Sesión
+# ClanDestino ERP v4.98 — Memoria de Sesión
 # Última sesión: 2026-06-20 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -3403,3 +3403,56 @@ escritorio). Conteo y Proveedores ya eran grillas de tarjetas. La barra de resum
 módulos con tablas de acción (Clientes, Inventario, Productos, Ventas, Proveedores, Activos,
 Nómina, Admin, Costos) + Detalle del reporte de Ventas + barra de resumen del POS. Sin cambios
 de BD. `APP_VERSION` → 4.97.*
+
+---
+
+## Estado v4.98 (2026-06-20)
+
+Recetas de Productos: edición de cantidades inline + copiar/combinar recetas. Sin cambios de BD
+(reusa `recetas`).
+
+### 1. Editar cantidades inline
+
+En la fila expandida de un producto (Módulo Productos → "Ingredientes de la receta"), la
+cantidad de cada ingrediente es ahora un `<input>` editable. Al salir del campo o pulsar Enter
+se guarda vía `api/guardar_receta.php` (upsert, conserva crítico/base) y se recalcula el costo.
+Antes había que borrar y volver a agregar el ingrediente.
+
+### 2. Copiar / combinar recetas con porcentaje — `api/copiar_receta.php` (nuevo)
+
+Panel "📋 Copiar / combinar receta" en la receta: se eligen **uno o varios productos de origen**,
+cada uno con su **porcentaje**, y se traen sus ingredientes escalados. Casos: "Criollo L" =
+"Criollo XL" al 60%; "Mixto" = "Pollo desmechado" 50% + "Criollo" 50%.
+
+- **Unifica insumos repetidos sumando** las cantidades (entre orígenes y, en modo sumar, con la
+  receta actual).
+- Dos modos (el usuario eligió "preguntar cada vez" → dos botones): **Reemplazar** (vacía la
+  receta y la construye) o **Sumar** (a la actual).
+- Resuelve banderas según las reglas de la receta: **base anula crítico** (no coexisten) y
+  **máximo un crítico** por producto (se conserva el primero).
+- Backend `productos/api/copiar_receta.php`: transacción — merge por `insumo_id` (detección
+  mig 036 para `es_base`), `DELETE` + `INSERT` del mapa resultante, recalcula
+  `productos.costo_calculado`. Permiso `productos:editar_existentes`, CSRF.
+- Frontend (`productos/index.php`): nuevo global JS `PRODUCTOS_RECETA` (productos activos para
+  el selector de origen); funciones `guardarCantIng`, `origenRowHtml`/`addOrigen`/`aplicarCopia`.
+- **Re-render en sitio** (`refrescarReceta`): tras editar/copiar la receta se re-renderiza sin
+  colapsar (antes `reloadReceta` cerraba la fila). Aplicado también a addIng/delIng/toggleBase.
+
+### Cambios de versión
+
+- `app/config/app.php`: `APP_VERSION` → `4.98`. Sin migraciones.
+
+### Pendiente
+
+- Verificación del usuario: editar una cantidad inline (guarda y recalcula sin cerrar);
+  construir una receta desde otro producto a un % (Reemplazar) y combinar dos orígenes al 50%
+  con duplicados (Sumar/Reemplazar) confirmando que los insumos repetidos se sumen.
+- Caveat conocido: el % escala TODOS los ingredientes del origen (incluidos los "base"); si un
+  base no debía escalar, se ajusta con la edición inline. Tampoco ajusta por diferencia de
+  `unidades_por_receta` (rinde) entre origen y destino (la mayoría usa rinde=1).
+
+*Última actualización: 2026-06-20 | v4.98 — recetas: edición de cantidades inline (campo
+editable que guarda al salir) + copiar/combinar receta desde otro(s) producto(s) escalando por
+% y unificando insumos repetidos sumando (`api/copiar_receta.php`, modos reemplazar/sumar,
+resuelve crítico/base); re-render en sitio (`refrescarReceta`). Sin cambios de BD.
+`APP_VERSION` → 4.98.*

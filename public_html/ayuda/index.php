@@ -1171,6 +1171,20 @@ descuento = (cantidad_requerida ÷ unidades_por_receta) × cantidad_vendida × <
             <div class="tip">El marcado como base también aplica al <strong>revertir stock</strong> al anular una venta o al editar una venta existente — garantiza que se restaure exactamente la cantidad que se consumió originalmente.</div>
             <div class="warn"><strong>Limitación:</strong> Si cambias <code>es_base</code> de un ingrediente después de haber realizado ventas, la restauración de stock en ventas antiguas usará el valor actual de <code>es_base</code>, no el que existía cuando se realizó la venta. Se recomienda configurar <code>es_base</code> antes de comenzar a vender.</div>
 
+            <div class="sub-title">Editar cantidades y copiar/combinar recetas (v4.98)</div>
+            <p>En la fila expandida de un producto, dentro de <strong>Ingredientes de la receta</strong>:</p>
+            <ul>
+                <li><strong>Editar cantidad directamente:</strong> la cantidad de cada ingrediente es un campo editable. Escribe el nuevo valor (en la unidad del insumo) y sal del campo o pulsa Enter — se guarda y el costo se recalcula al instante. Ya no hace falta borrar y volver a agregar.</li>
+                <li><strong>Copiar / combinar receta de otro producto:</strong> abre el panel "📋 Copiar / combinar receta". Agrega uno o varios <strong>productos de origen</strong> y a cada uno indícale un <strong>porcentaje</strong> de sus ingredientes a tomar.</li>
+            </ul>
+            <div class="ok"><strong>Ejemplos:</strong>
+                <ul style="margin:6px 0 0 18px">
+                    <li><strong>Criollo L desde el XL:</strong> agrega como origen "Criollo XL" al <strong>60%</strong> → trae todos sus ingredientes reducidos al 60%.</li>
+                    <li><strong>Sándwich Mixto:</strong> agrega "Pollo desmechado" al <strong>50%</strong> y "Criollo" al <strong>50%</strong>. Los ingredientes que se repiten en ambos se <strong>unifican sumando</strong> sus cantidades.</li>
+                </ul>
+            </div>
+            <p>Al aplicar eliges entre <strong>Reemplazar receta</strong> (vacía la actual y la construye desde los orígenes) o <strong>Sumar a la actual</strong> (conserva lo que ya tiene y le suma). El sistema resuelve solo las banderas: un ingrediente "base" no puede ser "crítico", y se conserva un único ingrediente crítico por producto. Después puedes ajustar cantidades puntuales con la edición inline.</p>
+
             <div class="sub-title">Dar de baja stock terminado — 🎁 Regalar y 🗑 Desechar</div>
             <p>Cuando hay <code>stock_disponible &gt; 0</code>, cada tarjeta de producto muestra dos botones para bajar stock sin pasar por el POS:</p>
             <table class="data-table">

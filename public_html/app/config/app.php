@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '4.97'); // 2026-06-20: v4.97 UI - iconos de accion con color consistente (clases .ic-* en nav.php) + tablas a tarjetas en movil vertical (.rcards/.rcards-wrap) sin scroll horizontal, en todos los modulos con tablas de accion
+define('APP_VERSION', '4.98'); // 2026-06-20: v4.98 recetas - editar cantidades inline + copiar/combinar receta desde otro(s) producto(s) escalando por % y unificando insumos repetidos (api/copiar_receta.php); modos reemplazar/sumar
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
