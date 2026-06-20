@@ -168,9 +168,9 @@ try {
     <?php if ($msg_err): ?><div class="alert alert-err"><?= htmlspecialchars($msg_err) ?></div><?php endif; ?>
 
     <!-- Tabla de empleados -->
-    <div class="card">
+    <div class="card rcards-wrap">
         <div class="card-title">Empleados (<?= count($empleados) ?>)</div>
-        <table>
+        <table class="rcards">
             <thead>
                 <tr>
                     <th>Nombre</th>
@@ -194,8 +194,8 @@ try {
                         <br><small style="color:var(--g5)">CC <?= htmlspecialchars($e['documento_identidad']) ?></small>
                         <?php endif; ?>
                     </td>
-                    <td class="hide-m"><?= htmlspecialchars($e['cargo'] ?: '—') ?></td>
-                    <td class="hide-m">
+                    <td class="hide-m" data-label="Cargo"><?= htmlspecialchars($e['cargo'] ?: '—') ?></td>
+                    <td class="hide-m" data-label="Contrato">
                         <?php
                         $tc = $e['tipo_contrato'] ?? 'tiempo_completo';
                         $tcCfg = [
@@ -215,14 +215,14 @@ try {
                         <br><small style="color:var(--g5)">$<?= fmt_moneda($e['valor_proyecto']) ?>/proy</small>
                         <?php endif; ?>
                     </td>
-                    <td class="hide-m">
+                    <td class="hide-m" data-label="Costo">
                         <?php $tc_costo = $e['tipo_costo'] ?? 'indirecto'; ?>
                         <span class="badge b-<?= $tc_costo ?>">
                             <?= $tc_costo === 'directo' ? 'Directo' : 'Indirecto' ?>
                         </span>
                     </td>
-                    <td class="hide-m"><?= date('d/m/Y', strtotime($e['fecha_ingreso'])) ?></td>
-                    <td>
+                    <td class="hide-m" data-label="Ingreso"><?= date('d/m/Y', strtotime($e['fecha_ingreso'])) ?></td>
+                    <td data-label="Salario / Pago">
                         <?php
                         $tc = $e['tipo_contrato'] ?? 'tiempo_completo';
                         if ($tc === 'por_servicio'):
@@ -252,10 +252,10 @@ try {
                             <?php endif; ?>
                         <?php endif; ?>
                     </td>
-                    <td><span class="badge <?= $e['activo'] ? 'b-act' : 'b-ina' ?>"><?= $e['activo'] ? 'Activo' : 'Inactivo' ?></span></td>
+                    <td data-label="Estado"><span class="badge <?= $e['activo'] ? 'b-act' : 'b-ina' ?>"><?= $e['activo'] ? 'Activo' : 'Inactivo' ?></span></td>
                     <?php if (permiso_tiene('nomina','editar_existentes')): ?>
-                    <td style="display:flex; gap:6px; flex-wrap:wrap">
-                        <button class="btn-edit ic" title="Editar" onclick="abrirEditar(<?= htmlspecialchars(json_encode($e)) ?>)">
+                    <td class="acc-cell" style="display:flex; gap:6px; flex-wrap:wrap">
+                        <button class="btn-edit ic ic-edit" title="Editar" onclick="abrirEditar(<?= htmlspecialchars(json_encode($e)) ?>)">
                             <?= IC_EDIT ?>
                         </button>
                         <?php if (permiso_tiene('nomina','admin_total')): ?>
@@ -263,7 +263,7 @@ try {
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="accion" value="toggle">
                             <input type="hidden" name="id" value="<?= $e['id'] ?>">
-                            <button type="submit" class="btn-toggle ic <?= $e['activo'] ? 'btn-deact' : 'btn-act' ?>"
+                            <button type="submit" class="btn-toggle ic <?= $e['activo'] ? 'ic-warn' : 'ic-ok' ?>"
                                     title="<?= $e['activo'] ? 'Desactivar' : 'Activar' ?>"
                                     onclick="return confirm('¿Cambiar estado del empleado?')">
                                 <?= $e['activo'] ? IC_PAUSE : IC_PLAY ?>
