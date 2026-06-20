@@ -866,13 +866,16 @@ async function aplicarCopia(prodId, modo) {
     fd.append('producto_id', prodId);
     fd.append('modo', modo);
     fd.append('fuentes', JSON.stringify(fuentes));
-    const r = await fetch('api/copiar_receta.php', {method:'POST', body:fd});
-    const d = await r.json();
-    if (d.success) {
-        delete cache[prodId];
-        toast((modo === 'sumar' ? 'Sumado' : 'Receta construida') + ': ' + d.ingredientes + ' ingrediente(s)', 'ok');
-        refrescarReceta(prodId);
-    } else toast(d.error || 'Error', 'err');
+    try {
+        const r = await fetch('api/copiar_receta.php', {method:'POST', body:fd});
+        const txt = await r.text();
+        let d; try { d = JSON.parse(txt); } catch (e) { toast('Respuesta inválida del servidor: ' + txt.slice(0,180), 'err'); return; }
+        if (d.success) {
+            delete cache[prodId];
+            toast((modo === 'sumar' ? 'Sumado' : 'Receta construida') + ': ' + d.ingredientes + ' ingrediente(s)', 'ok');
+            refrescarReceta(prodId);
+        } else toast(d.error || 'Error', 'err');
+    } catch (e) { toast('Error de red al copiar receta', 'err'); }
 }
 
 // ══ CONSTRUCTOR DE RECETAS (tab) ════════════════════════════════════════════
@@ -986,7 +989,7 @@ async function crAplicar(modo) {
     });
     if (!targets.length) { toast('Agrega al menos un producto destino con %', 'err'); return; }
     if (modo === 'reemplazar' && !confirm('Esto REEMPLAZARÁ la receta de ' + targets.length + ' producto(s) destino. ¿Continuar?')) return;
-    let ok = 0, err = 0;
+    let ok = 0, err = 0, msg = '';
     for (const t of targets) {
         const fd = new FormData();
         fd.append('csrf_token', csrf());
@@ -995,11 +998,13 @@ async function crAplicar(modo) {
         fd.append('fuentes', JSON.stringify([{ id: srcId, factor: t.pct }]));
         try {
             const r = await fetch('api/copiar_receta.php', {method:'POST', body:fd});
-            const d = await r.json();
-            if (d.success) { ok++; delete cache[t.id]; } else err++;
-        } catch (e) { err++; }
+            const txt = await r.text();
+            let d; try { d = JSON.parse(txt); } catch (e) { err++; if (!msg) msg = txt.slice(0,180); continue; }
+            if (d.success) { ok++; delete cache[t.id]; } else { err++; if (!msg) msg = d.error || ''; }
+        } catch (e) { err++; if (!msg) msg = 'red'; }
     }
-    toast(`Aplicado a ${ok} producto(s)` + (err ? `, ${err} con error` : ''), err ? 'err' : 'ok');
+    if (err) toast(`Aplicado a ${ok}, ${err} con error: ${msg}`, 'err');
+    else     toast(`Aplicado a ${ok} producto(s)`, 'ok');
 }
 
 // ── Conversión receta ↔ equivalencia física (mig 030) ──────────────────────

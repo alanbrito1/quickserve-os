@@ -195,8 +195,8 @@ try {
 
     echo json_encode(['success' => true, 'ingredientes' => $n, 'modo' => $modo]);
 
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('[ClanDestino copiar_receta] ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Error interno al copiar la receta.']);
+    echo json_encode(['success' => false, 'error' => 'Error al copiar la receta: ' . $e->getMessage()]);
 }
