@@ -181,11 +181,11 @@ $CAT_COLORS = [
             </div>
             <?php if (permiso_tiene('proveedores','editar_existentes')): ?>
             <div class="prov-actions">
-                <button class="btn-edit ic" title="Editar" onclick="abrirEditar(<?= htmlspecialchars(json_encode($p)) ?>)">
+                <button class="btn-edit ic ic-edit" title="Editar" onclick="abrirEditar(<?= htmlspecialchars(json_encode($p)) ?>)">
                     <?= IC_EDIT ?>
                 </button>
                 <?php if (permiso_tiene('proveedores','admin_total')): ?>
-                <button class="btn-toggle ic <?= $p['activo'] ? 'btn-desa' : 'btn-act' ?>"
+                <button class="btn-toggle ic <?= $p['activo'] ? 'ic-warn' : 'ic-ok' ?>"
                         title="<?= $p['activo'] ? 'Desactivar' : 'Activar' ?>"
                         onclick="toggleProv(<?= $p['id'] ?>, this)">
                     <?= $p['activo'] ? IC_PAUSE : IC_PLAY ?>

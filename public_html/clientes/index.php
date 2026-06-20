@@ -366,7 +366,7 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
 
                     <?php if (permiso_tiene('ventas','admin_total')): ?>
                     <!-- Toggle activo/inactivo. No se puede desactivar si tiene deuda pendiente -->
-                    <button class="btn-acc ic <?= (int)$c['activo'] ? 'ic-del' : 'ic-ok' ?>"
+                    <button class="btn-acc ic <?= (int)$c['activo'] ? 'ic-warn' : 'ic-ok' ?>"
                             title="<?= (int)$c['activo'] ? 'Desactivar cliente' : 'Reactivar cliente' ?>"
                             onclick="toggleCliente(<?= (int)$c['id'] ?>, <?= (int)$c['activo'] ?>)"
                             ><?= (int)$c['activo'] ? IC_PAUSE : IC_PLAY ?></button>

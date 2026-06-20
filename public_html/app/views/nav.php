@@ -1083,6 +1083,7 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
 .ic-ok    { color:#065f46; background:#d1fae5; border-color:#d1fae5; }
 .ic-wa    { color:#16a34a; background:#dcfce7; border-color:#dcfce7; }
 .ic-del   { color:#991b1b; background:#fee2e2; border-color:#fee2e2; }
+.ic-warn  { color:#92400e; background:#fef3c7; border-color:#fef3c7; }
 .ic-gift  { color:#9d174d; background:#fce7f3; border-color:#fce7f3; }
 .ic-edit:hover  { color:#1d4ed8; background:#bfdbfe; border-color:#bfdbfe; }
 .ic-view:hover  { color:#111827; background:#e5e7eb; border-color:#e5e7eb; }
@@ -1091,6 +1092,7 @@ button svg, a svg { vertical-align: middle; pointer-events: none; }
 .ic-ok:hover    { color:#047857; background:#a7f3d0; border-color:#a7f3d0; }
 .ic-wa:hover    { color:#16a34a; background:#bbf7d0; border-color:#bbf7d0; }
 .ic-del:hover   { color:#b91c1c; background:#fecaca; border-color:#fecaca; }
+.ic-warn:hover  { color:#92400e; background:#fde68a; border-color:#fde68a; }
 .ic-gift:hover  { color:#9d174d; background:#fbcfe8; border-color:#fbcfe8; }
 
 /* Mayor touch target en móvil */
