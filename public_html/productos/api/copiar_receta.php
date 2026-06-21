@@ -197,13 +197,10 @@ try {
 
     $pdo->commit();
 
-    echo json_encode(['success' => true, 'ingredientes' => $n, 'modo' => $modo,
-        'debug' => ['modo' => $modo, 'destino_rows' => $destinoRows,
-                    'fuentes' => array_column($fuentes, 'id'), 'fuentes_rows' => $fuentesRows,
-                    'map' => array_map(fn($v) => round($v['cant'], 4), $map)]]);
+    echo json_encode(['success' => true, 'ingredientes' => $n, 'modo' => $modo]);
 
 } catch (\Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('[ClanDestino copiar_receta] ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Error al copiar la receta: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error interno al copiar la receta.']);
 }

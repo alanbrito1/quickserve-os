@@ -471,16 +471,16 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
                 </div>
 
                 <div style="margin-top:20px;border-top:1px solid var(--g9);padding-top:14px">
-                    <p style="font-size:13px;font-weight:800;margin-bottom:3px">Aplicar esta receta a otros productos</p>
+                    <p style="font-size:13px;font-weight:800;margin-bottom:3px">Traer ingredientes de otros productos</p>
                     <p style="font-size:12px;color:var(--g5);margin-bottom:10px">
-                        Toma la receta del producto de arriba y la lleva a otros, cada uno a su <strong>porcentaje</strong>
-                        (ej. al L 60%). Los insumos repetidos se suman.
+                        Trae los ingredientes de uno o varios productos (cada uno a su <strong>porcentaje</strong>, ej. 60%)
+                        y los <strong>suma a la lista de arriba</strong>. Los insumos repetidos se unifican sumando.
+                        Revisa las cantidades y luego pulsa <strong>"Guardar receta del producto"</strong>.
                     </p>
-                    <div id="cr-targets" style="margin-bottom:8px"></div>
-                    <button class="btn-sm" onclick="crAddTarget()">+ Agregar producto destino</button>
+                    <div id="cr-origenes" style="margin-bottom:8px"></div>
+                    <button class="btn-sm" onclick="crAddOrigen()">+ Agregar producto origen</button>
                     <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn-sm btn-grn" onclick="crAplicar('reemplazar')">Reemplazar en destinos</button>
-                        <button class="btn-sm" style="background:#dbeafe;color:#1d4ed8" onclick="crAplicar('sumar')">Sumar en destinos</button>
+                        <button class="btn-sm btn-grn" onclick="crTraer()">⬇ Traer y combinar</button>
                     </div>
                 </div>
             </div>
@@ -872,7 +872,7 @@ async function aplicarCopia(prodId, modo) {
         let d; try { d = JSON.parse(txt); } catch (e) { toast('Respuesta inválida del servidor: ' + txt.slice(0,180), 'err'); return; }
         if (d.success) {
             delete cache[prodId];
-            toast('OK ' + d.ingredientes + ' ing · ' + JSON.stringify(d.debug), 'ok');
+            toast((modo === 'sumar' ? 'Sumado' : 'Receta construida') + ': ' + d.ingredientes + ' ingrediente(s)', 'ok');
             refrescarReceta(prodId);
         } else toast(d.error || 'Error', 'err');
     } catch (e) { toast('Error de red al copiar receta', 'err'); }
@@ -920,7 +920,7 @@ function crAddIng(insumoId, cant, crit, base) {
 function crInitConstructor() {
     document.getElementById('cr-prod').innerHTML = crProdOptions(0);
     crCargarProducto();
-    if (!document.querySelectorAll('#cr-targets .cr-tg-row').length) crAddTarget();
+    if (!document.querySelectorAll('#cr-origenes .cr-og-row').length) crAddOrigen();
 }
 async function crCargarProducto() {
     const id   = parseInt(document.getElementById('cr-prod').value);
@@ -935,8 +935,8 @@ async function crCargarProducto() {
             ings.forEach(i => crAddIng(i.insumo_id, +i.cantidad_requerida, i.es_insumo_critico==1?1:0, i.es_base==1?1:0));
         else crAddIng();
     } catch (e) { crAddIng(); }
-    // Excluir el producto fuente de los selectores de destino
-    document.querySelectorAll('#cr-targets .cr-tg-sel').forEach(s => {
+    // Excluir el producto actual de los selectores de origen
+    document.querySelectorAll('#cr-origenes .cr-og-sel').forEach(s => {
         const cur = s.value; s.innerHTML = crProdOptions(id); if (cur) s.value = cur;
     });
 }
@@ -967,44 +967,73 @@ async function crGuardar() {
         toast('Receta guardada: ' + d.ingredientes + ' ingrediente(s)', 'ok');
     } else toast(d.error || 'Error', 'err');
 }
-function crTargetRow() {
-    const srcId = parseInt(document.getElementById('cr-prod').value) || 0;
-    return `<div class="cr-row cr-tg-row">
-        <select class="cr-inp cr-tg-sel" style="flex:1;min-width:150px">${crProdOptions(srcId)}</select>
-        <input type="number" class="cr-inp cr-tg-pct" value="100" min="1" max="1000" step="5" style="width:80px" title="Porcentaje a tomar">
+function crOrigenRow() {
+    const curId = parseInt(document.getElementById('cr-prod').value) || 0;
+    return `<div class="cr-row cr-og-row">
+        <select class="cr-inp cr-og-sel" style="flex:1;min-width:150px">${crProdOptions(curId)}</select>
+        <input type="number" class="cr-inp cr-og-pct" value="100" min="1" max="1000" step="5" style="width:80px" title="Porcentaje a tomar de ese producto">
         <span style="font-size:12px;color:var(--g5)">%</span>
-        <button class="btn-sm btn-red" onclick="this.closest('.cr-tg-row').remove()">✕</button>
+        <button class="btn-sm btn-red" onclick="this.closest('.cr-og-row').remove()">✕</button>
     </div>`;
 }
-function crAddTarget() {
-    document.getElementById('cr-targets').insertAdjacentHTML('beforeend', crTargetRow());
+function crAddOrigen() {
+    document.getElementById('cr-origenes').insertAdjacentHTML('beforeend', crOrigenRow());
 }
-async function crAplicar(modo) {
-    const srcId = parseInt(document.getElementById('cr-prod').value);
-    const targets = [];
-    document.querySelectorAll('#cr-targets .cr-tg-row').forEach(row => {
-        const id  = parseInt(row.querySelector('.cr-tg-sel').value);
-        const pct = parseFloat(row.querySelector('.cr-tg-pct').value);
-        if (id && id !== srcId && pct > 0) targets.push({ id, pct });
+// Trae los ingredientes de los productos origen (escalados por %) y los SUMA a la
+// lista de arriba (cr-ings), unificando insumos repetidos. Solo del lado del cliente:
+// nada se guarda hasta pulsar "Guardar receta del producto".
+async function crTraer() {
+    const curId = parseInt(document.getElementById('cr-prod').value);
+    const origenes = [];
+    document.querySelectorAll('#cr-origenes .cr-og-row').forEach(row => {
+        const id  = parseInt(row.querySelector('.cr-og-sel').value);
+        const pct = parseFloat(row.querySelector('.cr-og-pct').value);
+        if (id && pct > 0) origenes.push({ id, pct });
     });
-    if (!targets.length) { toast('Agrega al menos un producto destino con %', 'err'); return; }
-    if (modo === 'reemplazar' && !confirm('Esto REEMPLAZARÁ la receta de ' + targets.length + ' producto(s) destino. ¿Continuar?')) return;
-    let ok = 0, err = 0, msg = '';
-    for (const t of targets) {
-        const fd = new FormData();
-        fd.append('csrf_token', csrf());
-        fd.append('producto_id', t.id);
-        fd.append('modo', modo);
-        fd.append('fuentes', JSON.stringify([{ id: srcId, factor: t.pct }]));
+    if (!origenes.length) { toast('Agrega al menos un producto origen con %', 'err'); return; }
+
+    // Mapa inicial = ingredientes que ya hay en la lista de arriba (con cantidad > 0)
+    const map = {};
+    document.querySelectorAll('#cr-ings .cr-ing-row').forEach(row => {
+        const iid = parseInt(row.querySelector('.cr-ing-sel').value);
+        const c   = parseFloat(row.querySelector('.cr-ing-cant').value) || 0;
+        if (iid && c > 0) map[iid] = { cant: c,
+            crit: row.querySelector('.cr-ing-crit').checked,
+            base: row.querySelector('.cr-ing-base').checked };
+    });
+
+    // Sumar cada origen escalado por su %
+    let traidos = 0;
+    for (const o of origenes) {
         try {
-            const r = await fetch('api/copiar_receta.php', {method:'POST', body:fd});
-            const txt = await r.text();
-            let d; try { d = JSON.parse(txt); } catch (e) { err++; if (!msg) msg = txt.slice(0,180); continue; }
-            if (d.success) { ok++; delete cache[t.id]; if (!msg) msg = JSON.stringify(d.debug); }
-            else { err++; if (!msg) msg = d.error || ''; }
-        } catch (e) { err++; if (!msg) msg = 'red'; }
+            const r = await fetch('api/ingredientes.php?producto_id=' + o.id);
+            const ings = await r.json();
+            const f = o.pct / 100;
+            (Array.isArray(ings) ? ings : []).forEach(i => {
+                const iid = parseInt(i.insumo_id);
+                const c   = (+i.cantidad_requerida) * f;
+                if (!iid || !(c > 0)) return;
+                traidos++;
+                if (map[iid]) {
+                    map[iid].cant += c;
+                    map[iid].crit = map[iid].crit || i.es_insumo_critico == 1;
+                    map[iid].base = map[iid].base || i.es_base == 1;
+                } else {
+                    map[iid] = { cant: c, crit: i.es_insumo_critico == 1, base: i.es_base == 1 };
+                }
+            });
+        } catch (e) { toast('Error trayendo un origen', 'err'); }
     }
-    toast(`Aplicado a ${ok}` + (err ? `, ${err} err` : '') + ' · ' + msg, err ? 'err' : 'ok');
+
+    // Re-pintar la lista con el resultado combinado
+    const cont = document.getElementById('cr-ings');
+    cont.innerHTML = '';
+    Object.keys(map).forEach(iid => {
+        const v = map[iid];
+        crAddIng(parseInt(iid), Math.round(v.cant * 10000) / 10000, v.crit ? 1 : 0, v.base ? 1 : 0);
+    });
+    if (!Object.keys(map).length) crAddIng();
+    toast('Combinado: ' + traidos + ' ingrediente(s) traído(s). Revisa y guarda.', 'ok');
 }
 
 // ── Conversión receta ↔ equivalencia física (mig 030) ──────────────────────
