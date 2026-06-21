@@ -480,7 +480,8 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
                     <div id="cr-origenes" style="margin-bottom:8px"></div>
                     <button class="btn-sm" onclick="crAddOrigen()">+ Agregar producto origen</button>
                     <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn-sm btn-grn" onclick="crTraer()">⬇ Traer y combinar</button>
+                        <button class="btn-sm btn-grn" onclick="crTraer('sumar')">⬇ Sumar a la lista</button>
+                        <button class="btn-sm" style="background:#fef3c7;color:#92400e" onclick="crTraer('reemplazar')">Reemplazar la lista</button>
                     </div>
                 </div>
             </div>
@@ -982,8 +983,8 @@ function crAddOrigen() {
 // Trae los ingredientes de los productos origen (escalados por %) y los SUMA a la
 // lista de arriba (cr-ings), unificando insumos repetidos. Solo del lado del cliente:
 // nada se guarda hasta pulsar "Guardar receta del producto".
-async function crTraer() {
-    const curId = parseInt(document.getElementById('cr-prod').value);
+async function crTraer(modo) {
+    modo = modo === 'reemplazar' ? 'reemplazar' : 'sumar';
     const origenes = [];
     document.querySelectorAll('#cr-origenes .cr-og-row').forEach(row => {
         const id  = parseInt(row.querySelector('.cr-og-sel').value);
@@ -992,15 +993,21 @@ async function crTraer() {
     });
     if (!origenes.length) { toast('Agrega al menos un producto origen con %', 'err'); return; }
 
-    // Mapa inicial = ingredientes que ya hay en la lista de arriba (con cantidad > 0)
+    // Mapa inicial: en "sumar" parte de lo que ya hay arriba; en "reemplazar" parte vacío.
     const map = {};
-    document.querySelectorAll('#cr-ings .cr-ing-row').forEach(row => {
-        const iid = parseInt(row.querySelector('.cr-ing-sel').value);
-        const c   = parseFloat(row.querySelector('.cr-ing-cant').value) || 0;
-        if (iid && c > 0) map[iid] = { cant: c,
-            crit: row.querySelector('.cr-ing-crit').checked,
-            base: row.querySelector('.cr-ing-base').checked };
-    });
+    if (modo === 'sumar') {
+        document.querySelectorAll('#cr-ings .cr-ing-row').forEach(row => {
+            const iid = parseInt(row.querySelector('.cr-ing-sel').value);
+            const c   = parseFloat(row.querySelector('.cr-ing-cant').value) || 0;
+            if (iid && c > 0) map[iid] = { cant: c,
+                crit: row.querySelector('.cr-ing-crit').checked,
+                base: row.querySelector('.cr-ing-base').checked };
+        });
+    } else {
+        const tieneAlgo = [...document.querySelectorAll('#cr-ings .cr-ing-row')]
+            .some(row => (parseFloat(row.querySelector('.cr-ing-cant').value) || 0) > 0);
+        if (tieneAlgo && !confirm('Esto REEMPLAZARÁ la lista actual por los productos origen combinados. ¿Continuar?')) return;
+    }
 
     // Sumar cada origen escalado por su %
     let traidos = 0;
@@ -1033,7 +1040,7 @@ async function crTraer() {
         crAddIng(parseInt(iid), Math.round(v.cant * 10000) / 10000, v.crit ? 1 : 0, v.base ? 1 : 0);
     });
     if (!Object.keys(map).length) crAddIng();
-    toast('Combinado: ' + traidos + ' ingrediente(s) traído(s). Revisa y guarda.', 'ok');
+    toast((modo === 'reemplazar' ? 'Lista reemplazada' : 'Sumado a la lista') + ': ' + traidos + ' ingrediente(s) traído(s). Revisa y guarda.', 'ok');
 }
 
 // ── Conversión receta ↔ equivalencia física (mig 030) ──────────────────────
