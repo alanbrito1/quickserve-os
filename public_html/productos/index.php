@@ -480,8 +480,8 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
                     <div id="cr-origenes" style="margin-bottom:8px"></div>
                     <button class="btn-sm" onclick="crAddOrigen()">+ Agregar producto origen</button>
                     <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn-sm btn-grn" onclick="crTraer('sumar')">⬇ Sumar a la lista</button>
-                        <button class="btn-sm" style="background:#fef3c7;color:#92400e" onclick="crTraer('reemplazar')">Reemplazar la lista</button>
+                        <button class="btn-sm btn-grn" onclick="crTraer('reemplazar')">Reemplazar receta</button>
+                        <button class="btn-sm" style="background:#dbeafe;color:#1d4ed8" onclick="crTraer('sumar')">Sumar a la actual</button>
                     </div>
                 </div>
             </div>
