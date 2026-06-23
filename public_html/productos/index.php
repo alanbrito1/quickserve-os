@@ -48,6 +48,7 @@ $nomina_mensual = (float)($nomina_row['total'] ?? 0);
 $costo_rh_u     = $prod_mes > 0 ? round($nomina_mensual / $prod_mes, 4) : 0;
 
 // ── Productos con costos calculados ─────────────────────────────────────────
+$ver = filtro_estado_actual();
 $productos = db()->query(
     "SELECT p.id, p.nombre, p.nombre2, p.tamano, p.categoria, p.precio_venta, p.activo,
             IFNULL(p.costo_calculado, 0) AS costo_ing,
@@ -55,6 +56,7 @@ $productos = db()->query(
             IFNULL(p.stock_disponible, 0)    AS stock_disponible,
             IFNULL(p.stock_minimo, 0)        AS stock_minimo
      FROM productos p
+     WHERE 1=1" . filtro_estado_sql($ver, 'activo', 'activo', 'p') . "
      ORDER BY p.activo DESC, p.categoria, p.nombre,
               FIELD(p.tamano,'XL','L','unico')"
 )->fetchAll();
@@ -347,10 +349,13 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
 
     <div id="tab-catalogo">
     <div class="card rcards-wrap">
-        <div class="card-title">
-            Catálogo de Productos
+        <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span>Catálogo de Productos</span>
             <?php if (permiso_tiene('productos','editar_existentes')): ?>
             <button class="btn-add" onclick="document.getElementById('modal-np').classList.add('on')">+ Nuevo</button>
+            <?php endif; ?>
+            <?php if (filtro_estado_es_admin()): ?>
+            <span style="margin-left:auto;text-transform:none"><?= filtro_estado_ui($ver) ?></span>
             <?php endif; ?>
         </div>
         <table class="rcards">
