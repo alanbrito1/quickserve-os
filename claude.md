@@ -3573,9 +3573,11 @@ módulo. Sin cambios de BD.
   `filtro_estado_es_admin()`.
 - Aplicado (default = solo activos; admin elige inactivos/todos): **proveedores**, **productos**
   (catálogo), **inventario** (`InsumoModel::todos_con_estado($ver)`), **empleados**
-  (`NominaModel::todos_empleados($ver)`), **activos** (`ActivoModel::todos($orden,$ver)`).
-  Ya tenían filtro de estado propio (cliente, para todos): **clientes**, **costos**,
-  **ventas/historial** (por estado), **producción** (muestra lotes anulados).
+  (`NominaModel::todos_empleados($ver)`), **activos** (`ActivoModel::todos($orden,$ver)`),
+  **clientes** y **costos** (su selector de estado se unificó al patrón admin-only en servidor —
+  render-skip por `$ver`, KPIs intactos; se conservó "Con deuda" en clientes y categoría/
+  clasificación/texto en costos como filtros cliente para todos).
+  Ya filtraban por estado de forma nativa: **ventas/historial** y **producción** (lotes anulados).
 
 ### 3. tests/suite.php — G35 (35 grupos)
 - **G35 Mantenimiento y filtro estado**: página/endpoint de mantenimiento presentes; helper de

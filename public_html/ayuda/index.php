@@ -1583,7 +1583,7 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
             <p>Toda acción de borrado exige escribir <strong>BORRAR</strong> para confirmar y queda registrada en la auditoría. Los usuarios se gestionan en <em>Admin → Usuarios</em> (no se borran en masa aquí).</p>
 
             <div class="sub-title">Ver registros inactivos/anulados en cada módulo (v5.0)</div>
-            <p>Los <strong>admin/superadmin</strong> tienen en los listados (Productos, Inventario, Proveedores, Empleados, Activos, y los que ya lo tenían: Clientes, Costos, Ventas/Historial) un selector <strong>"Solo activos / Solo inactivos / Todos"</strong>. Por defecto todos los usuarios ven solo los activos; el selector (solo visible para admin) permite revisar los desactivados o anulados — útil antes de decidir qué limpiar.</p>
+            <p>Los <strong>admin/superadmin</strong> tienen en los listados (Productos, Inventario, Proveedores, Empleados, Activos, Clientes y Costos) un selector <strong>"Solo activos / Solo inactivos / Todos"</strong>. Por defecto todos los usuarios ven solo los activos; el selector (solo visible para admin) permite revisar los desactivados — útil antes de decidir qué limpiar. En Clientes se conserva el filtro <em>"Con deuda"</em> para todos, y en Ventas/Historial y Producción ya se ven los anulados de forma nativa.</p>
 
             <div class="sub-title">Sistema de permisos</div>
             <table class="data-table">
