@@ -3623,10 +3623,12 @@ runtime es `tests/suite.php`, que ejecuta el usuario). Resultado: **sin hallazgo
 seguridad en PASS** (G16 37/37 endpoints CSRF+auth; G31 try/catch; G32/G33 formato; **G35
 mantenimiento+filtro 3/3 OK**). Hallazgos restantes = **no son bugs de código**:
 - **G19 superadmin con contraseña de ejemplo (FAIL)** → acción del usuario (cambiarla).
-- **G03 (1 línea compra + 4 compras descuadradas) y G22 (presentaciones incoherentes)** → **datos
-  históricos** (cargas `historicos_*.sql` directas a BD). Verificado: `CompraModel::crear/editar`
-  calculan `subtotal=cant×precio` y `total=SUM(subtotales)` correctamente — el código no produce
-  inconsistencias. Corregible con SQL puntual si se desea (recalcular subtotal/total desde
-  `precio_unitario` inmutable).
+- **G03 (1 línea compra + 4 compras descuadradas)** → eran **datos históricos** (cargas
+  `historicos_*.sql` directas a BD). Verificado: `CompraModel::crear/editar` calculan
+  `subtotal=cant×precio` y `total=SUM(subtotales)` correctamente — el código no produce
+  inconsistencias. **CORREGIDO por el usuario (2026-06-23)** con SQL puntual (recalcular
+  `subtotal`/`total` desde `precio_unitario` inmutable); verificación devolvió 0 filas → G03 ahora PASS.
+- **G22 (presentaciones incoherentes)** → snapshots históricos de empaque; no afectan totales/reportes.
+  Se dejan como dato histórico (sin fuente de verdad única para recalcular).
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.
