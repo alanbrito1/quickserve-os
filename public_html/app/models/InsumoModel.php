@@ -13,8 +13,12 @@ class InsumoModel
      * Retorna todos los insumos activos, ordenados por prioridad de alerta (agotado primero).
      * Incluye: estado calculado, proveedor y porcentaje de stock vs seguridad.
      */
-    public static function todos_con_estado(): array
+    public static function todos_con_estado(string $ver = 'activos'): array
     {
+        // Filtro de estado (solo lo pasa el listado de inventario para admin).
+        $filtro = function_exists('filtro_estado_sql')
+            ? filtro_estado_sql($ver, 'activo', 'activo', 'i')
+            : ' AND i.activo = 1';
         return db()->query(
             "SELECT i.*,
                     p.nombre AS proveedor_nombre,
@@ -28,7 +32,7 @@ class InsumoModel
                     ) AS pct_stock
              FROM insumos i
              LEFT JOIN proveedores p ON p.id = i.proveedor_id
-             WHERE i.activo = 1
+             WHERE 1=1" . $filtro . "
              ORDER BY
                  CASE
                      WHEN i.stock_actual = 0                     THEN 0

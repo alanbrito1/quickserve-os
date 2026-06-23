@@ -865,12 +865,16 @@ class NominaModel
         )->fetchAll();
     }
 
-    public static function todos_empleados(): array
+    public static function todos_empleados(string $ver = 'todos'): array
     {
+        $filtro = function_exists('filtro_estado_sql')
+            ? filtro_estado_sql($ver, 'activo', 'activo', 'e')
+            : '';
         return db()->query(
             "SELECT e.*, u.nombre AS usuario_nombre
              FROM empleados e
              LEFT JOIN usuarios u ON u.id = e.usuario_id
+             WHERE 1=1" . $filtro . "
              ORDER BY e.activo DESC, e.nombre_completo"
         )->fetchAll();
     }

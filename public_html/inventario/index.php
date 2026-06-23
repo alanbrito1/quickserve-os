@@ -18,7 +18,8 @@ require_once __DIR__ . '/../app/helpers/ListasHelper.php';
 $nav_activo = 'inventario';
 permiso_requerir('inventario', 'solo_ver');
 
-$insumos = InsumoModel::todos_con_estado();
+$ver     = filtro_estado_actual();
+$insumos = InsumoModel::todos_con_estado($ver);
 
 // Catálogo de presentaciones de compra (mig 039) por insumo — usado para el
 // snapshot legacy (capa 1, read-only) y para la invitación a configurar
@@ -226,6 +227,9 @@ $CATEGORIAS = !empty($CATEGORIAS_LISTA)
         <a href="<?= APP_BASE ?>/inventario/conteo.php" class="btn-sec">📋 Conteo rápido</a>
         <?php endif; ?>
         <?php /* Lista de Compras y Registrar Compra están en el tab Compras */ ?>
+        <?php if (filtro_estado_es_admin()): ?>
+        <span style="margin-left:auto"><?= filtro_estado_ui($ver) ?></span>
+        <?php endif; ?>
     </div>
 
     <!-- Tabla de insumos -->

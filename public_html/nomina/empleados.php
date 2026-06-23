@@ -44,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verificar()) {
     $msg_err = 'Token de seguridad inválido.';
 }
 
-$empleados = NominaModel::todos_empleados();
+$ver       = filtro_estado_actual();
+$empleados = NominaModel::todos_empleados($ver);
 $smlmv = db()->query("SELECT valor FROM configuracion_negocio WHERE clave='salario_minimo'")->fetchColumn();
 
 // Cargar horas estándar mensuales desde parámetros laborales (dinámico)
@@ -169,7 +170,12 @@ try {
 
     <!-- Tabla de empleados -->
     <div class="card rcards-wrap">
-        <div class="card-title">Empleados (<?= count($empleados) ?>)</div>
+        <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span>Empleados (<?= count($empleados) ?>)</span>
+            <?php if (filtro_estado_es_admin()): ?>
+            <span style="margin-left:auto;text-transform:none;font-weight:400"><?= filtro_estado_ui($ver) ?></span>
+            <?php endif; ?>
+        </div>
         <table class="rcards">
             <thead>
                 <tr>

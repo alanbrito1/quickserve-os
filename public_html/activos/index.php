@@ -58,7 +58,8 @@ $orden = in_array($_GET['orden'] ?? 'fecha', $ordenes_ok, true) ? ($_GET['orden'
 if (($orden === 'lugar' || $orden === 'categoria') && !$v5) $orden = 'fecha';
 
 // ── Datos ─────────────────────────────────────────────────────────────────────
-$activos = ActivoModel::todos($orden);
+$ver     = filtro_estado_actual();
+$activos = ActivoModel::todos($orden, $ver);
 $proveedores_list = db()->query('SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre')->fetchAll();
 $resumen = $v5 ? ActivoModel::resumen_ampliado() : ActivoModel::resumen();
 
@@ -366,6 +367,9 @@ $VIDA_ESTADO = [
         <?php if ($v5): ?>
         <a href="?orden=categoria" class="btn-ord <?= $orden==='categoria'?'act':'' ?>">Categoría</a>
         <a href="?orden=lugar"    class="btn-ord <?= $orden==='lugar'    ?'act':'' ?>">Lugar</a>
+        <?php endif; ?>
+        <?php if (filtro_estado_es_admin()): ?>
+        <?= filtro_estado_ui($ver) ?>
         <?php endif; ?>
         <?php if (permiso_tiene('activos','editar_existentes')): ?>
         <a href="<?= APP_BASE ?>/activos/exportar.php" class="btn-excel"

@@ -22,13 +22,16 @@ class ActivoModel
      * Estado: nuevo (<50%), medio (50-74%), critico (75-99%), depreciado (≥100%).
      * @param string $orden  'fecha'|'nombre'|'lugar'
      */
-    public static function todos(string $orden = 'fecha'): array
+    public static function todos(string $orden = 'fecha', string $ver = 'todos'): array
     {
         $orderBy = match ($orden) {
             'nombre' => 'a.nombre, a.fecha_adquisicion DESC',
             'lugar'  => 'a.lugar_compra, a.fecha_adquisicion DESC',
             default  => 'a.activo DESC, a.fecha_adquisicion DESC',
         };
+        $filtroEstado = function_exists('filtro_estado_sql')
+            ? filtro_estado_sql($ver, 'activo', 'activo', 'a')
+            : '';
 
         // ── Lógica de depreciación ──────────────────────────────────────────────
         // fecha_adquisicion = cuándo se COMPRÓ el equipo (no afecta la depreciación)
@@ -102,6 +105,7 @@ class ActivoModel
 
              FROM activos a
              LEFT JOIN proveedores prov ON prov.id = a.proveedor_id
+             WHERE 1=1" . $filtroEstado . "
              ORDER BY $orderBy";
 
         $stmt = db()->prepare($stmtSql);
