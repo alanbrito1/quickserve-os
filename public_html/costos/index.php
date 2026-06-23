@@ -34,6 +34,7 @@ $costos = array_values(array_filter(CostoIndirectoModel::todos(), function($c) u
     if (!empty($c['fecha_fin']) && $c['fecha_fin'] < $mes_inicio) return false;
     return true;
 }));
+$ver = filtro_estado_actual(); // estado a mostrar (solo admin puede cambiarlo)
 
 // KPIs de costos calculados desde el array filtrado
 $total_mensual   = 0.0;
@@ -571,11 +572,9 @@ $CAT_COLOR = [
             <option value="directo">Solo directos</option>
             <option value="indirecto">Solo indirectos</option>
         </select>
-        <select class="filter-sel" id="filtro-estado" onchange="filtrar()">
-            <option value="">Todos</option>
-            <option value="1">Solo activos</option>
-            <option value="0">Solo pausados</option>
-        </select>
+        <?php if (filtro_estado_es_admin()): ?>
+        <?= filtro_estado_ui($ver) ?>
+        <?php endif; ?>
     </div>
 
     <!-- ── Tabla ───────────────────────────────────────────────────────── -->
@@ -604,6 +603,9 @@ $CAT_COLOR = [
             </thead>
             <tbody>
             <?php foreach ($costos as $c):
+                // Filtro de estado en servidor (admin elige; no-admin solo ve activos)
+                if ($ver === 'activos'   && !(int)$c['activo']) continue;
+                if ($ver === 'inactivos' &&  (int)$c['activo']) continue;
                 $catLbl   = $CATEGORIAS[$c['categoria']]   ?? ucfirst($c['categoria']);
                 $catCol   = $CAT_COLOR[$c['categoria']]    ?? ['#f9fafb', '#6b7280'];
                 $frecLbl  = $FRECUENCIAS[$c['frecuencia']] ?? $c['frecuencia'];
@@ -772,14 +774,13 @@ function filtrar() {
     var txt    = document.getElementById('filtro-texto').value.toLowerCase().trim();
     var cat    = document.getElementById('filtro-cat').value;
     var clasif = document.getElementById('filtro-clasif').value;
-    var estado = document.getElementById('filtro-estado').value;
+    // activo/pausado lo filtra el servidor (selector admin)
     document.querySelectorAll('#tabla-costos tbody tr.fila').forEach(function(tr){
         var ok = true;
         if (txt    && tr.dataset.nombre.indexOf(txt)  === -1
                    && tr.dataset.cat.indexOf(txt)     === -1) ok = false;
         if (cat    && tr.dataset.cat    !== cat)              ok = false;
         if (clasif && tr.dataset.clasif !== clasif)           ok = false;
-        if (estado && tr.dataset.activo !== estado)           ok = false;
         tr.style.display = ok ? '' : 'none';
     });
 }

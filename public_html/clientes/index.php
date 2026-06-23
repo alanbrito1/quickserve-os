@@ -27,8 +27,9 @@ $nav_activo = 'clientes';
 permiso_requerir('ventas', 'solo_ver'); // clientes comparte el permiso del módulo ventas
 
 $clientes = ClienteModel::todos_completo();
+$ver      = filtro_estado_actual(); // estado a mostrar (solo admin puede cambiarlo)
 
-// Estadísticas rápidas para el encabezado
+// Estadísticas rápidas para el encabezado (siempre sobre el total real, no el filtrado)
 $total_activos  = count(array_filter($clientes, fn($c) => (int)$c['activo'] === 1));
 $con_deuda      = count(array_filter($clientes, fn($c) => (float)$c['saldo_fiado'] > 0));
 $deuda_total    = array_sum(array_map(fn($c) => (float)$c['saldo_fiado'], $clientes));
@@ -280,12 +281,13 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
         <input type="text" class="search-input" id="busq"
                placeholder="Buscar por nombre, empresa o teléfono…"
                oninput="filtrar()">
-        <select class="filter-sel" id="filtro-estado" onchange="filtrar()">
-            <option value="activos">Solo activos</option>
+        <select class="filter-sel" id="filtro-deuda" onchange="filtrar()">
             <option value="todos">Todos</option>
-            <option value="inactivos">Solo inactivos</option>
             <option value="deuda">Con deuda</option>
         </select>
+        <?php if (filtro_estado_es_admin()): ?>
+        <?= filtro_estado_ui($ver) ?>
+        <?php endif; ?>
         <?php if (permiso_tiene('ventas','editar_existentes')): ?>
         <a href="<?= APP_BASE ?>/clientes/exportar.php" class="btn btn-excel"
            title="Descargar lista de clientes como Excel">📊 Excel</a>
@@ -309,6 +311,9 @@ $total_ventas   = array_sum(array_column($clientes, 'total_ventas'));
             </thead>
             <tbody id="tbody">
             <?php foreach ($clientes as $c):
+                // Filtro de estado en servidor (admin elige; no-admin solo ve activos)
+                if ($ver === 'activos'   && !(int)$c['activo']) continue;
+                if ($ver === 'inactivos' &&  (int)$c['activo']) continue;
                 $nc = htmlspecialchars($c['nombre'] . (!empty($c['apellido']) ? ' '.$c['apellido'] : ''));
             ?>
             <tr class="<?= !(int)$c['activo'] ? 'inactivo' : '' ?>"
@@ -621,24 +626,19 @@ document.addEventListener('keydown', e => {
 /* ── Filtro de tabla en tiempo real ────────────────────────────────────── */
 function filtrar() {
     const q      = document.getElementById('busq').value.toLowerCase().trim();
-    const estado = document.getElementById('filtro-estado').value;
+    const deudaF = document.getElementById('filtro-deuda').value; // activo/inactivo lo filtra el servidor
     const filas  = document.querySelectorAll('#tbody tr[data-nombre]');
     let   vis    = 0;
 
     filas.forEach(tr => {
         const nombre  = tr.dataset.nombre || '';
-        const activo  = tr.dataset.activo === '1';
         const deuda   = tr.dataset.deuda  === '1';
 
         // Filtro de texto — busca en nombre, apellido, empresa, teléfono
         const matchTxt = !q || nombre.includes(q);
 
-        // Filtro de estado
-        const matchEst =
-            estado === 'todos'     ? true :
-            estado === 'activos'   ? activo :
-            estado === 'inactivos' ? !activo :
-            estado === 'deuda'     ? deuda : true;
+        // Filtro "con deuda" (el estado activo/inactivo ya viene filtrado del servidor)
+        const matchEst = deudaF === 'deuda' ? deuda : true;
 
         const visible = matchTxt && matchEst;
         tr.style.display = visible ? '' : 'none';
