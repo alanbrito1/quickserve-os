@@ -52,6 +52,8 @@
  *   G34  Cobro fiado/recetas — migración 042 (ventas.metodo_cobro): existe, ENUM válido,
  *                              solo en ventas fiado; y endpoints de receta presentes
  *                              (guardar/copiar/completa/ingredientes — v4.98/v4.99)
+ *   G35  Mantenimiento/filtro — página y endpoint de limpieza de datos presentes; helper
+ *                              FiltroEstadoHelper disponible y genera el SQL correcto (v5.0)
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1829,6 +1831,36 @@ t($G, "Endpoints de receta presentes (guardar/copiar/completa/ingredientes)",
     empty($faltan_ep),
     empty($faltan_ep) ? '' : "Faltan: " . implode(', ', $faltan_ep));
 
+// ════════════════════════════════════════════════════════════════════════════════
+//  G35 — MANTENIMIENTO DE DATOS + FILTRO DE ESTADO (v5.0)
+//  Verifica que la página/endpoint de limpieza existan y que el helper de filtro
+//  (ver inactivos/anulados, solo admin) esté disponible y genere el SQL correcto.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G35 Mantenimiento y filtro estado';
+
+$faltan_m = [];
+foreach (['admin/mantenimiento.php', 'admin/api/mantenimiento.php'] as $f) {
+    if (!file_exists(BASE_PATH . '/' . $f)) $faltan_m[] = $f;
+}
+t($G, "Página y endpoint de mantenimiento presentes",
+    empty($faltan_m), empty($faltan_m) ? '' : "Faltan: " . implode(', ', $faltan_m));
+
+$fns = ['filtro_estado_actual', 'filtro_estado_sql', 'filtro_estado_ui', 'filtro_estado_es_admin'];
+$faltan_fn = array_values(array_filter($fns, fn($fn) => !function_exists($fn)));
+t($G, "Helper de filtro de estado disponible (FiltroEstadoHelper)",
+    empty($faltan_fn), empty($faltan_fn) ? '' : "Faltan funciones: " . implode(', ', $faltan_fn));
+
+if (empty($faltan_fn)) {
+    $okActivos    = trim(filtro_estado_sql('activos', 'activo', 'activo', 'p'))    === 'AND p.activo = 1';
+    $okInactivos  = trim(filtro_estado_sql('inactivos', 'activo', 'activo', 'p'))  === 'AND p.activo = 0';
+    $okTodos      = filtro_estado_sql('todos', 'activo', 'activo', 'p')            === '';
+    $okAnulados   = trim(filtro_estado_sql('inactivos', 'estado', 'estado', 'v', 'anulada')) === "AND v.estado = 'anulada'";
+    t($G, "filtro_estado_sql() genera los fragmentos esperados (activo/estado)",
+        $okActivos && $okInactivos && $okTodos && $okAnulados,
+        "activos=$okActivos inactivos=$okInactivos todos=$okTodos anulados=$okAnulados");
+}
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -1887,7 +1919,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    34 grupos
+    35 grupos
 </p>
 
 <!-- Resumen global -->

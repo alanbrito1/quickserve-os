@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Solo superadmin — operaciones destructivas de alto impacto
-if (($_SESSION['usuario_rol'] ?? '') !== 'superadmin') {
+if (!in_array($_SESSION['usuario_rol'] ?? '', ['superadmin'], true)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Solo el superadmin puede ejecutar mantenimiento de datos.']);
     exit;
@@ -242,5 +242,5 @@ try {
 } catch (\Throwable $ex) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('[ClanDestino mantenimiento] ' . $ex->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Error interno: ' . $ex->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error interno al ejecutar la operación.']);
 }
