@@ -17,6 +17,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../helpers/AuthHelper.php';
 require_once __DIR__ . '/../helpers/PermisosHelper.php';
 require_once __DIR__ . '/../helpers/FormatoHelper.php';
+require_once __DIR__ . '/../helpers/FiltroEstadoHelper.php';
 
 auth_session_init();
 

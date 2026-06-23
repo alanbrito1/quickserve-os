@@ -18,11 +18,13 @@ $tieneEmail = in_array('email',     $cols);
 $tieneWeb   = in_array('sitio_web', $cols);
 $tieneDir   = in_array('direccion', $cols);
 
-// Proveedores con conteo de insumos asociados
+// Proveedores con conteo de insumos asociados. Filtro de estado solo para admin.
+$ver = filtro_estado_actual();
 $proveedores = db()->query(
     "SELECT p.*,
             (SELECT COUNT(*) FROM insumos i WHERE i.proveedor_id = p.id AND i.activo = 1) AS num_insumos
      FROM proveedores p
+     WHERE 1=1" . filtro_estado_sql($ver, 'activo', 'activo', 'p') . "
      ORDER BY p.activo DESC, p.nombre"
 )->fetchAll();
 
@@ -117,11 +119,14 @@ $CAT_COLORS = [
     </div>
 
     <!-- Acciones -->
-    <?php if (permiso_tiene('proveedores','editar_existentes')): ?>
-    <div class="act-bar">
+    <div class="act-bar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <?php if (permiso_tiene('proveedores','editar_existentes')): ?>
         <button class="btn-primary" onclick="abrirNuevo()">+ Nuevo Proveedor</button>
+        <?php endif; ?>
+        <?php if (filtro_estado_es_admin()): ?>
+        <span style="margin-left:auto"><?= filtro_estado_ui($ver) ?></span>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
 
     <!-- Grid de proveedores -->
     <?php if (empty($proveedores)): ?>
