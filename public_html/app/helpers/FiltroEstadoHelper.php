@@ -59,7 +59,7 @@ if (!function_exists('filtro_estado_es_admin')) {
             $o .= '<option value="' . $v . '"' . ($v === $actual ? ' selected' : '') . '>' . $l . '</option>';
         }
         return '<select title="Ver registros (solo admin)" '
-            . 'onchange="(function(s){var u=new URL(window.location);s.value===\'activos\'?u.searchParams.delete(\'ver\'):u.searchParams.set(\'ver\',s.value);window.location=u;})(this)" '
+            . 'onchange="var p=new URLSearchParams(location.search);this.value===\'activos\'?p.delete(\'ver\'):p.set(\'ver\',this.value);var q=p.toString();location.assign(location.pathname+(q?\'?\'+q:\'\'));" '
             . 'style="padding:7px 10px;border:1px solid var(--g8,#d1d5db);border-radius:8px;font-size:13px;background:#fff">'
             . $o . '</select>';
     }
