@@ -157,6 +157,80 @@ class ContabilidadModel
         return $rows;
     }
 
+    /** Reversa todos los asientos (no anulados) de una transacción origen. */
+    public static function reversar_por_origen(string $origen, int $origen_id): void
+    {
+        if (!self::existe()) return;
+        $st = db()->prepare("SELECT id FROM asientos WHERE origen=? AND origen_id=? AND anulado=0");
+        $st->execute([$origen, $origen_id]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $aid) {
+            self::reversar_asiento((int)$aid, 'anulación ' . $origen . ' #' . $origen_id);
+        }
+    }
+
+    /** ¿Ya existe un asiento (no anulado) para esta transacción? (evita duplicados) */
+    private static function ya_posteado(string $origen, int $origen_id): bool
+    {
+        $st = db()->prepare("SELECT COUNT(*) FROM asientos WHERE origen=? AND origen_id=? AND anulado=0");
+        $st->execute([$origen, $origen_id]);
+        return (int)$st->fetchColumn() > 0;
+    }
+
+    /**
+     * Postea el asiento de una VENTA (Fase 4b). Débito Caja/Bancos/CxC según método,
+     * crédito Ingresos; + Débito Costo de ventas / crédito Inventario (COGS con el
+     * snapshot inmutable). Obsequio: Gasto obsequios contra inventario (sin ingreso).
+     * Se llama DESPUÉS de que la venta commitea; idempotente.
+     */
+    public static function postear_venta(int $venta_id): void
+    {
+        if (!self::existe() || self::ya_posteado('venta', $venta_id)) return;
+        $pdo = db();
+        $v = $pdo->prepare("SELECT fecha_venta, metodo_pago, total FROM ventas WHERE id = ? AND estado <> 'anulada'");
+        $v->execute([$venta_id]);
+        $venta = $v->fetch();
+        if (!$venta) return;
+        $fecha  = substr((string)$venta['fecha_venta'], 0, 10);
+        $metodo = (string)$venta['metodo_pago'];
+        $total  = round((float)$venta['total'], 2);
+
+        // COGS separado por fuente: from_stock=1 → producto terminado (1430); 0 → insumos (1435)
+        $c = $pdo->prepare(
+            "SELECT vd.from_stock,
+                    COALESCE(SUM(COALESCE(vd.costo_unit_snap, p.costo_calculado, 0) * vd.cantidad),0) AS costo
+             FROM venta_detalles vd JOIN productos p ON p.id = vd.producto_id
+             WHERE vd.venta_id = ? GROUP BY vd.from_stock"
+        );
+        $c->execute([$venta_id]);
+        $cTerm = 0.0; $cIns = 0.0;
+        foreach ($c->fetchAll() as $r) {
+            if ((int)$r['from_stock'] === 1) $cTerm += (float)$r['costo']; else $cIns += (float)$r['costo'];
+        }
+        $cTerm = round($cTerm, 2); $cIns = round($cIns, 2); $cogs = round($cTerm + $cIns, 2);
+
+        $lineas = [];
+        if ($metodo === 'obsequio') {
+            if ($cogs <= 0) return;
+            $lineas[] = ['codigo' => '5199', 'debe' => $cogs, 'haber' => 0];
+            if ($cTerm > 0) $lineas[] = ['codigo' => '1430', 'debe' => 0, 'haber' => $cTerm];
+            if ($cIns  > 0) $lineas[] = ['codigo' => '1435', 'debe' => 0, 'haber' => $cIns];
+            $desc = 'Obsequio venta #' . $venta_id;
+        } else {
+            if ($total <= 0) return;
+            $cta = $metodo === 'efectivo' ? '1105' : ($metodo === 'fiado' ? '1305' : '1110');
+            $lineas[] = ['codigo' => $cta,   'debe' => $total, 'haber' => 0];
+            $lineas[] = ['codigo' => '4135', 'debe' => 0,      'haber' => $total];
+            if ($cogs > 0) {
+                $lineas[] = ['codigo' => '6135', 'debe' => $cogs, 'haber' => 0];
+                if ($cTerm > 0) $lineas[] = ['codigo' => '1430', 'debe' => 0, 'haber' => $cTerm];
+                if ($cIns  > 0) $lineas[] = ['codigo' => '1435', 'debe' => 0, 'haber' => $cIns];
+            }
+            $desc = 'Venta #' . $venta_id . ' (' . $metodo . ')';
+        }
+        if (count($lineas) < 2) return;
+        self::crear_asiento($fecha, $desc, 'venta', $venta_id, $lineas);
+    }
+
     /**
      * Totales para el Balance General a una fecha:
      *   activo, pasivo, patrimonio, ingresos, costos, gastos, resultado (ing-cost-gas),

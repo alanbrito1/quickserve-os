@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/AuditoriaHelper.php';
+require_once __DIR__ . '/ContabilidadModel.php';
 
 class VentaModel
 {
@@ -390,6 +391,11 @@ class VentaModel
             // Auditoría de la creación (el trigger MySQL no cubre INSERTs)
             log_registrar('ventas', $venta_id, 'estado', null, $estado, 'INSERT');
 
+            // Contabilidad (Fase 4b): postear el asiento DESPUÉS del commit y aislado —
+            // un fallo contable nunca debe romper la venta (el backfill lo reconcilia).
+            try { ContabilidadModel::postear_venta($venta_id); }
+            catch (\Throwable $e) { error_log('[ClanDestino contab venta] ' . $e->getMessage()); }
+
             return $venta_id;
 
         } catch (Exception $e) {
@@ -515,6 +521,10 @@ class VentaModel
             $pdo->commit();
             // Usar el estado real previo (puede ser 'completada' o 'pendiente_pago')
             log_registrar('ventas', $venta_id, 'estado', $venta['estado'], 'anulada', 'UPDATE');
+
+            // Contabilidad (Fase 4b): reversar el asiento de la venta (aislado del flujo).
+            try { ContabilidadModel::reversar_por_origen('venta', $venta_id); }
+            catch (\Throwable $e) { error_log('[ClanDestino contab anular] ' . $e->getMessage()); }
 
         } catch (Exception $e) {
             $pdo->rollBack();

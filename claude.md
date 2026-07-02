@@ -1,4 +1,4 @@
-# ClanDestino ERP v5.5 — Memoria de Sesión
+# ClanDestino ERP v5.6 — Memoria de Sesión
 # Última sesión: 2026-06-23 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -3850,5 +3850,43 @@ Tablas 045 existen; plan sembrado (cuentas clave); **todo asiento cuadra**; lín
 `contabilidad/` (resumen, Balance General, apertura con capital auto, libro diario, plan de
 cuentas) gated a admin/superadmin; suite G37 (37 grupos: asientos y balance cuadran). Pendiente
 Fase 4b (auto-posting) y 4c (CxP/capital/IVA). `APP_VERSION` → 5.5.*
+
+---
+
+## Estado v5.6 (2026-06-23) — Fase 4b (parcial): auto-posting de VENTAS
+
+`ContabilidadModel` gana el posteo automático de ventas (primer flujo de la Fase 4b). Sin cambios
+de BD (usa mig 045).
+- **`postear_venta(venta_id)`**: idempotente (no re-postea). Débito según método de cobro
+  (efectivo→1105 Caja / nequi·daviplata·bancolombia→1110 Bancos / fiado→1305 CxC) contra 4135
+  Ingresos por el `ventas.total` (neto); + **COGS**: Débito 6135 Costo de ventas / Crédito 1430
+  (producto terminado, `from_stock=1`) y/o 1435 (insumos, `from_stock=0`) con el `costo_unit_snap`
+  (mig 044). **Obsequio**: Débito 5199 Obsequios / Crédito inventario (sin ingreso). Un asiento con
+  todas las líneas que cuadra.
+- **`reversar_por_origen('venta', id)`**: reversa el asiento al anular.
+- **Enganche seguro** en `VentaModel::crear()` y `anular()`: la llamada va **DESPUÉS del commit** y
+  envuelta en `try/catch` → un fallo contable **nunca rompe la venta** (se registra en el log; el
+  backfill reconcilia). `require_once ContabilidadModel` en VentaModel.
+- **Backfill**: `contabilidad/api/contab.php` accion=`backfill_ventas` (botón en el tablero de
+  Contabilidad) postea las ventas no anuladas sin asiento (histórico).
+
+### Pendiente Fase 4b (siguientes flujos) y 4c
+- **4b restante:** `CompraModel` (compra → Inventario vs Caja/Bancos), abono a fiado
+  (`clientes/api/registrar_abono.php` → Caja vs CxC), `NominaModel` (gasto nómina vs por pagar),
+  producción (`registrar_lote.php` → prod. terminado vs insumos), ajustes obsequio/desecho. Mismo
+  patrón: post tras commit, aislado, con backfill.
+- **4c:** cuentas por pagar (compra a crédito + pago proveedor), capital (aportes/retiros), IVA
+  discriminado (`iva_activo`).
+
+### Verificación del usuario
+- Con la mig 045 aplicada + balance de apertura: registrar una **venta efectivo** → en Contabilidad
+  → Libro diario aparece su asiento (Caja/Ingresos + Costo/Inventario); **anularla** → aparece la
+  reversa; el **Balance sigue cuadrando**. Usar "Contabilizar ventas históricas" para el backfill.
+
+*Última actualización: 2026-06-23 | v5.6 — Fase 4b parcial: auto-posting de ventas
+(`ContabilidadModel::postear_venta`/`reversar_por_origen`) enganchado en `VentaModel::crear/anular`
+tras el commit y aislado (un fallo contable no rompe la venta); backfill de ventas históricas.
+Pendiente resto de flujos 4b (compras/abonos/nómina/producción/ajustes) y 4c. `APP_VERSION` → 5.6.
+Sin cambios de BD.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.

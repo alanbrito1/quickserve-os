@@ -98,6 +98,25 @@ try {
         exit;
     }
 
+    // ── BACKFILL DE VENTAS ────────────────────────────────────────────────────
+    // Genera el asiento de las ventas no anuladas que aún no lo tienen (histórico).
+    if ($accion === 'backfill_ventas') {
+        $ventas = db()->query(
+            "SELECT v.id FROM ventas v
+             WHERE v.estado <> 'anulada'
+               AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.origen='venta' AND a.origen_id=v.id AND a.anulado=0)
+             ORDER BY v.id"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        $n = 0; $err = 0;
+        foreach ($ventas as $vid) {
+            try { ContabilidadModel::postear_venta((int)$vid); $n++; }
+            catch (\Throwable $e) { $err++; error_log('[contab backfill venta '.$vid.'] '.$e->getMessage()); }
+        }
+        log_registrar('asientos', 0, 'backfill_ventas', null, "posteadas={$n} errores={$err}", 'INSERT');
+        echo json_encode(['success' => true, 'posteadas' => $n, 'errores' => $err]);
+        exit;
+    }
+
     // ── REVERSAR ──────────────────────────────────────────────────────────────
     if ($accion === 'reversar') {
         $id = (int)($_POST['asiento_id'] ?? 0);

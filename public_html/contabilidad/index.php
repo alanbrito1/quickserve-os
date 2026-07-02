@@ -64,4 +64,27 @@ $hayApertura = (int)db()->query("SELECT COUNT(*) FROM asientos WHERE origen='ape
         <a class="nav-card" href="<?= APP_BASE ?>/contabilidad/plan_cuentas.php"><b>🗂 Plan de cuentas</b><p>Catálogo de cuentas contables.</p></a>
         <a class="nav-card" href="<?= APP_BASE ?>/reportes/pyg.php"><b>💵 Estado de Resultados</b><p>P&amp;G del período (Reportes).</p></a>
     </div>
-</main></body></html>
+
+    <div style="margin-top:18px">
+        <button class="nav-card" style="cursor:pointer;border:1px dashed var(--g8);width:100%;text-align:left" onclick="backfill(this)">
+            <b>⚙ Contabilizar ventas históricas</b>
+            <p>Genera el asiento de las ventas que aún no lo tienen (las nuevas ya se contabilizan solas).</p>
+        </button>
+    </div>
+</main>
+<div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;display:none"></div>
+<script>
+const CSRF = <?= json_encode(csrf_token()) ?>;
+function toast(m,ok){const e=document.getElementById('toast');e.textContent=m;e.style.background=ok?'#065f46':'#991b1b';e.style.display='block';setTimeout(()=>e.style.display='none',4500);}
+async function backfill(btn){
+    if(!confirm('¿Generar los asientos de todas las ventas históricas sin contabilizar?')) return;
+    btn.disabled=true;
+    const fd=new FormData(); fd.append('csrf_token',CSRF); fd.append('accion','backfill_ventas');
+    try{
+        const r=await fetch('api/contab.php',{method:'POST',body:fd});
+        const d=await r.json();
+        if(d.success){ toast('Ventas contabilizadas: '+d.posteadas+(d.errores?(' · '+d.errores+' con error'):''),true); setTimeout(()=>location.reload(),1500); }
+        else { toast(d.error||'Error',false); btn.disabled=false; }
+    }catch(e){ toast('Error de red',false); btn.disabled=false; }
+}
+</script></body></html>

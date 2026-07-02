@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '5.5'); // 2026-06-23: v5.5 (Fase 4a contable) Contabilidad de partida doble (mig 045): plan de cuentas + libro diario + ContabilidadModel (crear/reversar asiento cuadrado, saldos, balance); modulo Contabilidad (resumen, balance general, apertura, libro diario, plan de cuentas); suite G37.
+define('APP_VERSION', '5.6'); // 2026-06-23: v5.6 (Fase 4b contable, parcial) auto-posting de VENTAS: VentaModel::crear postea el asiento (Caja/Bancos/CxC vs Ingresos + Costo vs Inventario con costo_unit_snap) tras el commit y aislado; anular reversa; backfill de ventas historicas en Contabilidad. Pendiente: compras/abonos/nomina/produccion.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
