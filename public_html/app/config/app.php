@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '5.4'); // 2026-06-23: v5.4 (Fase 1.2 contable) Auditor de costos (admin/auditor_costos.php, superadmin): diagnostica insumos con costo desalineado de su presentacion, productos con receta y costo 0 (+recalcular), equivalencias a medias, compras incoherentes.
+define('APP_VERSION', '5.5'); // 2026-06-23: v5.5 (Fase 4a contable) Contabilidad de partida doble (mig 045): plan de cuentas + libro diario + ContabilidadModel (crear/reversar asiento cuadrado, saldos, balance); modulo Contabilidad (resumen, balance general, apertura, libro diario, plan de cuentas); suite G37.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

@@ -130,9 +130,10 @@ foreach ($_nav as $_mod => $_cfg) {
     }
 }
 
-// Tab Admin: solo para superadmin y admin
+// Tab Contabilidad y Admin: solo para superadmin y admin (gate por rol)
 $_rol_actual = $_SESSION['usuario_rol'] ?? '';
 if (in_array($_rol_actual, ['superadmin', 'admin'], true)) {
+    $_nav_vis['contabilidad'] = ['label' => 'Contabilidad', 'url' => '/contabilidad/'];
     $_nav_vis['admin'] = ['label' => 'Admin', 'url' => '/admin/'];
 }
 
@@ -304,6 +305,19 @@ input, select, textarea,
         <a href="<?= APP_BASE ?>/nomina/parametros.php"
            class="subtab<?= $_nav_sub_actual === 'parametros' ? ' subtab--act' : '' ?>">Parámetros</a>
         <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- ══ SUB-TABS DE CONTABILIDAD ═════════════════════════════════════════════ -->
+<?php if ($_nav_activo === 'contabilidad'): ?>
+<div class="subtab-bar">
+    <div class="subtab-inner">
+        <a href="<?= APP_BASE ?>/contabilidad/"               class="subtab<?= $_nav_sub_actual==='resumen'?' subtab--act':'' ?>">Resumen</a>
+        <a href="<?= APP_BASE ?>/contabilidad/balance.php"     class="subtab<?= $_nav_sub_actual==='balance'?' subtab--act':'' ?>">Balance</a>
+        <a href="<?= APP_BASE ?>/contabilidad/apertura.php"    class="subtab<?= $_nav_sub_actual==='apertura'?' subtab--act':'' ?>">Apertura</a>
+        <a href="<?= APP_BASE ?>/contabilidad/libro_diario.php" class="subtab<?= $_nav_sub_actual==='diario'?' subtab--act':'' ?>">Libro diario</a>
+        <a href="<?= APP_BASE ?>/contabilidad/plan_cuentas.php" class="subtab<?= $_nav_sub_actual==='plan'?' subtab--act':'' ?>">Plan de cuentas</a>
     </div>
 </div>
 <?php endif; ?>

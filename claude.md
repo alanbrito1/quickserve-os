@@ -1,4 +1,4 @@
-# ClanDestino ERP v5.4 — Memoria de Sesión
+# ClanDestino ERP v5.5 — Memoria de Sesión
 # Última sesión: 2026-06-23 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -652,6 +652,7 @@ schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas,
 042_venta_metodo_cobro.sql             → ALTER TABLE ventas ADD COLUMN metodo_cobro ENUM('efectivo','nequi','daviplata','bancolombia') DEFAULT NULL AFTER fecha_pago (con qué se cobró un fiado; metodo_pago se queda en 'fiado')
 043_indices_rendimiento.sql            → CREATE INDEX idx_ins_activo ON insumos(activo) + idx_cd_presentacion ON compra_detalles(presentacion_id) — idempotente (guard via information_schema); cierra avisos G18 de suite.php en BDs anteriores
 044_venta_costo_snap.sql               → ALTER TABLE venta_detalles ADD COLUMN costo_unit_snap DECIMAL(12,4) DEFAULT NULL (idempotente) — snapshot INMUTABLE del costo de receta por unidad al vender (COGS) = costo_calculado × factor_receta (+ costo combo_insumos); NULL en ventas previas → reportes usan costo_calculado actual como fallback
+045_contabilidad.sql                   → CREATE cuentas_contables + asientos + asiento_lineas (partida doble, IF NOT EXISTS) + seed plan de cuentas simplificado (~19 cuentas) + config iva_activo/iva_tarifa (categoria 'impuestos'). Base del subsistema contable (Fase 4a)
 
 ### Política de snapshots (principio de inmutabilidad extendido)
 Además de los precios, TODOS estos datos se guardan como snapshot al momento de la transacción:
@@ -3792,5 +3793,62 @@ presentación, productos con receta y costo 0 (+ recalcular), equivalencias a me
 incoherentes; sub-tab + tarjeta en Admin; suite G36 lo verifica. Roadmap contable Fases 1-3 +
 auditor completas; Fase 4 (partida doble + balance) queda como subsistema para sesión dedicada.
 `APP_VERSION` → 5.4. Sin cambios de BD.*
+
+---
+
+## Estado v5.5 (2026-06-23) — Roadmap contable, Fase 4a: Contabilidad de partida doble
+
+Nuevo **módulo Contabilidad** (gate por rol admin/superadmin, como Admin; pestaña "Contabilidad" +
+sub-tabs). Migración **045**.
+
+### Motor: `app/models/ContabilidadModel.php`
+- `crear_asiento(fecha, desc, origen, origen_id, lineas)` — valida **Σ debe = Σ haber** (tol 1
+  centavo), inserta cabecera (`asientos`) + líneas (`asiento_lineas`); acepta transacción externa.
+  Líneas por `codigo` o `cuenta_id`; una línea usa debe **o** haber.
+- `reversar_asiento(id, motivo)` — contra-asiento (debe↔haber) + marca anulado (no se edita).
+- `saldos(?hasta)` — saldo por cuenta con signo según naturaleza (contra-cuentas restan).
+- `balance(?hasta)` — totales por tipo + `resultado` (ingreso−costo−gasto) + `patrimonio_total` +
+  `cuadra` (Activo ≈ Pasivo+Patrimonio). `existe()` — detección mig 045.
+
+### Esquema (mig 045)
+- **`cuentas_contables`** (codigo único, tipo, naturaleza, es_contra, orden) — seed simplificado:
+  1105 Caja, 1110 Bancos, 1305 CxC fiado, 1430/1435 Inventarios, 1355 IVA descontable, 1524 Activos
+  fijos, 1592 Deprec. acumulada (contra), 2205 Proveedores, 2408 IVA por pagar, 2510 Nómina por
+  pagar, 3115 Capital, 3705 Utilidad, 4135 Ingresos, 6135 Costo de ventas, 5105/5160/5195/5199
+  gastos. **`asientos`** (fecha, descripción, origen, origen_id, anulado). **`asiento_lineas`**
+  (asiento_id CASCADE, cuenta_id FK, debe/haber). Config `iva_activo`/`iva_tarifa` (categoría
+  'impuestos', default IVA off).
+
+### Módulo `contabilidad/` (rol admin/superadmin)
+- `index.php` (tablero: activos/pasivos/patrimonio/resultado + estado cuadra) · `balance.php`
+  (**Balance General** a una fecha, ecuación contable, export Excel) · `apertura.php` (balance de
+  apertura: pre-llena fiado/inventario/activos desde datos reales; **Capital 3115 = cifra de
+  cuadre** automática → asiento de apertura) · `libro_diario.php` (asientos con detalle, filtro
+  fecha, reversar manuales/apertura) · `plan_cuentas.php` (catálogo). Endpoint
+  `contabilidad/api/contab.php` (accion=apertura|asiento_manual|reversar; rol+CSRF+try/catch).
+- Partial `_sin_migracion.php` si la 045 no está aplicada.
+
+### Suite G37 (37 grupos)
+Tablas 045 existen; plan sembrado (cuentas clave); **todo asiento cuadra**; líneas válidas
+(debe/haber ≥ 0, no ambos); **Balance General cuadra**.
+
+### Pendiente (siguientes entregas de Fase 4)
+- **4b — Auto-posting:** enganchar `VentaModel`/`CompraModel`/`NominaModel`/abonos/producción/
+  ajustes para que cada transacción genere su asiento (`if (ContabilidadModel::existe()) crear_asiento`);
+  + backfill del histórico. Tabla de asientos por tipo en el plan `.claude/plans`.
+- **4c — Cuentas por pagar** (compra a crédito + pago proveedor), **capital** (aportes/retiros),
+  **IVA** discriminado cuando `iva_activo=1`.
+
+### Verificación del usuario (runtime)
+- Aplicar **migración 045**. Contabilidad → **Apertura** (fija saldos, Capital se calcula) →
+  **Balance** (Activo = Pasivo + Patrimonio, debe cuadrar). Correr `tests/suite.php` → **G37** PASS
+  (37 grupos). Nota: hasta la Fase 4b, los asientos son **manuales/apertura** (las ventas/compras
+  aún no generan asientos automáticos).
+
+*Última actualización: 2026-06-23 | v5.5 — Fase 4a contable: contabilidad de partida doble
+(mig 045) — `ContabilidadModel` (asientos cuadrados, reversas, saldos, balance) + módulo
+`contabilidad/` (resumen, Balance General, apertura con capital auto, libro diario, plan de
+cuentas) gated a admin/superadmin; suite G37 (37 grupos: asientos y balance cuadran). Pendiente
+Fase 4b (auto-posting) y 4c (CxP/capital/IVA). `APP_VERSION` → 5.5.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.

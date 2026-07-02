@@ -1266,6 +1266,49 @@ CREATE TABLE IF NOT EXISTS `turnos_caja` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- CONTABILIDAD DE PARTIDA DOBLE (migración 045)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `cuentas_contables` (
+    `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `codigo`     VARCHAR(10)  NOT NULL,
+    `nombre`     VARCHAR(120) NOT NULL,
+    `tipo`       ENUM('activo','pasivo','patrimonio','ingreso','costo','gasto') NOT NULL,
+    `naturaleza` ENUM('debito','credito') NOT NULL,
+    `es_contra`  TINYINT(1)   NOT NULL DEFAULT 0,
+    `activo`     TINYINT(1)   NOT NULL DEFAULT 1,
+    `orden`      SMALLINT     NOT NULL DEFAULT 100,
+    UNIQUE KEY `uq_cuenta_codigo` (`codigo`),
+    INDEX `idx_cuenta_tipo` (`tipo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `asientos` (
+    `id`          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `fecha`       DATE         NOT NULL,
+    `descripcion` VARCHAR(255) NOT NULL,
+    `origen`      VARCHAR(20)  NOT NULL DEFAULT 'manual',
+    `origen_id`   INT          DEFAULT NULL,
+    `anulado`     TINYINT(1)   NOT NULL DEFAULT 0,
+    `created_by`  INT          DEFAULT NULL,
+    `created_at`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_asiento_fecha` (`fecha`),
+    INDEX `idx_asiento_origen` (`origen`, `origen_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `asiento_lineas` (
+    `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `asiento_id` INT UNSIGNED NOT NULL,
+    `cuenta_id`  INT UNSIGNED NOT NULL,
+    `debe`       DECIMAL(14,2) NOT NULL DEFAULT 0,
+    `haber`      DECIMAL(14,2) NOT NULL DEFAULT 0,
+    CONSTRAINT `fk_al_asiento` FOREIGN KEY (`asiento_id`) REFERENCES `asientos`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_al_cuenta`  FOREIGN KEY (`cuenta_id`)  REFERENCES `cuentas_contables`(`id`),
+    INDEX `idx_al_asiento` (`asiento_id`),
+    INDEX `idx_al_cuenta` (`cuenta_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seed del plan de cuentas simplificado (ver migración 045 para la lista completa).
+
+-- ============================================================
 -- FIN DEL ESQUEMA v4.74
 -- Verifica la instalación:
 --   SHOW TABLES;                            -- debe mostrar 29 tablas

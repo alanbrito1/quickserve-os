@@ -56,6 +56,8 @@
  *                              FiltroEstadoHelper disponible y genera el SQL correcto (v5.0)
  *   G36  Coherencia costos    — snapshot COGS (mig 044 costo_unit_snap) no negativo; costo_actual
  *                              ≈ precio_ref/cantidad_base; equivalencia física coherente (v5.1)
+ *   G37  Contabilidad         — partida doble (mig 045): tablas + plan de cuentas sembrado;
+ *                              todo asiento cuadra; Balance General cuadra (v5.5)
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1935,6 +1937,50 @@ t($G, "Auditor de costos (admin/auditor_costos.php) presente",
     file_exists(BASE_PATH . '/admin/auditor_costos.php'),
     "Falta el auditor de costos (Fase 1.2).");
 
+// ════════════════════════════════════════════════════════════════════════════════
+//  G37 — CONTABILIDAD DE PARTIDA DOBLE (migración 045, Fase 4)
+//  Verifica el esquema contable, el plan de cuentas sembrado, y las invariantes de
+//  partida doble: todo asiento cuadra (Σ debe = Σ haber) y el Balance General cuadra.
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G37 Contabilidad (partida doble)';
+
+$tieneContab = tabla_existe($pdo, 'cuentas_contables')
+            && tabla_existe($pdo, 'asientos')
+            && tabla_existe($pdo, 'asiento_lineas');
+t($G, "Tablas contables existen (migracion 045)",
+    $tieneContab, "Aplicar 045_contabilidad.sql en produccion.", !$tieneContab);
+
+if ($tieneContab) {
+    // Plan de cuentas sembrado: cuentas clave presentes
+    $claves = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM cuentas_contables WHERE codigo IN ('1105','1305','2205','3115','4135','6135')");
+    t($G, "Plan de cuentas sembrado (cuentas clave presentes)",
+        $claves >= 6, "Solo {$claves}/6 cuentas clave — revisar seed de la migración 045.");
+
+    // Partida doble: ningún asiento con Σ debe ≠ Σ haber (tolerancia 1 centavo)
+    $descuadrados = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM (
+            SELECT asiento_id FROM asiento_lineas
+            GROUP BY asiento_id HAVING ABS(SUM(debe) - SUM(haber)) > 0.01
+         ) x");
+    t($G, "Todo asiento cuadra (Σ debe = Σ haber)",
+        $descuadrados === 0, $descuadrados > 0 ? "{$descuadrados} asientos descuadrados." : '');
+
+    // debe/haber nunca negativos; nunca ambos > 0 en la misma línea
+    $lineasMalas = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM asiento_lineas WHERE debe < 0 OR haber < 0 OR (debe > 0 AND haber > 0)");
+    t($G, "Líneas de asiento válidas (debe/haber ≥ 0, no ambos)",
+        $lineasMalas === 0, $lineasMalas > 0 ? "{$lineasMalas} líneas inválidas." : '');
+
+    // Balance General cuadra (Activo = Pasivo + Patrimonio + resultado)
+    require_once BASE_PATH . '/app/models/ContabilidadModel.php';
+    $bal = ContabilidadModel::balance();
+    t($G, "Balance General cuadra (Activo = Pasivo + Patrimonio)",
+        $bal['cuadra'],
+        $bal['cuadra'] ? '' : "Activo={$bal['activo']} vs Pasivo+Patrimonio={$bal['pasivo_mas_patrimonio']}.");
+}
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -1994,7 +2040,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    36 grupos
+    37 grupos
 </p>
 
 <!-- Resumen global -->
