@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '5.3'); // 2026-06-23: v5.3 (Fase 3 contable) Simulador de escenarios (productos/simulador.php): cambia el costo de un insumo y ve el impacto en costo/margen por producto y en la utilidad bruta mensual (ponderada por ventas 30d), sin tocar datos reales.
+define('APP_VERSION', '5.4'); // 2026-06-23: v5.4 (Fase 1.2 contable) Auditor de costos (admin/auditor_costos.php, superadmin): diagnostica insumos con costo desalineado de su presentacion, productos con receta y costo 0 (+recalcular), equivalencias a medias, compras incoherentes.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)

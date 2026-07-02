@@ -292,7 +292,17 @@ try {
                 </svg>
             </div>
             <div class="nav-card-title">Pruebas de integridad</div>
-            <div class="nav-card-desc">Ejecuta la suite de tests (35 grupos): esquema, datos, seguridad, formato y más.</div>
+            <div class="nav-card-desc">Ejecuta la suite de tests (36 grupos): esquema, datos, seguridad, formato y más.</div>
+        </a>
+
+        <a href="<?= APP_BASE ?>/admin/auditor_costos.php" class="nav-card">
+            <div class="nav-card-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <div class="nav-card-title">Auditor de costos</div>
+            <div class="nav-card-desc">Diagnóstico de la cadena de costos (insumo→presentación→costo→margen) + recalcular.</div>
         </a>
         <?php endif; ?>
 

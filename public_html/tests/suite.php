@@ -1930,6 +1930,11 @@ t($G, "Simulador de escenarios (productos/simulador.php) presente",
     file_exists(BASE_PATH . '/productos/simulador.php'),
     "Falta el simulador (Fase 3).");
 
+// Auditor de la cadena de costos (Fase 1.2) presente
+t($G, "Auditor de costos (admin/auditor_costos.php) presente",
+    file_exists(BASE_PATH . '/admin/auditor_costos.php'),
+    "Falta el auditor de costos (Fase 1.2).");
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;

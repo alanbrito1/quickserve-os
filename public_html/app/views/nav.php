@@ -281,6 +281,7 @@ input, select, textarea,
         <a href="<?= APP_BASE ?>/admin/backup.php" class="nav-mobile-sub-link<?= $_nav_sub_actual==='backup'?' act':'' ?>">Base de Datos</a>
         <?php if (($_SESSION['usuario_rol'] ?? '') === 'superadmin'): ?>
         <a href="<?= APP_BASE ?>/admin/mantenimiento.php" class="nav-mobile-sub-link<?= $_nav_sub_actual==='mantenimiento'?' act':'' ?>">Mantenimiento</a>
+        <a href="<?= APP_BASE ?>/admin/auditor_costos.php" class="nav-mobile-sub-link<?= $_nav_sub_actual==='auditor'?' act':'' ?>">Auditor costos</a>
         <a href="<?= APP_BASE ?>/tests/suite.php" class="nav-mobile-sub-link<?= $_nav_sub_actual==='pruebas'?' act':'' ?>">Pruebas</a>
         <?php endif; ?>
     </div>
@@ -324,6 +325,8 @@ input, select, textarea,
         <?php if (($_SESSION['usuario_rol'] ?? '') === 'superadmin'): ?>
         <a href="<?= APP_BASE ?>/admin/mantenimiento.php"
            class="subtab<?= $_nav_sub_actual === 'mantenimiento' ? ' subtab--act' : '' ?>">Mantenimiento</a>
+        <a href="<?= APP_BASE ?>/admin/auditor_costos.php"
+           class="subtab<?= $_nav_sub_actual === 'auditor' ? ' subtab--act' : '' ?>">Auditor costos</a>
         <a href="<?= APP_BASE ?>/tests/suite.php"
            class="subtab<?= $_nav_sub_actual === 'pruebas' ? ' subtab--act' : '' ?>">Pruebas</a>
         <?php endif; ?>

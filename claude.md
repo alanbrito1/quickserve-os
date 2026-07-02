@@ -1,4 +1,4 @@
-# ClanDestino ERP v5.3 — Memoria de Sesión
+# ClanDestino ERP v5.4 — Memoria de Sesión
 # Última sesión: 2026-06-23 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -90,7 +90,7 @@ ventas → **clientes** → inventario → proveedores → compras → productos
 | `$nav_activo` | Sub-tabs (`$nav_sub`) |
 |---|---|
 | `nomina` | `nomina`, `empleados`, `horas`, `parametros` |
-| `admin` | `resumen`, `usuarios`, `apariencia`, `listas`, `backup`, `mantenimiento` + `pruebas` (`/tests/suite.php`) — ambos solo superadmin |
+| `admin` | `resumen`, `usuarios`, `apariencia`, `listas`, `backup`, `mantenimiento`, `auditor` (auditor de costos), `pruebas` (`/tests/suite.php`) — los 3 últimos solo superadmin |
 
 ### Menú hamburguesa móvil
 - **≤ 640px:** tabs horizontales ocultos → botón ☰ visible → drawer vertical con todos los módulos
@@ -3761,5 +3761,36 @@ junto a "Ver análisis"). Sin cambios de BD.
 (`productos/simulador.php`) — cambia el costo de insumos y ve el impacto en costo/margen por
 producto y en la utilidad bruta mensual (ponderada por ventas 30d), 100% cliente, sin tocar datos
 reales. Enlazado desde Productos; suite G36 lo verifica. `APP_VERSION` → 5.3. Sin cambios de BD.*
+
+---
+
+## Estado v5.4 (2026-06-23) — Roadmap contable, Fase 1.2: Auditor de costos
+
+**`admin/auditor_costos.php`** (nuevo, solo superadmin; sub-tab "Auditor costos" + tarjeta en
+Admin). Diagnóstico de la cadena de costos (datos exactos). Sin cambios de BD.
+- **1.** Insumos con `costo_actual` desalineado de su presentación predeterminada
+  (`precio_referencia ÷ cantidad_base`, mig 039) — tabla con actual vs esperado.
+- **2.** Productos activos con receta pero `costo_calculado = 0` — con botón **"Recalcular costos"**
+  (reusa `productos/api/recalcular.php` → `RecetaModel::recalcular_todos()`).
+- **3.** Insumos con equivalencia física "a medias" (una columna sin la otra).
+- **4.** Compras con presentación incoherente (histórico inmutable, informativo).
+- Solo lectura + recalcular; no borra ni edita maestros. Suite G36 verifica que exista.
+
+### Roadmap contable — estado
+- ✅ **Fase 1** (COGS snapshot + higiene) · ✅ **Fase 1.2** (auditor) · ✅ **Fase 2** (P&G +
+  valorización) · ✅ **Fase 3** (simulador).
+- 🔜 **Fase 4** — Contabilidad de **partida doble + balance general**. Es un **subsistema aparte**
+  (requiere registrar movimientos de **caja/bancos**, **cuentas por pagar** a proveedores, aportes
+  de **capital** y conciliaciones — tablas y flujos nuevos). No se debe improvisar: se planifica y
+  construye en su propia sesión. Un "balance gerencial" parcial (activo corriente = fiado +
+  inventario; activo fijo = valor en libros) es posible desde datos existentes como paso previo,
+  pero un balance que cuadre exige el rastreo de caja y pasivos (Fase 4 formal).
+
+*Última actualización: 2026-06-23 | v5.4 — Fase 1.2 contable: auditor de la cadena de costos
+(`admin/auditor_costos.php`, superadmin): diagnostica insumos con costo desalineado de su
+presentación, productos con receta y costo 0 (+ recalcular), equivalencias a medias y compras
+incoherentes; sub-tab + tarjeta en Admin; suite G36 lo verifica. Roadmap contable Fases 1-3 +
+auditor completas; Fase 4 (partida doble + balance) queda como subsistema para sesión dedicada.
+`APP_VERSION` → 5.4. Sin cambios de BD.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.
