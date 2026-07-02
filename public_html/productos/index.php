@@ -313,6 +313,9 @@ $stock_total     = array_sum(array_column($productos, 'stock_disponible'));
             · <a href="<?= APP_BASE ?>/productos/analisis.php" style="color:var(--brand);text-decoration:none;font-weight:700">
                 Ver análisis y punto de equilibrio →
             </a>
+            · <a href="<?= APP_BASE ?>/productos/simulador.php" style="color:var(--brand);text-decoration:none;font-weight:700">
+                🧪 Simulador →
+            </a>
             <?php if (permiso_tiene('productos', 'editar_existentes')): ?>
             · <button onclick="recalcularCostos()"
                     title="Recalcula costo_calculado de todos los productos a partir de las recetas e insumos actuales — útil tras editar precios de insumos en lote o aplicar migraciones"

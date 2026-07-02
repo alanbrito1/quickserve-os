@@ -1,4 +1,4 @@
-# ClanDestino ERP v5.2 — Memoria de Sesión
+# ClanDestino ERP v5.3 — Memoria de Sesión
 # Última sesión: 2026-06-23 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -3729,5 +3729,37 @@ Valorización de inventario     = insumos (stock_actual × costo_actual) + produ
 (nómina + costos indirectos + depreciación + obsequios a costo) = utilidad operativa, con margen
 bruto/neto y valorización de inventario; export Excel; tarjeta en el hub. Guard de equivalencia en
 insumo_crud (cierre higiene Fase 1). `APP_VERSION` → 5.2. Sin cambios de BD.*
+
+---
+
+## Estado v5.3 (2026-06-23) — Roadmap contable, Fase 3: Simulador de escenarios
+
+**`productos/simulador.php`** (nuevo, `productos:solo_ver`, enlazado desde `productos/index.php`
+junto a "Ver análisis"). Sin cambios de BD.
+
+- **"¿Qué pasa si…?"** del lado del cliente (JS): el usuario cambia el **costo de uno o varios
+  insumos** (cambio de proveedor / subida de precio) y ve al instante, sin tocar datos reales:
+  - el **costo de receta recalculado** de cada producto que usa ese insumo
+    (`costo = SUM(insumo.costo × cantidad_requerida) / rinde`),
+  - **margen actual vs. proyectado** por producto (badge ▲/▼),
+  - **impacto en la utilidad bruta mensual**, ponderado por las **unidades vendidas en 30 días**
+    (mezcla real reciente): `Σ (precio − costo_proy) × u30`.
+- Datos embebidos en JSON: `PRODUCTOS` (precio, rinde, costo actual, u30), `RECETAS`
+  (producto→insumos), `INSUMOS` (costo editable). Botón "Restablecer".
+- **PE "real" vs "proyectado":** el lado **real** ya lo da el **P&G (Fase 2)** con el snapshot de
+  COGS; `analisis.php` mantiene el PE con el costo **actual** de la receta (correcto para
+  proyección forward); el **simulador** cubre el "qué pasa si". No se tocó `analisis.php`.
+- Suite **G36** verifica que `simulador.php` exista.
+
+### Pendiente
+- **Fase 1.2:** Auditor de la cadena de costos en Admin.
+- **Fase 4 (futuro):** contabilidad de partida doble + balance general (caja/bancos, cuentas por
+  pagar, patrimonio). Un "balance gerencial" (activo corriente + fijo desde datos existentes) es
+  un paso intermedio posible antes del balance formal.
+
+*Última actualización: 2026-06-23 | v5.3 — Fase 3 contable: simulador de escenarios
+(`productos/simulador.php`) — cambia el costo de insumos y ve el impacto en costo/margen por
+producto y en la utilidad bruta mensual (ponderada por ventas 30d), 100% cliente, sin tocar datos
+reales. Enlazado desde Productos; suite G36 lo verifica. `APP_VERSION` → 5.3. Sin cambios de BD.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.

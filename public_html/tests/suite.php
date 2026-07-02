@@ -1925,6 +1925,11 @@ t($G, "Reporte P&G (reportes/pyg.php) presente",
     file_exists(BASE_PATH . '/reportes/pyg.php'),
     "Falta el Estado de Resultados (Fase 2).");
 
+// Simulador de escenarios (Fase 3 contable) presente
+t($G, "Simulador de escenarios (productos/simulador.php) presente",
+    file_exists(BASE_PATH . '/productos/simulador.php'),
+    "Falta el simulador (Fase 3).");
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;

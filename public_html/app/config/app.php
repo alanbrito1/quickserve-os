@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '5.2'); // 2026-06-23: v5.2 (Fase 2 contable) Reporte P&G / Estado de Resultados (reportes/pyg.php): ingresos - COGS (snapshot mig 044) - gastos (nomina + costos indirectos + depreciacion + obsequios) = utilidad; + valorizacion de inventario; export Excel.
+define('APP_VERSION', '5.3'); // 2026-06-23: v5.3 (Fase 3 contable) Simulador de escenarios (productos/simulador.php): cambia el costo de un insumo y ve el impacto en costo/margen por producto y en la utilidad bruta mensual (ponderada por ventas 30d), sin tocar datos reales.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
