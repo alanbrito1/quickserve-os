@@ -73,12 +73,19 @@ try {
         'INSERT INTO ajustes_stock (producto_id, cantidad, tipo, motivo, created_by)
          VALUES (?, ?, ?, ?, ?)'
     )->execute([$producto_id, $cantidad, $tipo, $motivo ?: null, $uid]);
+    $ajuste_id = (int)$pdo->lastInsertId();
 
     $pdo->commit();
 
     // $tipo es ya 'obsequio' o 'desecho' (validado arriba); se usa directamente como campo de auditoría
     log_registrar('productos', $producto_id, $tipo, null,
         "cantidad={$cantidad},producto={$p['nombre']}", 'UPDATE');
+
+    // Contabilidad (Fase 4b): baja de inventario a costo (obsequio/merma), aislado.
+    try {
+        require_once __DIR__ . '/../../app/models/ContabilidadModel.php';
+        ContabilidadModel::postear_ajuste($ajuste_id);
+    } catch (\Throwable $e) { error_log('[ClanDestino contab ajuste] ' . $e->getMessage()); }
 
     // nuevo_stock = stock antes del descuento − cantidad (el UPDATE ya se aplicó en BD)
     echo json_encode(['success' => true, 'nuevo_stock' => (int)$p['stock_disponible'] - $cantidad]);

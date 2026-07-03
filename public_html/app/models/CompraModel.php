@@ -14,6 +14,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/AuditoriaHelper.php';
+require_once __DIR__ . '/ContabilidadModel.php';
 
 class CompraModel
 {
@@ -238,6 +239,10 @@ class CompraModel
 
             $pdo->commit();
             log_registrar('compras', $compra_id, 'total', null, (string)$total, 'INSERT');
+
+            // Contabilidad (Fase 4b): asiento de la compra, tras el commit y aislado.
+            try { ContabilidadModel::postear_compra($compra_id); }
+            catch (\Throwable $e) { error_log('[ClanDestino contab compra] ' . $e->getMessage()); }
 
             return $compra_id;
 

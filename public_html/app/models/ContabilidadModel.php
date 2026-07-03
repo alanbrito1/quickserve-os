@@ -232,6 +232,88 @@ class ContabilidadModel
     }
 
     /**
+     * Postea una COMPRA de insumos (Fase 4b). Contado: Débito Inventario insumos
+     * (1435) / Crédito Caja (1105). Idempotente. Se llama tras el commit de la compra.
+     */
+    public static function postear_compra(int $compra_id): void
+    {
+        if (!self::existe() || self::ya_posteado('compra', $compra_id)) return;
+        $c = db()->prepare("SELECT fecha_compra, total FROM compras WHERE id = ?");
+        $c->execute([$compra_id]);
+        $compra = $c->fetch();
+        if (!$compra) return;
+        $total = round((float)$compra['total'], 2);
+        if ($total <= 0) return;
+        self::crear_asiento(substr((string)$compra['fecha_compra'], 0, 10), 'Compra #' . $compra_id, 'compra', $compra_id, [
+            ['codigo' => '1435', 'debe' => $total, 'haber' => 0],   // entra inventario de insumos
+            ['codigo' => '1105', 'debe' => 0,      'haber' => $total], // sale efectivo (contado)
+        ]);
+    }
+
+    /**
+     * Postea un ABONO a fiado (Fase 4b). Débito Caja/Bancos según método /
+     * Crédito Cuentas por cobrar (1305). Idempotente.
+     */
+    public static function postear_abono(int $abono_id): void
+    {
+        if (!self::existe() || self::ya_posteado('abono', $abono_id)) return;
+        $a = db()->prepare("SELECT created_at, monto, metodo_pago FROM pagos_fiado WHERE id = ?");
+        $a->execute([$abono_id]);
+        $ab = $a->fetch();
+        if (!$ab) return;
+        $monto = round((float)$ab['monto'], 2);
+        if ($monto <= 0) return;
+        $cta = ($ab['metodo_pago'] ?? 'efectivo') === 'efectivo' ? '1105' : '1110';
+        self::crear_asiento(substr((string)$ab['created_at'], 0, 10), 'Abono fiado #' . $abono_id, 'abono', $abono_id, [
+            ['codigo' => $cta,  'debe' => $monto, 'haber' => 0],   // entra caja/bancos
+            ['codigo' => '1305','debe' => 0,      'haber' => $monto], // baja la cuenta por cobrar
+        ]);
+    }
+
+    /**
+     * Postea un lote de PRODUCCIÓN (Fase 4b). Traslada valor de inventario:
+     * Débito Producto terminado (1430) / Crédito Insumos (1435) por el costo del lote.
+     */
+    public static function postear_produccion(int $lote_id): void
+    {
+        if (!self::existe() || self::ya_posteado('produccion', $lote_id)) return;
+        $l = db()->prepare("SELECT fecha_produccion, cantidad, costo_unitario FROM produccion_lotes WHERE id = ? AND estado='activo'");
+        $l->execute([$lote_id]);
+        $lote = $l->fetch();
+        if (!$lote) return;
+        $valor = round((float)$lote['cantidad'] * (float)$lote['costo_unitario'], 2);
+        if ($valor <= 0) return;
+        self::crear_asiento(substr((string)$lote['fecha_produccion'], 0, 10), 'Producción lote #' . $lote_id, 'produccion', $lote_id, [
+            ['codigo' => '1430', 'debe' => $valor, 'haber' => 0],   // entra producto terminado
+            ['codigo' => '1435', 'debe' => 0,      'haber' => $valor], // salen insumos
+        ]);
+    }
+
+    /**
+     * Postea un AJUSTE de stock terminado (obsequio/desecho, Fase 4b): baja de
+     * inventario a valor de costo. Débito Obsequios y mermas (5199) / Crédito
+     * Producto terminado (1430). Idempotente.
+     */
+    public static function postear_ajuste(int $ajuste_id): void
+    {
+        if (!self::existe() || self::ya_posteado('ajuste', $ajuste_id)) return;
+        $a = db()->prepare(
+            "SELECT s.fecha_ajuste, s.cantidad, p.costo_calculado
+             FROM ajustes_stock s JOIN productos p ON p.id = s.producto_id
+             WHERE s.id = ?"
+        );
+        $a->execute([$ajuste_id]);
+        $aj = $a->fetch();
+        if (!$aj) return;
+        $valor = round((float)$aj['cantidad'] * (float)$aj['costo_calculado'], 2);
+        if ($valor <= 0) return;
+        self::crear_asiento(substr((string)$aj['fecha_ajuste'], 0, 10), 'Ajuste stock #' . $ajuste_id, 'ajuste', $ajuste_id, [
+            ['codigo' => '5199', 'debe' => $valor, 'haber' => 0],   // gasto (obsequio/merma)
+            ['codigo' => '1430', 'debe' => 0,      'haber' => $valor], // baja producto terminado
+        ]);
+    }
+
+    /**
      * Totales para el Balance General a una fecha:
      *   activo, pasivo, patrimonio, ingresos, costos, gastos, resultado (ing-cost-gas),
      *   patrimonio_total (patrimonio + resultado) y 'cuadra' (activo ≈ pasivo + patrimonio_total).

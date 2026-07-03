@@ -89,6 +89,12 @@ try {
     log_registrar('pagos_fiado', $abono_id, 'abono',
         (string)$saldo_anterior, (string)$saldo_posterior, 'INSERT');
 
+    // Contabilidad (Fase 4b): asiento del abono (Caja/Bancos vs CxC), tras el commit y aislado.
+    try {
+        require_once __DIR__ . '/../../app/models/ContabilidadModel.php';
+        ContabilidadModel::postear_abono($abono_id);
+    } catch (\Throwable $e) { error_log('[ClanDestino contab abono] ' . $e->getMessage()); }
+
     echo json_encode([
         'success'          => true,
         'monto_registrado' => $monto_real,

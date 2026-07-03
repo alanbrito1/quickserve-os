@@ -1,4 +1,4 @@
-# ClanDestino ERP v5.6 — Memoria de Sesión
+# ClanDestino ERP v5.7 — Memoria de Sesión
 # Última sesión: 2026-06-23 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -3888,5 +3888,38 @@ de BD (usa mig 045).
 tras el commit y aislado (un fallo contable no rompe la venta); backfill de ventas históricas.
 Pendiente resto de flujos 4b (compras/abonos/nómina/producción/ajustes) y 4c. `APP_VERSION` → 5.6.
 Sin cambios de BD.*
+
+---
+
+## Estado v5.7 (2026-06-23) — Fase 4b: auto-posting de compras, abonos, producción y ajustes
+
+Se completan casi todos los flujos de auto-posting (falta solo nómina). Sin cambios de BD.
+Nuevos métodos en `ContabilidadModel` (todos idempotentes, se llaman **tras el commit** del flujo,
+envueltos en `try/catch` → un fallo contable nunca rompe la transacción):
+- **`postear_compra(id)`** — `CompraModel::criar()`: Débito 1435 Inventario insumos / Crédito 1105
+  Caja (contado). *(Compra a crédito = Fase 4c.)*
+- **`postear_abono(id)`** — `clientes/api/registrar_abono.php`: Débito 1105/1110 (según método) /
+  Crédito 1305 CxC.
+- **`postear_produccion(id)`** — `productos/api/registrar_lote.php`: Débito 1430 Producto terminado
+  / Crédito 1435 Insumos (costo del lote = cantidad × costo_unitario).
+- **`postear_ajuste(id)`** — `productos/api/ajuste_stock.php` (obsequio/desecho): Débito 5199
+  Obsequios y mermas / Crédito 1430 Producto terminado (a costo).
+- Cada endpoint hace `require_once ContabilidadModel` dentro del try.
+
+### Pendiente
+- **4b — Nómina:** `NominaModel` genera el período con varias ramas (INSERTs en 474/506/536); el
+  posteo (Débito 5105 Gasto nómina / Crédito 2510 Nómina por pagar) se hará en una pasada dedicada
+  a ese modelo. Es el único flujo 4b restante.
+- **4c:** cuentas por pagar (compra a crédito + pago proveedor → 2205), capital (aportes/retiros →
+  3115), IVA discriminado (`iva_activo`).
+- **Nota de diseño (backfill vs apertura):** el backfill de ventas y la apertura pueden
+  doble-contar inventario si la apertura se fija con inventario de "hoy" y luego se backfillea todo
+  el histórico. Definir fecha de corte antes de generalizar el backfill a compras/producción.
+
+*Última actualización: 2026-06-23 | v5.7 — Fase 4b: auto-posting de compras (`postear_compra`),
+abonos (`postear_abono`), producción (`postear_produccion`) y ajustes obsequio/desecho
+(`postear_ajuste`), enganchados en CompraModel/registrar_abono/registrar_lote/ajuste_stock tras el
+commit y aislados. Falta solo nómina (flujo complejo) para cerrar 4b; luego Fase 4c
+(CxP/capital/IVA). `APP_VERSION` → 5.7. Sin cambios de BD.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.

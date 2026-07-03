@@ -133,6 +133,12 @@ try {
 
             log_registrar('produccion_lotes', $lote_id, 'cantidad', null, (string)$cantidad, 'INSERT');
 
+            // Contabilidad (Fase 4b): asiento de producción (prod. terminado vs insumos), aislado.
+            try {
+                require_once __DIR__ . '/../../app/models/ContabilidadModel.php';
+                ContabilidadModel::postear_produccion($lote_id);
+            } catch (\Throwable $e) { error_log('[ClanDestino contab produccion] ' . $e->getMessage()); }
+
             echo json_encode([
                 'success'  => true,
                 'lote_id'  => $lote_id,
