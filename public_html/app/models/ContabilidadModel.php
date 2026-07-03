@@ -46,6 +46,24 @@ class ContabilidadModel
         return self::mapaCuentas()[$codigo] ?? null;
     }
 
+    /** Configuración de IVA (mig 045): [activo(bool), tarifa(float %)]. Cacheado. */
+    public static function ivaConfig(): array
+    {
+        static $cfg = null;
+        if ($cfg === null) {
+            $activo = 0.0; $tarifa = 0.0;
+            try {
+                $rows = db()->query(
+                    "SELECT clave, valor FROM configuracion_negocio WHERE clave IN ('iva_activo','iva_tarifa')"
+                )->fetchAll(PDO::FETCH_KEY_PAIR);
+                $activo = (float)($rows['iva_activo'] ?? 0);
+                $tarifa = (float)($rows['iva_tarifa'] ?? 0);
+            } catch (\Throwable $e) {}
+            $cfg = [$activo >= 1, $tarifa];
+        }
+        return $cfg;
+    }
+
     /**
      * Crea un asiento cuadrado. $lineas: [['codigo'=>'1105','debe'=>1000,'haber'=>0], ...]
      * (también acepta 'cuenta_id'). Devuelve el id del asiento.
@@ -218,8 +236,17 @@ class ContabilidadModel
         } else {
             if ($total <= 0) return;
             $cta = $metodo === 'efectivo' ? '1105' : ($metodo === 'fiado' ? '1305' : '1110');
-            $lineas[] = ['codigo' => $cta,   'debe' => $total, 'haber' => 0];
-            $lineas[] = ['codigo' => '4135', 'debe' => 0,      'haber' => $total];
+            $lineas[] = ['codigo' => $cta, 'debe' => $total, 'haber' => 0];
+            [$ivaAct, $ivaTarifa] = self::ivaConfig();
+            if ($ivaAct && $ivaTarifa > 0) {
+                // El total incluye IVA → separar ingreso base + IVA por pagar (2408).
+                $base = round($total / (1 + $ivaTarifa / 100), 2);
+                $iva  = round($total - $base, 2);
+                $lineas[] = ['codigo' => '4135', 'debe' => 0, 'haber' => $base];
+                if ($iva > 0) $lineas[] = ['codigo' => '2408', 'debe' => 0, 'haber' => $iva];
+            } else {
+                $lineas[] = ['codigo' => '4135', 'debe' => 0, 'haber' => $total];
+            }
             if ($cogs > 0) {
                 $lineas[] = ['codigo' => '6135', 'debe' => $cogs, 'haber' => 0];
                 if ($cTerm > 0) $lineas[] = ['codigo' => '1430', 'debe' => 0, 'haber' => $cTerm];
@@ -238,16 +265,30 @@ class ContabilidadModel
     public static function postear_compra(int $compra_id): void
     {
         if (!self::existe() || self::ya_posteado('compra', $compra_id)) return;
-        $c = db()->prepare("SELECT fecha_compra, total FROM compras WHERE id = ?");
+        // SELECT * evita fallar si la columna a_credito (mig 046) aún no existe.
+        $c = db()->prepare("SELECT * FROM compras WHERE id = ?");
         $c->execute([$compra_id]);
         $compra = $c->fetch();
         if (!$compra) return;
         $total = round((float)$compra['total'], 2);
         if ($total <= 0) return;
-        self::crear_asiento(substr((string)$compra['fecha_compra'], 0, 10), 'Compra #' . $compra_id, 'compra', $compra_id, [
-            ['codigo' => '1435', 'debe' => $total, 'haber' => 0],   // entra inventario de insumos
-            ['codigo' => '1105', 'debe' => 0,      'haber' => $total], // sale efectivo (contado)
-        ]);
+        $aCredito = (int)($compra['a_credito'] ?? 0) === 1;
+        $ctaSalida = $aCredito ? '2205' : '1105'; // por pagar (crédito) vs caja (contado)
+
+        [$ivaAct, $ivaTarifa] = self::ivaConfig();
+        $lineas = [];
+        if ($ivaAct && $ivaTarifa > 0) {
+            // El total incluye IVA → separar base + IVA descontable (1355).
+            $base = round($total / (1 + $ivaTarifa / 100), 2);
+            $iva  = round($total - $base, 2);
+            $lineas[] = ['codigo' => '1435', 'debe' => $base, 'haber' => 0];
+            if ($iva > 0) $lineas[] = ['codigo' => '1355', 'debe' => $iva, 'haber' => 0];
+        } else {
+            $lineas[] = ['codigo' => '1435', 'debe' => $total, 'haber' => 0];
+        }
+        $lineas[] = ['codigo' => $ctaSalida, 'debe' => 0, 'haber' => $total];
+        self::crear_asiento(substr((string)$compra['fecha_compra'], 0, 10),
+            'Compra #' . $compra_id . ($aCredito ? ' (a crédito)' : ''), 'compra', $compra_id, $lineas);
     }
 
     /**

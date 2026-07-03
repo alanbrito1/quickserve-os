@@ -38,7 +38,8 @@ class CompraModel
         array   $lineas,
         ?int    $proveedor_id  = null,
         string  $notas         = '',
-        string  $lugar_compra  = ''
+        string  $lugar_compra  = '',
+        bool    $a_credito     = false
     ): int {
         if (empty($lineas)) throw new RuntimeException('La compra debe tener al menos un ítem.');
 
@@ -49,19 +50,33 @@ class CompraModel
             return $s + ((float)$l['precio_unitario'] * (float)$l['cantidad']);
         }, 0.0);
 
+        // Detectar columna a_credito (migración 046)
+        static $tiene046 = null;
+        if ($tiene046 === null) {
+            try {
+                $tiene046 = (int)db()->query(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='compras' AND COLUMN_NAME='a_credito'"
+                )->fetchColumn() > 0;
+            } catch (\Exception $e) { $tiene046 = false; }
+        }
+
         $pdo->beginTransaction();
         try {
             // ── 1. Cabecera de compra ────────────────────────────────────────
+            $colCred = $tiene046 ? ', a_credito' : '';
+            $valCred = $tiene046 ? ', :acred'    : '';
+            $parCred = $tiene046 ? [':acred' => $a_credito ? 1 : 0] : [];
             $pdo->prepare(
-                'INSERT INTO compras (proveedor_id, lugar_compra, total, notas, created_by)
-                 VALUES (:pid, :lugar, :total, :notas, :uid)'
+                "INSERT INTO compras (proveedor_id, lugar_compra, total, notas, created_by{$colCred})
+                 VALUES (:pid, :lugar, :total, :notas, :uid{$valCred})"
             )->execute([
                 ':pid'   => $proveedor_id,
                 ':lugar' => $lugar_compra ?: null,
                 ':total' => $total,
                 ':notas' => $notas ?: null,
                 ':uid'   => $uid,
-            ]);
+            ] + $parCred);
             $compra_id = (int)$pdo->lastInsertId();
 
             // ── 2. Líneas: insertar + actualizar insumo ─────────────────────

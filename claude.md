@@ -1,5 +1,5 @@
-# ClanDestino ERP v5.9 — Memoria de Sesión
-# Última sesión: 2026-06-23 | Próxima sesión: continuar desde este punto
+# ClanDestino ERP v6.0 — Memoria de Sesión
+# Última sesión: 2026-07-03 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -651,6 +651,7 @@ schema.sql                       → ⭐ INSTALACIÓN COMPLETA v4.25 (27 tablas,
 041_config_sep_millones.sql            → INSERT IGNORE en configuracion_app: num_sep_millones (separador independiente del grupo de millones; si = num_sep_miles → formato uniforme)
 042_venta_metodo_cobro.sql             → ALTER TABLE ventas ADD COLUMN metodo_cobro ENUM('efectivo','nequi','daviplata','bancolombia') DEFAULT NULL AFTER fecha_pago (con qué se cobró un fiado; metodo_pago se queda en 'fiado')
 043_indices_rendimiento.sql            → CREATE INDEX idx_ins_activo ON insumos(activo) + idx_cd_presentacion ON compra_detalles(presentacion_id) — idempotente (guard via information_schema); cierra avisos G18 de suite.php en BDs anteriores
+046_compra_a_credito.sql               → ALTER TABLE compras ADD COLUMN a_credito TINYINT(1) DEFAULT 0 (idempotente) — marca compra por pagar; postear_compra acredita 2205 Proveedores por pagar (vs 1105 Caja de contado)
 044_venta_costo_snap.sql               → ALTER TABLE venta_detalles ADD COLUMN costo_unit_snap DECIMAL(12,4) DEFAULT NULL (idempotente) — snapshot INMUTABLE del costo de receta por unidad al vender (COGS) = costo_calculado × factor_receta (+ costo combo_insumos); NULL en ventas previas → reportes usan costo_calculado actual como fallback
 045_contabilidad.sql                   → CREATE cuentas_contables + asientos + asiento_lineas (partida doble, IF NOT EXISTS) + seed plan de cuentas simplificado (~19 cuentas) + config iva_activo/iva_tarifa (categoria 'impuestos'). Base del subsistema contable (Fase 4a)
 
@@ -3990,5 +3991,48 @@ proveedor/nómina 2205/2510↔Caja/Bancos + aportes/retiros de capital ↔3115),
 automático; API accion=movimiento; suite G37 verifica el módulo. Roadmap contable 4a-4c casi
 completo; refinamientos pendientes: compra a crédito (build-up de 2205) e IVA discriminado.
 `APP_VERSION` → 5.9. Sin cambios de BD.*
+
+---
+
+## Estado v6.0 (2026-07-03) — Fase 4c completa: compra a crédito + IVA discriminado. Roadmap contable CERRADO.
+
+Se cierran los 2 refinamientos que faltaban. **El roadmap contable/financiero queda completo.**
+
+### Compra a crédito (cuentas por pagar) — migración 046
+- **`compras.a_credito`** TINYINT (mig 046, idempotente + `schema.sql`). `CompraModel::crear($lineas,
+  $proveedor_id, $notas, $lugar_compra, $a_credito=false)` — INSERT dinámico con detección `$tiene046`.
+- **`inventario/compras.php`**: selector **"Forma de pago: Contado / A crédito"** (`forma_pago` POST →
+  `$a_credito`), pasado a `crear`.
+- **`ContabilidadModel::postear_compra`** (usa `SELECT *` para no fallar sin la columna): si
+  `a_credito=1` → Crédito **2205 Proveedores por pagar**; si no → Crédito **1105 Caja**. El pago se
+  registra luego en Contabilidad → Movimientos (2205↔Caja).
+
+### IVA discriminado (configurable)
+- **`ContabilidadModel::ivaConfig()`** — lee `iva_activo`/`iva_tarifa` (mig 045, `configuracion_negocio`),
+  cacheado. Por defecto **desactivado** (régimen simple).
+- Cuando activo (el total **incluye** IVA → se separa base + IVA):
+  - **Venta**: Crédito **4135 Ingresos** = base, Crédito **2408 IVA por pagar** = IVA. (Débito Caja/
+    Bancos/CxC = total.)
+  - **Compra**: Débito **1435 Inventario** = base, Débito **1355 IVA descontable** = IVA. (Crédito
+    Caja/2205 = total.)
+- **Toggle en Contabilidad → Resumen** (checkbox + tarifa), API `contabilidad/api/contab.php`
+  accion=`config_iva`.
+
+### Roadmap contable — COMPLETO
+✅ 1 (COGS) · 1.2 (auditor) · 2 (P&G) · 3 (simulador) · 4a (motor + Balance) · 4b (auto-posting 6
+flujos) · 4c (movimientos/pagos/capital + **compra a crédito** + **IVA**). Migraciones **044, 045,
+046**. Único gran pendiente futuro (no crítico): **A/P por factura** (subledger por compra/proveedor)
+en vez del agregado 2205; y enlazar el flag `pagado` de nómina al pago 2510↔Caja.
+
+### Verificación del usuario (runtime)
+- Aplicar **migración 046**. Compras → registrar una compra **"A crédito"** → Contabilidad: sube
+  *Proveedores por pagar (2205)*; luego Movimientos → *Pago a proveedor* → baja. Activar **IVA** en
+  Contabilidad → Resumen (tarifa 19) → una venta/compra nueva separa el IVA en el Libro diario; el
+  Balance sigue cuadrando (G37).
+
+*Última actualización: 2026-07-03 | v6.0 — Fase 4c completa (roadmap contable CERRADO): compra a
+crédito (mig 046 `compras.a_credito` → `postear_compra` acredita 2205 Proveedores por pagar;
+selector en compras) + IVA discriminado configurable (`ivaConfig()`; ventas separan 2408, compras
+1355; toggle en Contabilidad). Migraciones 044/045/046. `APP_VERSION` → 6.0.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.

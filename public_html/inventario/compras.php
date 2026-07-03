@@ -53,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $proveedor_id = !empty($_POST['proveedor_id']) ? (int)$_POST['proveedor_id'] : null;
         $notas        = trim($_POST['notas']   ?? '');
         $lugar_compra = trim($_POST['lugar_compra'] ?? '');
+        $a_credito    = ($_POST['forma_pago'] ?? 'contado') === 'credito'; // contabilidad: 2205 vs Caja
 
         // Sanitizar líneas: ignorar filas vacías
         // Incluir campos de presentación (opcionales) para snapshot histórico
@@ -85,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg_err = 'Agrega al menos un ítem válido (insumo, cantidad y precio requeridos).';
         } else {
             try {
-                $id = CompraModel::crear($lineas, $proveedor_id, $notas, $lugar_compra);
+                $id = CompraModel::crear($lineas, $proveedor_id, $notas, $lugar_compra, $a_credito);
                 $msg_ok  = "Compra #$id registrada. Stock e insumos actualizados.";
                 $compras = CompraModel::historial_agrupado(); // refrescar listado
             } catch (RuntimeException $e) {
@@ -337,6 +338,13 @@ $insumos_js = json_encode(array_map(fn($i) => [
                 <div class="fg">
                     <label>Lugar de Compra</label>
                     <input type="text" name="lugar_compra" placeholder="Ej: Plaza minorista, D1, Almacenes...">
+                </div>
+                <div class="fg">
+                    <label>Forma de pago</label>
+                    <select name="forma_pago" title="A crédito = queda por pagar al proveedor (contabilidad)">
+                        <option value="contado">Contado (pagada)</option>
+                        <option value="credito">A crédito (por pagar)</option>
+                    </select>
                 </div>
                 <div class="fg">
                     <label>Notas (opcional)</label>

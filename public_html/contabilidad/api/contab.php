@@ -98,6 +98,19 @@ try {
         exit;
     }
 
+    // ── CONFIG IVA (Fase 4c) ──────────────────────────────────────────────────
+    if ($accion === 'config_iva') {
+        $activo = ($_POST['iva_activo'] ?? '0') === '1' ? 1 : 0;
+        $tarifa = max(0, min(100, (float)($_POST['iva_tarifa'] ?? 19)));
+        $uid = (int)($_SESSION['usuario_id'] ?? 0);
+        $upd = db()->prepare("UPDATE configuracion_negocio SET valor = ?, updated_by = ? WHERE clave = ?");
+        $upd->execute([$activo, $uid, 'iva_activo']);
+        $upd->execute([$tarifa, $uid, 'iva_tarifa']);
+        log_registrar('configuracion_negocio', 0, 'iva', null, "activo={$activo} tarifa={$tarifa}", 'UPDATE');
+        echo json_encode(['success' => true, 'iva_activo' => $activo, 'iva_tarifa' => $tarifa]);
+        exit;
+    }
+
     // ── MOVIMIENTO DE TESORERÍA / CAPITAL (Fase 4c) ───────────────────────────
     // Genera el asiento de un pago o aporte guiado (el usuario no elige cuentas).
     if ($accion === 'movimiento') {

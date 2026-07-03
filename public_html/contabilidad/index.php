@@ -72,6 +72,15 @@ $hayApertura = (int)db()->query("SELECT COUNT(*) FROM asientos WHERE origen='ape
             <p>Genera el asiento de las ventas que aún no lo tienen (las nuevas ya se contabilizan solas).</p>
         </button>
     </div>
+
+    <?php [$ivaAct, $ivaTarifa] = ContabilidadModel::ivaConfig(); ?>
+    <div class="nav-card" style="margin-top:12px">
+        <b>🧾 IVA</b>
+        <p>Actívalo solo si tu negocio discrimina IVA. Al vender/comprar, el sistema separa el IVA (IVA por pagar 2408 / IVA descontable 1355). Por defecto: sin IVA.</p>
+        <label style="font-size:13px"><input type="checkbox" id="iva-on" <?= $ivaAct?'checked':'' ?>> Discriminar IVA</label>
+        &nbsp; Tarifa <input type="number" id="iva-tarifa" value="<?= (int)$ivaTarifa ?>" min="0" max="100" step="1" style="width:64px;padding:5px 7px;border:1px solid var(--g8);border-radius:7px">%
+        <button class="btn" style="background:var(--brand);color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;font-size:13px;margin-left:8px" onclick="guardarIva(this)">Guardar</button>
+    </div>
 </main>
 <div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;display:none"></div>
 <script>
@@ -87,5 +96,18 @@ async function backfill(btn){
         if(d.success){ toast('Ventas contabilizadas: '+d.posteadas+(d.errores?(' · '+d.errores+' con error'):''),true); setTimeout(()=>location.reload(),1500); }
         else { toast(d.error||'Error',false); btn.disabled=false; }
     }catch(e){ toast('Error de red',false); btn.disabled=false; }
+}
+async function guardarIva(btn){
+    btn.disabled=true;
+    const fd=new FormData(); fd.append('csrf_token',CSRF); fd.append('accion','config_iva');
+    fd.append('iva_activo',document.getElementById('iva-on').checked?'1':'0');
+    fd.append('iva_tarifa',document.getElementById('iva-tarifa').value||'0');
+    try{
+        const r=await fetch('api/contab.php',{method:'POST',body:fd});
+        const d=await r.json();
+        if(d.success){ toast('IVA guardado ('+(d.iva_activo?d.iva_tarifa+'%':'desactivado')+')',true); }
+        else toast(d.error||'Error',false);
+    }catch(e){ toast('Error de red',false); }
+    btn.disabled=false;
 }
 </script></body></html>

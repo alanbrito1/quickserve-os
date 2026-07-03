@@ -522,6 +522,7 @@ CREATE TABLE `compras` (
     `proveedor_id` INT UNSIGNED  DEFAULT NULL,
     `lugar_compra` VARCHAR(150)  DEFAULT NULL,
     `total`        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    `a_credito`    TINYINT(1)    NOT NULL DEFAULT 0,   -- 1 = por pagar (mig. 046)
     `notas`        TEXT          DEFAULT NULL,
     `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `created_by`   INT UNSIGNED  DEFAULT NULL,

@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '5.9'); // 2026-06-23: v5.9 (Fase 4c) Movimientos de tesoreria/capital (contabilidad/movimientos.php): pago a proveedor (2205 vs caja/bancos), pago de nomina (2510 vs ...), aporte/retiro de capital (3115). Guiado; asiento automatico. Pendiente refinamientos 4c: compra a credito (build-up de 2205) e IVA discriminado.
+define('APP_VERSION', '6.0'); // 2026-07-03: v6.0 (Fase 4c completa) compra a credito (mig 046 compras.a_credito -> postear_compra credita 2205 Proveedores por pagar vs 1105 Caja; selector en compras) + IVA discriminado configurable (iva_activo/iva_tarifa; ventas separan 2408 IVA por pagar, compras 1355 IVA descontable; toggle en Contabilidad). Roadmap contable COMPLETO.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
