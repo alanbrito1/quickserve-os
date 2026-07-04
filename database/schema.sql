@@ -1,12 +1,19 @@
 -- ============================================================
--- ClanDestino ERP v4.80 — Esquema de instalación completo
+-- ClanDestino ERP v6.0 — Esquema de instalación completo
 -- Compatible: MySQL 5.7+ / MariaDB 10.3+
--- Última actualización: 2026-06-08
+-- Última actualización: 2026-07-04
 -- Incluye migración 035: variantes de tamaño (producto_variantes)
 --              mig. 036: recetas.es_base (ingrediente que no escala con factor_receta)
 --              mig. 037: tabla turnos_caja
 --              mig. 038: columnas descuento_pct / descuento_valor en ventas
 --              mig. 039: tabla insumo_presentaciones + presentacion_id en compra_detalles
+--              mig. 040/041: config formato numérico (decimales/separadores) en configuracion_app
+--              mig. 042: ventas.metodo_cobro (con qué se saldó un fiado)
+--              mig. 043: índices idx_ins_activo / idx_cd_presentacion
+--              mig. 044: venta_detalles.costo_unit_snap (snapshot de COGS)
+--              mig. 045: CONTABILIDAD partida doble (cuentas_contables + asientos +
+--                        asiento_lineas + plan de cuentas + config IVA)
+--              mig. 046: compras.a_credito (cuentas por pagar)
 -- ============================================================
 -- INSTRUCCIONES DE INSTALACIÓN (instalación desde cero):
 --   1. Crear base de datos: CREATE DATABASE clandestinoERP
@@ -45,6 +52,9 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ============================================================
 -- DROP TABLES (orden inverso a FKs para evitar errores)
 -- ============================================================
+DROP TABLE IF EXISTS `asiento_lineas`;
+DROP TABLE IF EXISTS `asientos`;
+DROP TABLE IF EXISTS `cuentas_contables`;
 DROP TABLE IF EXISTS `ajustes_stock`;
 DROP TABLE IF EXISTS `produccion_lotes`;
 DROP TABLE IF EXISTS `producto_variantes`;
@@ -1307,13 +1317,39 @@ CREATE TABLE IF NOT EXISTS `asiento_lineas` (
     INDEX `idx_al_cuenta` (`cuenta_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed del plan de cuentas simplificado (ver migración 045 para la lista completa).
+-- Seed del plan de cuentas simplificado (migración 045)
+INSERT IGNORE INTO `cuentas_contables` (`codigo`, `nombre`, `tipo`, `naturaleza`, `es_contra`, `orden`) VALUES
+  ('1105','Caja',                         'activo','debito',0,10),
+  ('1110','Bancos',                       'activo','debito',0,20),
+  ('1305','Cuentas por cobrar (fiado)',   'activo','debito',0,30),
+  ('1430','Inventario producto terminado','activo','debito',0,40),
+  ('1435','Inventario de insumos',        'activo','debito',0,50),
+  ('1355','IVA descontable',              'activo','debito',0,55),
+  ('1524','Activos fijos',                'activo','debito',0,60),
+  ('1592','Depreciación acumulada',       'activo','credito',1,70),
+  ('2205','Proveedores por pagar',        'pasivo','credito',0,110),
+  ('2408','IVA por pagar',                'pasivo','credito',0,120),
+  ('2510','Nómina por pagar',             'pasivo','credito',0,130),
+  ('3115','Capital social',               'patrimonio','credito',0,210),
+  ('3705','Utilidad del ejercicio',       'patrimonio','credito',0,220),
+  ('4135','Ingresos por ventas',          'ingreso','credito',0,310),
+  ('6135','Costo de ventas',              'costo','debito',0,410),
+  ('5105','Gastos de nómina',             'gasto','debito',0,510),
+  ('5160','Gasto por depreciación',       'gasto','debito',0,520),
+  ('5195','Gastos operativos (indirectos)','gasto','debito',0,530),
+  ('5199','Obsequios y mermas',           'gasto','debito',0,540);
+
+-- Config de IVA (migración 045) — por defecto desactivado (régimen simple)
+INSERT IGNORE INTO `configuracion_negocio` (`clave`, `valor`, `descripcion`, `categoria`) VALUES
+  ('iva_activo', 0,  'Discriminar IVA en ventas/compras (0=no, 1=si)', 'impuestos'),
+  ('iva_tarifa', 19, 'Tarifa de IVA por defecto (%)', 'impuestos');
 
 -- ============================================================
--- FIN DEL ESQUEMA v4.74
+-- FIN DEL ESQUEMA v6.0
 -- Verifica la instalación:
---   SHOW TABLES;                            -- debe mostrar 29 tablas
+--   SHOW TABLES;                            -- debe mostrar 33 tablas (30 + 3 de contabilidad)
 --   SHOW TRIGGERS;                          -- debe mostrar 9 triggers
 --   SELECT COUNT(*) FROM listas_sistema;    -- debe ser 59
 --   SELECT COUNT(*) FROM parametros_laborales; -- debe ser 16
+--   SELECT COUNT(*) FROM cuentas_contables; -- debe ser 19 (plan de cuentas, mig. 045)
 -- ============================================================
