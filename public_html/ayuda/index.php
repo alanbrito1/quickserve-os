@@ -186,6 +186,7 @@ $nav_activo = 'ayuda';
         <div class="side-group">
             <div class="side-group-lbl">General</div>
             <a href="#guia-roles" class="side-link active" onclick="activar(this)">⭐ Guía rápida por rol</a>
+            <a href="#instalacion" class="side-link" onclick="activar(this)">Instalación y datos de ejemplo</a>
             <a href="#sistema"    class="side-link" onclick="activar(this)">Visión general</a>
             <a href="#flujos"     class="side-link" onclick="activar(this)">Flujos de datos</a>
             <a href="#formulas"   class="side-link" onclick="activar(this)">Fórmulas globales</a>
@@ -336,6 +337,65 @@ $nav_activo = 'ayuda';
                 <tr><td>Admin → Usuarios / Apariencia / Catálogos / Base de Datos</td><td>Gestión del sistema: permisos, tema, listas configurables, respaldos y migraciones.</td><td>Admin / superadmin</td></tr>
                 <tr><td>Admin → Mantenimiento · Auditor de costos · Pruebas</td><td>Limpieza masiva de datos, diagnóstico de la cadena de costos, y suite de tests de integridad.</td><td><strong>Solo superadmin</strong></td></tr>
             </table>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!--  SECCIÓN: INSTALACIÓN Y DATOS DE EJEMPLO                       -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <div class="section" id="instalacion">
+            <div class="section-hdr">
+                <div class="section-icon" style="background:#eef2ff">&#128230;</div>
+                <div><div class="section-title">Instalación y datos de ejemplo</div></div>
+            </div>
+            <p>QuickServe OS se instala desde el navegador. Cada negocio arranca con su propia base
+               de datos, su nombre y su usuario administrador — sin tocar archivos ni SQL.</p>
+
+            <div class="sub-title">Instalar un negocio nuevo (asistente web)</div>
+            <p>Abre <code>tudominio.com/&lt;ruta&gt;/install/</code> y sigue los 4 pasos:</p>
+            <table class="data-table">
+                <tr><th>Paso</th><th>Qué pide</th></tr>
+                <tr><td>1. Requisitos</td><td>Verifica versión de PHP, extensiones y permisos de escritura. Marca en rojo lo que falte.</td></tr>
+                <tr><td>2. Base de datos</td><td>Servidor, nombre de la base, usuario y contraseña (se crean en cPanel → «MySQL Databases»). Prueba la conexión.</td></tr>
+                <tr><td>3. Negocio y administrador</td><td>Nombre del negocio, y nombre/correo/contraseña del administrador. Aquí también está el interruptor <strong>«Cargar datos de ejemplo»</strong>.</td></tr>
+                <tr><td>4. Listo</td><td>Crea las tablas, tu usuario y la configuración. Entra con tu correo y contraseña.</td></tr>
+            </table>
+            <div class="warn"><strong>Después de instalar, borra la carpeta <code>/install</code></strong> del servidor. El asistente se autobloquea (no se puede reinstalar encima), pero borrarla es la práctica recomendada.</div>
+            <div class="tip">El nombre del negocio, el logo y los colores se cambian luego en <strong>Admin → Apariencia</strong>. El correo/contraseña del admin, en <strong>Admin → Usuarios</strong>.</div>
+
+            <div class="sub-title">¿Qué son los «datos de ejemplo»?</div>
+            <p>Un catálogo y un historial de prueba <strong>ficticios</strong> para explorar y practicar
+               con el sistema lleno (dashboard, reportes, POS, nómina…) antes de cargar tus datos
+               reales. Son de un negocio de comida genérico y <strong>se pueden editar o borrar</strong>
+               cuando quieras. Se cargan solo si marcas la casilla en el paso 3 del instalador
+               (o ejecutando <code>database/sample_data.sql</code> a mano después del esquema).</p>
+            <table class="data-table">
+                <tr><th>Incluye</th><th>Para probar…</th></tr>
+                <tr><td>7 proveedores · 14 insumos (con presentaciones y equivalencias)</td><td>Inventario, Compras, catálogos</td></tr>
+                <tr><td>7 productos con receta · 4 variantes de tamaño · 1 combo</td><td>Productos, Constructor de recetas, POS con variantes/combos</td></tr>
+                <tr><td>8 clientes (3 con fiado, 1 inactivo)</td><td>Clientes, fiado, estado de cuenta, filtro admin de inactivos</td></tr>
+                <tr><td>25 ventas recientes (efectivo, Nequi, Daviplata, Bancolombia, fiado, obsequio, con descuento, combo, variante y una anulada)</td><td>Historial, Dashboard, cierre de caja, Reportes de ventas y rentabilidad</td></tr>
+                <tr><td>1 abono a fiado · 5 compras (una a crédito)</td><td>Cobranza, cuentas por pagar (Contabilidad → Movimientos)</td></tr>
+                <tr><td>5 lotes de producción · 3 ajustes (obsequio/desecho) · 3 turnos de caja</td><td>Producción, ajustes de stock, apertura/cierre de turno</td></tr>
+                <tr><td>4 empleados (los 4 tipos de contrato) + horas + 6 liquidaciones</td><td>Nómina, registro de horas, reporte laboral</td></tr>
+                <tr><td>4 costos indirectos · 4 activos (con depreciación)</td><td>Costos, Activos, Estado de Resultados (P&amp;G)</td></tr>
+            </table>
+            <div class="tip">Las fechas de las ventas y movimientos son <strong>relativas al día de instalación</strong> (hoy, ayer, hace 2 días…), así el Dashboard y los reportes se ven activos apenas entras.</div>
+
+            <div class="sub-title">Recomendado justo después de cargar los ejemplos</div>
+            <ul>
+                <li><strong>Productos → «Recalcular costos»:</strong> repuebla el costo exacto de cada receta a partir de los insumos.</li>
+                <li><strong>Contabilidad → «Contabilizar ventas históricas»</strong> + fijar el <strong>Balance de apertura</strong>: genera los asientos de las ventas de ejemplo (los asientos automáticos solo se crean con operaciones en vivo).</li>
+            </ul>
+
+            <div class="sub-title">Empezar de cero (quitar los ejemplos)</div>
+            <p>Cuando estés listo para operar con datos reales, <strong>Admin → Mantenimiento de datos</strong>
+               (solo superadmin) borra todo lo transaccional y/o el catálogo de prueba:</p>
+            <table class="data-table">
+                <tr><th>Opción</th><th>Qué hace</th></tr>
+                <tr><td>Reset transaccional</td><td>Borra ventas, compras, producción, nómina, abonos, turnos y ajustes; pone el fiado en 0. <strong>Conserva</strong> el catálogo (productos, insumos, clientes…).</td></tr>
+                <tr><td>Borrar por módulo</td><td>Elimina inactivos, anulados o todos los registros de un módulo puntual (modo seguro o cascada).</td></tr>
+            </table>
+            <div class="warn">Estas acciones son irreversibles: descarga un respaldo (en la misma página) y escribe <code>BORRAR</code> para confirmar.</div>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
