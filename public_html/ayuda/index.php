@@ -185,7 +185,8 @@ $nav_activo = 'ayuda';
 
         <div class="side-group">
             <div class="side-group-lbl">General</div>
-            <a href="#sistema"    class="side-link active" onclick="activar(this)">Visión general</a>
+            <a href="#guia-roles" class="side-link active" onclick="activar(this)">⭐ Guía rápida por rol</a>
+            <a href="#sistema"    class="side-link" onclick="activar(this)">Visión general</a>
             <a href="#flujos"     class="side-link" onclick="activar(this)">Flujos de datos</a>
             <a href="#formulas"   class="side-link" onclick="activar(this)">Fórmulas globales</a>
         </div>
@@ -208,6 +209,7 @@ $nav_activo = 'ayuda';
             <a href="#costos"     class="side-link" onclick="activar(this)">Costos</a>
             <a href="#analisis"   class="side-link" onclick="activar(this)">Análisis y PE</a>
             <a href="#reportes"   class="side-link" onclick="activar(this)">Reportes</a>
+            <a href="#contabilidad" class="side-link" onclick="activar(this)">Contabilidad</a>
             <a href="#admin"      class="side-link" onclick="activar(this)">Admin</a>
             <a href="#seguridad"  class="side-link" onclick="activar(this)">Seguridad</a>
             <a href="#pruebas"   class="side-link" onclick="activar(this)">Pruebas / Tests</a>
@@ -224,6 +226,117 @@ $nav_activo = 'ayuda';
             <input type="text" id="busq-contenido" placeholder="Buscar en la ayuda… (Ej: depreciación, fiado, nómina)" oninput="buscarContenido(this.value)">
         </div>
         <div class="no-results" id="no-results">No se encontraron resultados para tu búsqueda.</div>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!--  SECCIÓN: GUÍA RÁPIDA POR ROL                                  -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <?php
+            $_rol    = $_SESSION['usuario_rol'] ?? 'empleado';
+            $_rolLbl = ['superadmin'=>'Superadministrador','admin'=>'Administrador','empleado'=>'Empleado'][$_rol] ?? ucfirst($_rol);
+        ?>
+        <div class="section" id="guia-roles">
+            <div class="section-hdr">
+                <div class="section-icon" style="background:#fef2f0">&#11088;</div>
+                <div><div class="section-title">Guía rápida de usuario (por rol)</div></div>
+            </div>
+
+            <div class="tip"><strong>Tu sesión ahora:</strong> rol <strong><?= htmlspecialchars($_rolLbl) ?></strong>.
+                <?php if ($_rol === 'empleado'): ?>
+                    Ves solo los módulos donde tu administrador te dio permiso, y dentro de cada uno haces lo que tu <em>nivel de permiso</em> permita (ver tabla abajo).
+                <?php elseif ($_rol === 'admin'): ?>
+                    Ves y operas todos los módulos + <strong>Admin</strong> y <strong>Contabilidad</strong>. No ves lo exclusivo del superadmin (Mantenimiento, Auditor de costos, Pruebas, Consolidar productos, y las tarjetas financieras del dashboard).
+                <?php else: ?>
+                    Acceso <strong>total</strong>, incluido Mantenimiento de datos, Auditor de costos, Pruebas de integridad, Consolidar productos y las tarjetas financieras sensibles del dashboard.
+                <?php endif; ?>
+            </div>
+
+            <div class="sub-title">1. Los tres roles</div>
+            <table class="data-table">
+                <tr><th>Rol</th><th>Qué alcance tiene</th></tr>
+                <tr><td><strong>Empleado</strong></td><td>Opera el día a día (POS, inventario, etc.) <strong>solo en los módulos donde el admin le dio permiso</strong>, y dentro de cada uno según su nivel (ver punto 2). No entra a Admin ni a Contabilidad.</td></tr>
+                <tr><td><strong>Administrador</strong></td><td>Todo lo operativo + <strong>Admin</strong> (usuarios, apariencia, catálogos, base de datos) + <strong>Contabilidad</strong>. No ve funciones destructivas/sensibles del superadmin.</td></tr>
+                <tr><td><strong>Superadministrador</strong></td><td>Acceso total. Además: <strong>Mantenimiento de datos</strong>, <strong>Auditor de costos</strong>, <strong>Pruebas de integridad</strong>, <strong>Consolidar productos</strong> y las tarjetas financieras del dashboard (Rendimiento de cajeros, Productos más rentables).</td></tr>
+            </table>
+
+            <div class="sub-title">2. Niveles de permiso por módulo (aplican a los empleados)</div>
+            <p>El admin asigna a cada empleado un nivel por módulo (Admin &rarr; Usuarios). Cada nivel incluye lo de los anteriores:</p>
+            <table class="data-table">
+                <tr><th>Nivel</th><th>Qué desbloquea</th></tr>
+                <tr><td>Sin acceso</td><td>El módulo ni siquiera aparece en el menú.</td></tr>
+                <tr><td>Solo ver</td><td>Consultar listados, reportes y detalles. No puede crear ni editar.</td></tr>
+                <tr><td>Solo propios</td><td>(Ventas/Compras) Crear registros y ver/gestionar <strong>solo los suyos</strong> (los que él registró).</td></tr>
+                <tr><td>Editar existentes</td><td>Crear y editar registros de cualquiera dentro del módulo.</td></tr>
+                <tr><td>Admin total</td><td>Lo máximo del módulo: acciones sensibles (ej. anular venta, activar/desactivar, eliminar).</td></tr>
+            </table>
+            <div class="tip"><strong>Excepciones (no dependen de la matriz):</strong> <strong>Clientes</strong> usa el permiso de <em>Ventas</em>. <strong>Admin</strong>, <strong>Ayuda</strong> y <strong>Contabilidad</strong> se controlan por <em>rol</em> directo. Ciertas tarjetas del dashboard (Cajeros, Rentabilidad) y páginas (Mantenimiento, Auditor, Pruebas, Consolidar) solo las ve el rol admin/superadmin aunque el empleado tenga "admin total" en el módulo.</div>
+
+            <div class="sub-title">3. Qué hace cada cosa — y quién la ve</div>
+            <p style="font-size:13px;color:var(--g5)">Referencia concreta de tarjetas, tablas, reportes y acciones. La columna "Quién" indica el rol o el permiso mínimo. Para el detalle completo de cada módulo, usa las demás secciones de esta ayuda.</p>
+
+            <div class="sub-title" style="margin-top:14px">Dashboard (pantalla de inicio)</div>
+            <table class="data-table">
+                <tr><th>Elemento</th><th>Qué hace</th><th>Quién</th></tr>
+                <tr><td>Ventas hoy · Meta del día · Gráfico 7 días</td><td>Total cobrado hoy (clic → cierre de caja), avance vs. la meta con barra y racha, y tendencia de la semana.</td><td>Ventas: solo ver</td></tr>
+                <tr><td>Turno de caja</td><td>Estado del turno (abierto/cerrado/sin apertura). Clic → apertura.</td><td>Ventas: solo ver</td></tr>
+                <tr><td>Top Clientes · Reactivar · Aniversario · Productos más vendidos</td><td>Rankings del mes y botones de WhatsApp (agradecer, reconectar, felicitar).</td><td>Ventas: solo ver</td></tr>
+                <tr><td>🔒 Rendimiento de Cajeros · 🔒 Productos más Rentables</td><td>Ranking de ventas por cajero y margen por producto (datos sensibles).</td><td><strong>Solo admin/superadmin</strong></td></tr>
+                <tr><td>Panel de alertas</td><td>Insumos bajos/agotados (con "Pedir por WhatsApp"), fiados pendientes, stock de producto bajo, garantías por vencer, productos sin rotación.</td><td>Según permiso del módulo relacionado</td></tr>
+            </table>
+
+            <div class="sub-title">Ventas / POS · Clientes</div>
+            <table class="data-table">
+                <tr><th>Elemento</th><th>Qué hace</th><th>Quién</th></tr>
+                <tr><td>POS (registrar venta)</td><td>Vender: elegir productos (solo/combo, variante de tamaño), método de pago, cliente (obligatorio en fiado), descuento %, fecha.</td><td>Ventas: solo propios+</td></tr>
+                <tr><td>Apertura / Cierre de caja</td><td>Abrir turno con fondo inicial; cerrar con arqueo (efectivo, fiado, obsequios, total) e imprimir/compartir.</td><td>Ventas: solo propios+ (cerrar: admin)</td></tr>
+                <tr><td>Historial de ventas</td><td>Filtrar por fecha/método/estado; marcar fiado como pagado (con método de cobro); editar; anular.</td><td>Ver: solo ver · Editar: editar · <strong>Anular: admin total</strong></td></tr>
+                <tr><td>Clientes (CRUD, abono, estado de cuenta, fusión)</td><td>Cartera y fiado: registrar abonos, ver extracto, recordar por WhatsApp, fusionar duplicados. Filtro "Con deuda".</td><td>Usa permiso de <strong>Ventas</strong> (activar/desactivar: admin total)</td></tr>
+            </table>
+
+            <div class="sub-title">Inventario · Compras · Proveedores</div>
+            <table class="data-table">
+                <tr><th>Elemento</th><th>Qué hace</th><th>Quién</th></tr>
+                <tr><td>Inventario (insumos)</td><td>CRUD de insumos, ajustar stock (entrada/merma/corrección/total), presentaciones de compra, equivalencias. Conteo rápido.</td><td>Ver: solo ver · CRUD: editar</td></tr>
+                <tr><td>Compras</td><td>Registrar compra multi-línea (con presentación); <strong>Forma de pago: contado / a crédito</strong>; duplicar/editar/eliminar; lista de compras sugerida.</td><td>Crear/duplicar propia: solo propios · Editar cualquiera: editar</td></tr>
+                <tr><td>Proveedores</td><td>Directorio; contacto directo por WhatsApp; activar/desactivar.</td><td>Ver: solo ver · CRUD: editar · Desactivar: admin total</td></tr>
+                <tr><td>Filtro "activos / inactivos / todos"</td><td>En los listados, ver también los desactivados.</td><td><strong>Solo admin/superadmin</strong></td></tr>
+            </table>
+
+            <div class="sub-title">Productos · Producción</div>
+            <table class="data-table">
+                <tr><th>Elemento</th><th>Qué hace</th><th>Quién</th></tr>
+                <tr><td>Catálogo de productos</td><td>Editar, duplicar, receta (editar cantidades inline, copiar/combinar de otros con %), combos y variantes, descontinuar/reactivar.</td><td>Ver: solo ver · CRUD: editar</td></tr>
+                <tr><td>Constructor de recetas</td><td>Armar la receta de un producto (rinde + ingredientes) y traer/combinar de otros productos con %.</td><td>Productos: editar</td></tr>
+                <tr><td>Análisis y punto de equilibrio</td><td>Costeo real vs. estimado, margen por producto, punto de equilibrio, histórico y sugerencia de producción.</td><td>Productos: solo ver</td></tr>
+                <tr><td>🧪 Simulador de escenarios</td><td>"¿Qué pasa si…?": cambia el costo de un insumo y ve el impacto en margen y utilidad, sin tocar datos reales.</td><td>Productos: solo ver</td></tr>
+                <tr><td>🔀 Consolidar productos</td><td>Fusionar productos duplicados en variantes.</td><td><strong>Solo superadmin</strong></td></tr>
+                <tr><td>Producción</td><td>Producir lotes (descuenta insumos, sube stock terminado), anular, sugerencia de producción.</td><td>Productos: editar</td></tr>
+            </table>
+
+            <div class="sub-title">Nómina · Activos · Costos</div>
+            <table class="data-table">
+                <tr><th>Elemento</th><th>Qué hace</th><th>Quién</th></tr>
+                <tr><td>Nómina</td><td>CRUD empleados, registrar horas, generar liquidaciones del período (4 tipos de contrato), parámetros laborales.</td><td>Ver: solo ver · CRUD/generar: editar · Eliminar período: admin total</td></tr>
+                <tr><td>Activos</td><td>Inventario de activos fijos con depreciación automática; duplicar, foto, dar de baja; export Excel.</td><td>Ver: solo ver · CRUD: editar</td></tr>
+                <tr><td>Costos</td><td>Costos indirectos por período; KPIs consolidados (costo fijo, depreciación, nómina).</td><td>Ver: solo ver · CRUD: editar</td></tr>
+            </table>
+
+            <div class="sub-title">Reportes (todos exportan a Excel)</div>
+            <table class="data-table">
+                <tr><th>Reporte</th><th>Qué muestra</th><th>Quién</th></tr>
+                <tr><td>Estado de Resultados (P&amp;G)</td><td>Ingresos − costo de ventas (COGS real) − gastos = utilidad del período; + valorización de inventario.</td><td>Costos: solo ver</td></tr>
+                <tr><td>Ventas &amp; Rentabilidad</td><td>Ventas por período/método, margen por producto, fiados; discrimina venta directa vs. cobro de fiado.</td><td>Ventas: solo ver</td></tr>
+                <tr><td>Inventario, Producción &amp; Activos</td><td>Stock, producción del período, depreciación, obsequios/desechos.</td><td>Inventario: solo ver</td></tr>
+                <tr><td>Nómina · Costos · Compras · Variación de Precios</td><td>Costo laboral, costos del negocio, compras por proveedor/insumo, evolución histórica de precios.</td><td>Permiso del módulo fuente</td></tr>
+            </table>
+
+            <div class="sub-title">Contabilidad · Admin — solo admin/superadmin</div>
+            <table class="data-table">
+                <tr><th>Elemento</th><th>Qué hace</th><th>Quién</th></tr>
+                <tr><td>Contabilidad (partida doble)</td><td>Balance General, libro diario, balance de apertura, movimientos (pagos y capital), plan de cuentas. Las operaciones generan asientos solas.</td><td>Admin / superadmin</td></tr>
+                <tr><td>Admin → Usuarios / Apariencia / Catálogos / Base de Datos</td><td>Gestión del sistema: permisos, tema, listas configurables, respaldos y migraciones.</td><td>Admin / superadmin</td></tr>
+                <tr><td>Admin → Mantenimiento · Auditor de costos · Pruebas</td><td>Limpieza masiva de datos, diagnóstico de la cadena de costos, y suite de tests de integridad.</td><td><strong>Solo superadmin</strong></td></tr>
+            </table>
+        </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
         <!--  SECCIÓN: PRINCIPIO DE PRECIOS HISTÓRICOS                     -->
@@ -287,10 +400,10 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">ClanDestino ERP — Visión General</div>
-                    <div class="section-badge">v4.69 · Colombia</div>
+                    <div class="section-badge">v6.0 · Colombia</div>
                 </div>
             </div>
-            <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos y costos desde un único panel adaptado a la legislación colombiana.</p>
+            <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos, costos y <strong>contabilidad de partida doble</strong> desde un único panel adaptado a la legislación colombiana.</p>
             <div class="tip"><strong>Panel de alertas en el Dashboard:</strong> Al ingresar al sistema, la página de inicio muestra automáticamente alertas operativas si hay insumos con stock bajo, clientes con fiado pendiente o productos con stock por debajo del mínimo configurado. Cada alerta tiene un enlace directo al módulo correspondiente para actuar de inmediato.</div>
 
             <div class="sub-title">Interfaz — iconos de acción y uso en móvil (v4.97)</div>
@@ -1549,6 +1662,68 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
+        <!--  MÓDULO: CONTABILIDAD                                         -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <div class="section" id="contabilidad">
+            <div class="section-hdr">
+                <div class="section-icon" style="background:#f0fdf4">&#128209;</div>
+                <div><div class="section-title">Módulo: Contabilidad (partida doble)</div></div>
+            </div>
+            <p>Contabilidad formal de <strong>partida doble</strong> con Balance General. <strong>Solo visible para admin y superadmin</strong> (se controla por rol, no por la matriz de permisos). Migraciones 044, 045 y 046.</p>
+
+            <div class="warn"><strong>Antes de usarlo:</strong> el contador o administrador debe fijar el <strong>Balance de apertura</strong> una vez (saldos iniciales de caja, inventario, activos, fiado). El Capital se calcula solo para que el balance cuadre. Sin apertura, el balance arranca en cero.</div>
+
+            <div class="sub-title">Principio: todo asiento cuadra</div>
+            <p>Cada movimiento genera un <strong>asiento</strong> donde la suma del <strong>Debe</strong> es igual a la suma del <strong>Haber</strong> (ecuación contable). Los asientos <strong>nunca se editan</strong>: si hay un error, se anulan con un <strong>contra-asiento</strong> (reversa) que deja el rastro. El Balance sale de los saldos de las cuentas a una fecha: <strong>Activo = Pasivo + Patrimonio</strong>.</p>
+
+            <div class="sub-title">Los asientos se generan solos (auto-posting)</div>
+            <p>No hay doble digitación: cada operación del día a día crea su asiento automáticamente <em>después</em> de guardarse. Si la contabilidad fallara, la operación (venta, compra…) <strong>no se rompe</strong> — el asiento se reconcilia luego con el botón de "Contabilizar históricas".</p>
+            <table class="data-table">
+                <tr><th>Operación</th><th>Débito</th><th>Crédito</th></tr>
+                <tr><td>Venta efectivo</td><td>1105 Caja</td><td>4135 Ingresos <span class="badge">+2408 IVA si aplica</span></td></tr>
+                <tr><td>Venta Nequi / Daviplata / Bancolombia</td><td>1110 Bancos</td><td>4135 Ingresos</td></tr>
+                <tr><td>Venta a fiado</td><td>1305 Cuentas por cobrar</td><td>4135 Ingresos</td></tr>
+                <tr><td>Costo de la venta (todas)</td><td>6135 Costo de ventas</td><td>1430/1435 Inventario <span class="badge">costo_unit_snap</span></td></tr>
+                <tr><td>Obsequio</td><td>5199 Obsequios y mermas</td><td>1430/1435 Inventario (a costo)</td></tr>
+                <tr><td>Compra de contado</td><td>1435 Inventario insumos <span class="badge">+1355 IVA si aplica</span></td><td>1105 Caja</td></tr>
+                <tr><td>Compra a crédito</td><td>1435 Inventario insumos</td><td>2205 Proveedores por pagar</td></tr>
+                <tr><td>Abono a fiado</td><td>1105/1110 Caja/Bancos</td><td>1305 Cuentas por cobrar</td></tr>
+                <tr><td>Producción de un lote</td><td>1430 Producto terminado</td><td>1435 Insumos</td></tr>
+                <tr><td>Nómina liquidada</td><td>5105 Gastos de nómina</td><td>2510 Nómina por pagar</td></tr>
+                <tr><td>Anulación de venta</td><td colspan="2">Reversa (contra-asiento) del asiento original</td></tr>
+            </table>
+
+            <div class="sub-title">Secciones del módulo</div>
+            <table class="data-table">
+                <tr><th>Sección</th><th>Qué hace</th></tr>
+                <tr><td>Resumen</td><td>Tablero: activos, pasivos, patrimonio y resultado; estado "cuadra / no cuadra"; botón <strong>Contabilizar ventas históricas</strong> (backfill) y <strong>toggle de IVA</strong> (activar/desactivar + tarifa).</td></tr>
+                <tr><td>Balance General</td><td>Activo = Pasivo + Patrimonio a una fecha, con el chequeo de cuadre. Exporta a Excel.</td></tr>
+                <tr><td>Apertura</td><td>Balance de apertura: fija los saldos iniciales (pre-carga fiado, inventario y activos desde los datos reales). El Capital (3115) se calcula como la cifra de cuadre.</td></tr>
+                <tr><td>Movimientos</td><td>Registra, en forma guiada, pagos y capital: <strong>pago a proveedor</strong> (2205↔Caja), <strong>pago de nómina</strong> (2510↔Caja), <strong>aporte</strong> y <strong>retiro de capital</strong> (Caja↔3115).</td></tr>
+                <tr><td>Libro diario</td><td>Todos los asientos con su detalle, filtrables por fecha; botón para reversar los manuales y los de apertura.</td></tr>
+                <tr><td>Plan de cuentas</td><td>Catálogo de cuentas (código, nombre, tipo, naturaleza).</td></tr>
+            </table>
+
+            <div class="sub-title">Plan de cuentas simplificado</div>
+            <table class="data-table">
+                <tr><th>Activo</th><th>Pasivo / Patrimonio</th><th>Resultado</th></tr>
+                <tr>
+                    <td>1105 Caja · 1110 Bancos · 1305 CxC fiado · 1430 Prod. terminado · 1435 Insumos · 1355 IVA descontable · 1524 Activos fijos · 1592 Deprec. acum. <em>(resta)</em></td>
+                    <td>2205 Proveedores · 2408 IVA por pagar · 2510 Nómina por pagar · 3115 Capital · 3705 Utilidad</td>
+                    <td>4135 Ingresos · 6135 Costo de ventas · 5105 Nómina · 5160 Depreciación · 5195 Gastos operativos · 5199 Obsequios/mermas</td>
+                </tr>
+            </table>
+
+            <div class="sub-title">Compra a crédito (v6.0)</div>
+            <p>Al registrar una compra en <strong>Inventario &rarr; Compras</strong> eliges la <strong>Forma de pago: Contado o A crédito</strong>. Si es a crédito, el sistema acredita <strong>2205 Proveedores por pagar</strong> en vez de sacar de Caja; el pago se registra después en <strong>Contabilidad &rarr; Movimientos &rarr; Pago a proveedor</strong>, que baja ese saldo.</p>
+
+            <div class="sub-title">IVA discriminado (configurable)</div>
+            <p>Por defecto el IVA está <strong>desactivado</strong> (régimen simple). Al activarlo en <strong>Contabilidad &rarr; Resumen</strong> (con su tarifa, ej. 19%), el total de cada venta/compra <strong>ya incluye el IVA</strong> y el asiento lo separa: en ventas a <strong>2408 IVA por pagar</strong>, en compras a <strong>1355 IVA descontable</strong>. El Balance sigue cuadrando.</p>
+
+            <div class="tip"><strong>Resultado esperado:</strong> tras fijar la apertura y con las operaciones del día generando asientos, el <strong>Balance General</strong> muestra Activo = Pasivo + Patrimonio y el <strong>Estado de Resultados (P&amp;G)</strong> del módulo Reportes muestra la utilidad del período. Ambos leen la misma realidad desde ángulos distintos.</div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
         <!--  MÓDULO: ADMIN                                                -->
         <!-- ══════════════════════════════════════════════════════════════ -->
         <div class="section" id="admin">
@@ -1567,7 +1742,8 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
                 <tr><td>Catálogos</td><td>Gestionar opciones de dropdowns: presentaciones, unidades, categorías de insumo/producto/activo/costo/proveedor y tamaños</td></tr>
                 <tr><td>Base de Datos</td><td>4 funciones: backup SQL, backup código ZIP, ejecutar migración .sql, aplicar actualización .zip</td></tr>
                 <tr><td>Mantenimiento de datos</td><td><strong>Solo superadmin.</strong> Limpieza masiva de registros (ver abajo)</td></tr>
-                <tr><td>Pruebas de integridad</td><td><strong>Solo superadmin.</strong> Ejecuta la suite de tests (<code>/tests/suite.php</code>, 35 grupos): esquema, datos, seguridad, formato, etc.</td></tr>
+                <tr><td>Auditor de costos</td><td><strong>Solo superadmin.</strong> Diagnostica la cadena de costos: insumos con costo desalineado de su presentación, productos con receta pero costo en 0 (con botón "Recalcular costos"), equivalencias físicas a medias y compras con presentación incoherente. Solo lectura + recalcular; no borra ni edita maestros.</td></tr>
+                <tr><td>Pruebas de integridad</td><td><strong>Solo superadmin.</strong> Ejecuta la suite de tests (<code>/tests/suite.php</code>, 37 grupos): esquema, datos, seguridad, formato, contabilidad de partida doble, etc.</td></tr>
             </table>
 
             <div class="sub-title">Mantenimiento de datos (v5.0) — solo superadmin</div>
@@ -1750,8 +1926,8 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
             <div class="section-hdr">
                 <div class="section-icon" style="background:#f0fdf4">&#128209;</div>
                 <div>
-                    <div class="section-title">Base de Datos — Estructura Técnica v4.22</div>
-                    <div class="section-badge">27 tablas · MariaDB 10.11 · Migraciones 001-034</div>
+                    <div class="section-title">Base de Datos — Estructura Técnica v6.0</div>
+                    <div class="section-badge">33 tablas · MariaDB 10.11 · Migraciones 001-046</div>
                 </div>
             </div>
             <p>El sistema usa MariaDB/MySQL con InnoDB. Las migraciones se ejecutan en orden desde <strong>Admin → Base de Datos → Ejecutar Migración</strong>. El código detecta automáticamente cuáles están aplicadas usando <code>information_schema.COLUMNS</code>.</p>
@@ -1903,6 +2079,16 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     <tr><td>G19 Usuario UX</td><td>Hay productos activos, nombre negocio configurado, contraseña no es la de ejemplo.</td></tr>
                     <tr><td>G20 Inmutabilidad profunda</td><td>precio_unitario ≠ 0 en ventas activas, salario_base > 0 en nómina, costo lotes ≥ 0.</td></tr>
                     <tr><td>G21 Migraciones 031-034</td><td>Verifica si las columnas ENUM se convirtieron a VARCHAR y si los snapshots de nombre y saldo están aplicados.</td></tr>
+                    <tr><td>G28 Abonos a fiado</td><td>Snapshots saldo_anterior/posterior (mig. 034) coherentes: saldo_posterior = saldo_anterior − monto. Montos y métodos válidos.</td></tr>
+                    <tr><td>G29 Presentaciones 039</td><td>Tabla insumo_presentaciones y FK presentacion_id en compra_detalles. Cantidades base positivas.</td></tr>
+                    <tr><td>G30 Regresión v4.93</td><td>Confirma que persisten los fixes de formato en compras y del envío de acción al generar nómina.</td></tr>
+                    <tr><td>G31 Manejo de errores</td><td>Los 37 endpoints <code>api/*.php</code> envuelven su lógica en try/catch y registran con error_log.</td></tr>
+                    <tr><td>G32 Formato numérico</td><td>Ningún <code>number_format</code> con separadores hardcodeados (ignoraría la config de Apariencia).</td></tr>
+                    <tr><td>G33 Separador de millones</td><td>fmt_agrupar() agrupa correctamente con separador de miles y de millones distintos (mig. 041).</td></tr>
+                    <tr><td>G34 Cobro fiado y recetas</td><td>ventas.metodo_cobro (mig. 042) válido y solo en fiado. Endpoints de receta presentes.</td></tr>
+                    <tr><td>G35 Mantenimiento y filtro</td><td>Página/endpoint de mantenimiento presentes. Helper de filtro de estado genera los fragmentos SQL esperados.</td></tr>
+                    <tr><td>G36 Coherencia de costos (COGS)</td><td>costo_unit_snap (mig. 044) nunca negativo. Costo de insumo alineado a su presentación. P&amp;G/simulador/auditor presentes.</td></tr>
+                    <tr><td>G37 Contabilidad (partida doble)</td><td>Tablas de la mig. 045 y plan de cuentas sembrado. <strong>Todo asiento cuadra</strong> (Σ debe = Σ haber). Líneas válidas. <strong>El Balance General cuadra</strong>.</td></tr>
                     <tr><td>Auditoría y Seguridad</td><td><code>logs_historial</code> activo. Contraseñas de usuarios usan bcrypt.</td></tr>
                 </tbody>
             </table>
