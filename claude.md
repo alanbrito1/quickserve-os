@@ -21,7 +21,7 @@
 
 ### Flujo estándar
 ```bash
-cd "C:\Users\alan_\QuickServe OS"
+cd "C:\Users\alan_\ClaudeCode Proyectos\QuickServeOS"
 git add -A -- "public_html/" "database/migrations/" "claude.md"
 git commit -m "feat/fix/docs: descripción clara del cambio — v4.XX"
 git push origin master
@@ -60,8 +60,8 @@ Las credenciales de git están configuradas en Windows Credential Manager.
 - PHP: `header('Location: ' . APP_BASE . '/login.php')`
 - HTML: `href="<?= APP_BASE ?>/modulo/"`
 - JS fetch: rutas **relativas** desde la página actual
-- **Directorio local:** `C:\Users\alan_\QuickServe OS\public_html\` → sube TODO esto al servidor.
-- **Base de datos local:** `C:\Users\alan_\QuickServe OS\database\` — schema.sql + migraciones en `database/migrations/`
+- **Directorio local:** `C:\Users\alan_\ClaudeCode Proyectos\QuickServeOS\public_html\` → sube TODO esto al servidor.
+- **Base de datos local:** `C:\Users\alan_\ClaudeCode Proyectos\QuickServeOS\database\` — schema.sql + migraciones en `database/migrations/`
 - **Credenciales DB:** `public_html/app/config/database.php`
 
 ### Directorios en servidor (crear si no existen)
@@ -4102,16 +4102,16 @@ ejemplo **opcionales** en la instalación.
 
 ### Repo y carpeta local
 - Repo GitHub renombrado a **`quickserve-os`** (`gh repo rename` + `git remote set-url`).
-- **Carpeta local**: renombrar manualmente la carpeta actual del proyecto a `QuickServeOS` al cerrar
-  la sesión (no se puede con el editor abierto). No es data de producción. claude.md ya referencia
-  la ruta nueva.
+- **Carpeta local**: ✅ HECHO (2026-07-05) — renombrada a `QuickServeOS`. Ubicación real actual:
+  `C:\Users\alan_\ClaudeCode Proyectos\QuickServeOS`. Las rutas de este claude.md ya apuntan ahí.
 
 ### Pendiente del usuario (runtime — no hay MySQL en el entorno de desarrollo)
 1. **Probar el instalador** con XAMPP MySQL (local) o en el hosting: BD vacía → `/install/` →
    requisitos/BD/negocio → instalar (con y sin datos de ejemplo) → login con el admin creado →
    reabrir `/install/` debe quedar **bloqueado**; `SHOW TRIGGERS` = 9 (confirma el parser).
 2. **Borrar `/install`** del servidor tras instalar.
-3. **Renombrar la carpeta local** a `QuickServeOS`.
+3. ✅ **Carpeta local renombrada** a `QuickServeOS` (2026-07-05). Ubicación:
+   `C:\Users\alan_\ClaudeCode Proyectos\QuickServeOS`.
 4. **Nota de datos históricos**: las migraciones históricas (`004_datos_reales.sql`, etc.) aún
    contienen los datos reales del negocio original como *seed* (ya de-brandeadas de la palabra
    marca, pero con cifras/nombres reales). No se ejecutan en instalaciones nuevas (schema.sql
