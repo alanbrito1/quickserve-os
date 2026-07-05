@@ -3,7 +3,6 @@
 -- descuento_pct: porcentaje aplicado (0-50), DEFAULT 0 → retrocompatible.
 -- descuento_valor: monto monetario descontado (snapshot inmutable).
 
-USE clandestinoERP;
 
 ALTER TABLE `ventas`
     ADD COLUMN IF NOT EXISTS `descuento_pct`   DECIMAL(5,2)  NOT NULL DEFAULT 0

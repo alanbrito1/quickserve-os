@@ -499,6 +499,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     $pdo->rollBack();
-    error_log('[ClanDestino EditarVenta] ' . $e->getMessage());
+    error_log('[QuickServe OS EditarVenta] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }

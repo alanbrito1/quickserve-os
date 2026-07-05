@@ -19,7 +19,6 @@
 -- window.NUM_FORMAT en app/views/nav.php.
 -- ============================================================
 
-USE clandestinoERP;
 
 INSERT IGNORE INTO configuracion_app (clave, valor, descripcion) VALUES
   ('num_sep_millones', '.', 'Caracter separador para el grupo de millones (y superiores); si es igual al separador de miles, el formato es uniforme');

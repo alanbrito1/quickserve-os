@@ -1,9 +1,7 @@
 -- ============================================================
 -- Migración 006 — Activos: fecha_inicio_uso para depreciación correcta
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu base de datos
 -- Versión segura: no falla si se ejecuta dos veces
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Agregar columna solo si NO existe ─────────────────────────────────────
 SET @col = (

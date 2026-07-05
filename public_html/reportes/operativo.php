@@ -137,7 +137,7 @@ if (isset($_GET['export'])) {
 
     // Hoja 1: Inventario
     $w->setSheet('Inventario');
-    $w->addRow(['ClanDestino ERP — Inventario de Insumos'], true);
+    $w->addRow([nombre_negocio() . ' — Inventario de Insumos'], true);
     $w->addRow(['Generado: ' . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $w->addRow(['Insumo', 'Unidad', 'Stock Actual', 'Stock Seguridad', 'Estado', 'Costo/u', 'Valor en Stock', 'Proveedor'], true);
@@ -162,7 +162,7 @@ if (isset($_GET['export'])) {
 
     // Hoja 2: Activos
     $w->setSheet('Activos');
-    $w->addRow(['ClanDestino ERP — Activos Fijos'], true);
+    $w->addRow([nombre_negocio() . ' — Activos Fijos'], true);
     $w->addRow(['Generado: ' . date('d/m/Y H:i') . '  |  Depreciación diaria total: $' . fmt_cantidad($dep_dia, 2)]);
     $w->addEmptyRow();
     $w->addRow(['Activo', 'Descripción', 'Costo Inicial', 'Fecha Adq.', 'Vida Útil (m)', 'Dep. Mensual', 'Dep. Diaria', 'Meses Rest.', 'Estado Vida'], true);
@@ -188,7 +188,7 @@ if (isset($_GET['export'])) {
 
     // Hoja 3: Stock de producto terminado
     $w->setSheet('Stock Terminado');
-    $w->addRow(['ClanDestino ERP — Stock de Producto Terminado'], true);
+    $w->addRow([nombre_negocio() . ' — Stock de Producto Terminado'], true);
     $w->addRow(['Generado: ' . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $w->addRow(['Producto', 'Nombre complementario', 'Categoría', 'Stock Disponible', 'Stock Mínimo', 'Estado', 'Precio Venta', 'Costo Calculado', 'Margen Est.'], true);
@@ -204,7 +204,7 @@ if (isset($_GET['export'])) {
 
     // Hoja 4: Producción del período
     $w->setSheet('Producción ' . $meses_es[$mes] . ' ' . $anio);
-    $w->addRow(['ClanDestino ERP — Producción ' . $meses_es[$mes] . ' ' . $anio], true);
+    $w->addRow([nombre_negocio() . ' — Producción ' . $meses_es[$mes] . ' ' . $anio], true);
     $w->addRow(['Total producido: ' . $total_producido . ' unidades']);
     $w->addEmptyRow();
     $w->addRow(['Fecha', 'Producto', 'Nombre complementario', 'Cantidad', 'Costo/u', 'Costo total', 'Estado', 'Registrado por'], true);
@@ -222,7 +222,7 @@ if (isset($_GET['export'])) {
     // Hoja 5: Obsequios y Desechos (solo si la migración 026 está aplicada)
     if (!empty($ajustes_periodo) || !empty($obsequios_venta)) {
     $w->setSheet('Obsequios y Desechos');
-    $w->addRow(['ClanDestino ERP — Obsequios y Desechos ' . $meses_es[$mes] . ' ' . $anio], true);
+    $w->addRow([nombre_negocio() . ' — Obsequios y Desechos ' . $meses_es[$mes] . ' ' . $anio], true);
     $w->addEmptyRow();
 
     // Sección A: ajustes de stock (de productos ya en inventario)
@@ -272,7 +272,7 @@ if (isset($_GET['export'])) {
     // Hoja 6: Turnos de Caja (solo si mig.037 y hay datos)
     if (!empty($turnos_periodo)) {
         $w->setSheet('Turnos de Caja');
-        $w->addRow(['ClanDestino ERP — Turnos de Caja ' . $meses_es[$mes] . ' ' . $anio], true);
+        $w->addRow([nombre_negocio() . ' — Turnos de Caja ' . $meses_es[$mes] . ' ' . $anio], true);
         $w->addEmptyRow();
         $w->addRow(['Fecha', 'Abre', 'Fondo Inicial', 'Efectivo Cobrado', 'Total en Caja', 'Diferencia', 'Estado', 'Notas'], true);
         $total_fondo = 0;
@@ -299,7 +299,7 @@ if (isset($_GET['export'])) {
         $w->addRow(['TOTAL', '', $total_fondo, $total_efec, $total_fondo + $total_efec, $total_efec, '', ''], false, true);
     }
 
-    $w->download('ClanDestino_Operativo_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
+    $w->download(slug_negocio() . '_Operativo_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
 }
 
 // Cálculos para la vista HTML

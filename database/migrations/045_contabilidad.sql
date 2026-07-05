@@ -7,7 +7,6 @@
 -- Idempotente: CREATE TABLE IF NOT EXISTS + INSERT IGNORE en seeds.
 -- ============================================================
 
-USE clandestinoERP;
 
 -- Plan de cuentas (catálogo simplificado a la medida)
 CREATE TABLE IF NOT EXISTS cuentas_contables (

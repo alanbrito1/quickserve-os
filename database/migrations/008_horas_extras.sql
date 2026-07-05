@@ -2,9 +2,7 @@
 -- Migración 008 — Horas de jornada, recargos y horas extras
 -- Colombia: Ley 2101/2021 (jornada 44h/semana desde 2026)
 --           Art. 168-172 CST (recargos nocturnos y extras)
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Extender categoria enum en parametros_laborales ────────────────────────
 ALTER TABLE `parametros_laborales`

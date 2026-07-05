@@ -38,6 +38,6 @@ try {
 } catch (RuntimeException $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
-    error_log('[ClanDestino Inv] ' . $e->getMessage());
+    error_log('[QuickServe OS Inv] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al ajustar el stock.']);
 }

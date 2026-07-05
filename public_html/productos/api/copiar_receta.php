@@ -201,6 +201,6 @@ try {
 
 } catch (\Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino copiar_receta] ' . $e->getMessage());
+    error_log('[QuickServe OS copiar_receta] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al copiar la receta.']);
 }

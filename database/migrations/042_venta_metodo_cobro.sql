@@ -16,7 +16,6 @@
 -- ventas/historial.php. Retrocompatible: DEFAULT NULL para filas anteriores.
 -- ============================================================
 
-USE clandestinoERP;
 
 ALTER TABLE `ventas`
     ADD COLUMN `metodo_cobro` ENUM('efectivo','nequi','daviplata','bancolombia') DEFAULT NULL

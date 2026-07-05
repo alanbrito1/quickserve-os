@@ -4,9 +4,7 @@
 -- (produce el producto) o indirecto (administración/soporte).
 -- Esta clasificación alimenta el análisis de costos en el
 -- módulo Costos y el cálculo de costo de producto en Productos.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 ALTER TABLE `empleados`
   ADD COLUMN IF NOT EXISTS `tipo_costo`

@@ -78,6 +78,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     // Errores inesperados: loguear internamente, no exponer detalles
-    error_log('[ClanDestino Clientes Fusionar] ' . $e->getMessage());
+    error_log('[QuickServe OS Clientes Fusionar] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al fusionar clientes.']);
 }

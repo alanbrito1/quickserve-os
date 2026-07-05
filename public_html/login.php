@@ -80,9 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="ClanDestino ERP — Acceso al sistema">
+    <meta name="description" content="<?= htmlspecialchars($_login_brand['nombre']) ?> — Acceso al sistema">
     <meta name="robots" content="noindex, nofollow">
-    <title>Acceso — <?= APP_NAME ?></title>
+    <title>Acceso — <?= htmlspecialchars($_login_brand['nombre']) ?></title>
     <style>
         /* ---- Reset mínimo ---- */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     value="<?= $email_val ?>"
                     autocomplete="username email"
                     inputmode="email"
-                    placeholder="usuario@clandestino.local"
+                    placeholder="usuario@ejemplo.com"
                     required
                     autofocus>
             </div>

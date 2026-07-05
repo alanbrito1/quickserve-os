@@ -21,7 +21,6 @@
 --   activo   -> 0 = oculto del dropdown pero conserva datos historicos
 -- ============================================================
 
-USE clandestinoERP;
 
 CREATE TABLE IF NOT EXISTS listas_sistema (
     id          INT          AUTO_INCREMENT PRIMARY KEY,

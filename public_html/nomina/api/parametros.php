@@ -108,6 +108,6 @@ try {
 } catch (\RuntimeException $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (\Exception $e) {
-    error_log('[ClanDestino Params] ' . $e->getMessage());
+    error_log('[QuickServe OS Params] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno.']);
 }

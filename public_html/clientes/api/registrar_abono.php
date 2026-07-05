@@ -93,7 +93,7 @@ try {
     try {
         require_once __DIR__ . '/../../app/models/ContabilidadModel.php';
         ContabilidadModel::postear_abono($abono_id);
-    } catch (\Throwable $e) { error_log('[ClanDestino contab abono] ' . $e->getMessage()); }
+    } catch (\Throwable $e) { error_log('[QuickServe OS contab abono] ' . $e->getMessage()); }
 
     echo json_encode([
         'success'          => true,
@@ -104,6 +104,6 @@ try {
 
 } catch (\Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino] Error en registrar_abono: ' . $e->getMessage());
+    error_log('[QuickServe OS] Error en registrar_abono: ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno. Intenta de nuevo.']);
 }

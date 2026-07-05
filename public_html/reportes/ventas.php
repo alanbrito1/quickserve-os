@@ -231,7 +231,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 1: Ventas ──────────────────────────────────────────────────────
     $w->setSheet('Ventas');
-    $w->addRow(['ClanDestino ERP — Reporte de Ventas'], true);
+    $w->addRow([nombre_negocio() . ' — Reporte de Ventas'], true);
     $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $cols038h = $tiene038r ? ['Desc. %', 'Desc. $'] : [];
@@ -300,7 +300,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 2: Rentabilidad ────────────────────────────────────────────────
     $w->setSheet('Rentabilidad');
-    $w->addRow(['ClanDestino ERP — Rentabilidad por Producto'], true);
+    $w->addRow([nombre_negocio() . ' — Rentabilidad por Producto'], true);
     $w->addRow(["Costo fijo/u: $" . fmt_cantidad($costo_fijo_u, 2) . "  |  Generado: " . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $w->addRow(['Producto', 'Nombre complementario', 'Tamaño', 'Precio Venta', 'Costo Ing.', 'Costo Fijo', 'Costo Total', 'Margen $', 'Margen %'], true);
@@ -321,7 +321,7 @@ if (isset($_GET['export'])) {
     // ── Hoja 3: Por Variante (solo si hay datos de mig. 035) ───────────────
     if (!empty($ventas_variante)) {
         $w->setSheet('Por Variante');
-        $w->addRow(['ClanDestino ERP — Ventas por Variante de Tamaño'], true);
+        $w->addRow([nombre_negocio() . ' — Ventas por Variante de Tamaño'], true);
         $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
         $w->addEmptyRow();
         $w->addRow(['Producto', 'Variante', 'Unidades', 'Total Venta'], true);
@@ -338,7 +338,7 @@ if (isset($_GET['export'])) {
     // ── Hoja: Descuentos (solo si hay ventas con descuento en el período) ──────
     if ($tiene038r && !empty($descuentos_lista)) {
         $w->setSheet('Descuentos');
-        $w->addRow(['ClanDestino ERP — Descuentos del Período'], true);
+        $w->addRow([nombre_negocio() . ' — Descuentos del Período'], true);
         $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
         $w->addEmptyRow();
         $w->addRow(['#', 'Fecha', 'Cliente', 'Total Bruto', 'Desc. %', 'Desc. $', 'Total Neto', 'Cajero'], true);
@@ -362,7 +362,7 @@ if (isset($_GET['export'])) {
     // ── Hoja: Abonos a Fiado (solo si hay abonos en el período) ────────────────
     if (!empty($abonos_lista)) {
         $w->setSheet('Abonos a Fiado');
-        $w->addRow(['ClanDestino ERP — Abonos a Fiado del Período'], true);
+        $w->addRow([nombre_negocio() . ' — Abonos a Fiado del Período'], true);
         $w->addRow(["Período: $desde  al  $hasta | Generado: " . date('d/m/Y H:i')]);
         $w->addEmptyRow();
         $cols034h = $tiene034r ? ['Saldo Antes', 'Saldo Después'] : [];
@@ -390,7 +390,7 @@ if (isset($_GET['export'])) {
         $w->addRow(array_merge(['', '', 'TOTAL RECAUDADO (' . $n_abonos_periodo . ' abonos)', $total_abonos_periodo, ''], $blank034, ['', '']), false, true);
     }
 
-    $w->download('ClanDestino_Ventas_' . $desde . '_' . $hasta . '.xlsx');
+    $w->download(slug_negocio() . '_Ventas_' . $desde . '_' . $hasta . '.xlsx');
 }
 
 // ── RESÚMENES para la vista HTML ────────────────────────────────────────────

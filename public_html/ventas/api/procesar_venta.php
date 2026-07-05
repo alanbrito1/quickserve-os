@@ -114,6 +114,6 @@ try {
 
 } catch (Exception $e) {
     // Errores inesperados: no exponer detalles internos al cliente
-    error_log('[ClanDestino POS] ' . $e->getMessage());
+    error_log('[QuickServe OS POS] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al registrar la venta. Intenta de nuevo.']);
 }

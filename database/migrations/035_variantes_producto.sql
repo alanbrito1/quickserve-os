@@ -3,7 +3,6 @@
 -- Permite definir múltiples variantes (XL, Regular, Familiar)
 -- con precio propio y factor de escala de receta.
 -- ============================================================
-USE clandestinoERP;
 
 -- Tabla de variantes de producto
 CREATE TABLE IF NOT EXISTS producto_variantes (

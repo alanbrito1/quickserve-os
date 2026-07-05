@@ -1,5 +1,5 @@
-# ClanDestino ERP v6.0 — Memoria de Sesión
-# Última sesión: 2026-07-03 | Próxima sesión: continuar desde este punto
+# QuickServe OS v6.1 — Memoria de Sesión
+# Última sesión: 2026-07-05 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -21,7 +21,7 @@
 
 ### Flujo estándar
 ```bash
-cd "C:\Users\alan_\ClanDestino"
+cd "C:\Users\alan_\QuickServe OS"
 git add -A -- "public_html/" "database/migrations/" "claude.md"
 git commit -m "feat/fix/docs: descripción clara del cambio — v4.XX"
 git push origin master
@@ -44,13 +44,13 @@ Las credenciales de git están configuradas en Windows Credential Manager.
 
 ## 1. CONTEXTO DEL PROYECTO
 
-- **Sistema:** ERP + POS para negocio de sándwiches "ClanDestino"
+- **Sistema:** ERP + POS genérico (marca "QuickServe OS") para negocios de comida / servicio rápido — se vende e instala en múltiples negocios
 - **Negocio:** Venta de sándwiches en Colombia. 4 productos, 3 empleados, local físico.
 - **Stack:** PHP 8.4, MySQL 5.7+. Sin Composer en producción. `samesite: Lax` (no Strict).
 - **Entorno:** Hosting compartido cPanel. El sistema vive en un **subdirectorio**.
 - **Interfaz:** Mobile-First. Prioritario Android/iOS.
-- **GitHub:** https://github.com/alanbrito1/clandestino-erp.git (privado)
-- **Superadmin:** `admin@clandestino.local` / `Admin2026!`
+- **GitHub:** https://github.com/alanbrito1/quickserve-os.git (privado)
+- **Superadmin (default de instalación nueva):** `admin@quickserve.local` / `Admin2026!` — el instalador y el primer login las reemplazan; la instancia de producción original conserva su propio superadmin (data).
 
 ---
 
@@ -60,8 +60,8 @@ Las credenciales de git están configuradas en Windows Credential Manager.
 - PHP: `header('Location: ' . APP_BASE . '/login.php')`
 - HTML: `href="<?= APP_BASE ?>/modulo/"`
 - JS fetch: rutas **relativas** desde la página actual
-- **Directorio local:** `C:\Users\alan_\ClanDestino\public_html\` → sube TODO esto al servidor.
-- **Base de datos local:** `C:\Users\alan_\ClanDestino\database\` — schema.sql + migraciones en `database/migrations/`
+- **Directorio local:** `C:\Users\alan_\QuickServe OS\public_html\` → sube TODO esto al servidor.
+- **Base de datos local:** `C:\Users\alan_\QuickServe OS\database\` — schema.sql + migraciones en `database/migrations/`
 - **Credenciales DB:** `public_html/app/config/database.php`
 
 ### Directorios en servidor (crear si no existen)
@@ -175,7 +175,7 @@ Claves completas (post-migración 040):
 
 | Clave | Default | Descripción |
 |---|---|---|
-| `nombre_negocio` | ClanDestino | Nombre en menú y páginas |
+| `nombre_negocio` | Mi Negocio | Nombre en menú y páginas (default sembrado; el instalador lo fija con el nombre del negocio) |
 | `logo_url` | '' | Logo horizontal (nav) |
 | `logo_url_login` | '' | Logo vertical (login) |
 | `theme_brand` | #e94f37 | Color principal |
@@ -676,7 +676,7 @@ Además de los precios, TODOS estos datos se guardan como snapshot al momento de
 | 💳 Fiado/Abonos | pagos_fiado | Saldo antes y después de cada abono (migr. 034) |
 ```
 
-**Todos incluyen `USE clandestinoERP;`** — reemplazar por el nombre real de la DB.
+**Ya NO incluyen `USE`** — la conexión (o el instalador) ya selecciona la base de datos; ejecútalas sobre la BD correcta.
 
 ---
 
@@ -779,7 +779,7 @@ Los modelos usan `SHOW COLUMNS` / `information_schema.COLUMNS` para detectar si 
 |---|---|---|
 | 500 en activos | UNSIGNED overflow MySQL | `CAST(vida_util_meses AS SIGNED)` |
 | Tab Nómina sin resaltar | Faltaba `$nav_activo = 'nomina'` | Añadida en horas.php y parametros.php |
-| Dashboard mostraba texto "ClanDestino" | Tenía su propio `<header>` hardcodeado | Reemplazado con `include nav.php` |
+| Dashboard mostraba texto "QuickServe OS" | Tenía su propio `<header>` hardcodeado | Reemplazado con `include nav.php` |
 | Logo no aparecía en nav | `BASE_PATH . '/public_html/uploads'` duplicaba la ruta | Corregido a `BASE_PATH . '/uploads'` |
 | Depreciación en activos sin fecha_inicio_uso | COALESCE(fecha_inicio_uso, fecha_adquisicion) como fallback | Eliminado fallback; sin fecha → dep = 0 |
 | Valor en libros usaba fecha_inicio_uso | Mismo COALESCE | Valor en libros ahora usa `fecha_adquisicion` |
@@ -1957,12 +1957,12 @@ Estas dos ya eran código **seguro, completo y bien escrito** — simplemente nu
 | Restos de depuración (`var_dump`, `print_r`, `console.log` de prueba) | Cero en `public_html/` (fuera de `tests/`) |
 | Archivos sueltos de prueba/backup (`.bak`, `.old`, `*test*`, `*debug*`, `*temp*`) | Cero fuera del directorio oficial `tests/` |
 | Comentarios "legacy" encontrados (`compras.php` `calcSubtotal`, `inventario/index.php` listas de respaldo, `costos/index.php` reglas CSS responsive, `$costos_fijos_legacy`) | Los 5 son **intencionales y bien documentados** — wrappers de compatibilidad, *fallbacks* defensivos o puentes de migración de configuración. Ninguno es código muerto; se dejaron tal cual |
-| Credenciales hardcodeadas en archivos públicos | Cero — las dos coincidencias de `Admin2026!`/`admin@clandestino.local` son: (1) en `ayuda/index.php`, solo se muestra el *email* con instrucción de cambiar la contraseña; (2) en `tests/suite.php`, se usa la contraseña de ejemplo como valor de comparación para **verificar que el superadmin YA NO la use** (prueba de seguridad, no una fuga) |
+| Credenciales hardcodeadas en archivos públicos | Cero — las dos coincidencias de `Admin2026!`/`admin@quickserve.local` son: (1) en `ayuda/index.php`, solo se muestra el *email* con instrucción de cambiar la contraseña; (2) en `tests/suite.php`, se usa la contraseña de ejemplo como valor de comparación para **verificar que el superadmin YA NO la use** (prueba de seguridad, no una fuga) |
 | Numeración de migraciones (`019`-`024` ausentes) | Hueco preexistente del desarrollo temprano (antes de formalizar el sistema de migraciones numeradas) — no se renombran archivos ya aplicados en producción para no romper el historial; cada migración tiene sus propias guardas idempotentes vía `information_schema` |
 
 ### Conclusión
 
-El código de ClanDestino está, en términos generales, **limpio de residuos** — no había bloques comentados ni `TODOs` olvidados. Los únicos hallazgos reales fueron dos piezas de código verdaderamente muertas (eliminadas) y dos funciones bien construidas que simplemente nunca llegaron a conectarse con la interfaz (ahora activas y útiles). El nivel de comentarios explicativos ya es alto en los módulos críticos (helpers de permisos, modelos, validaciones de seguridad) — se documenta el *porqué* de las decisiones no obvias, no el *qué* del código.
+El código de QuickServe OS está, en términos generales, **limpio de residuos** — no había bloques comentados ni `TODOs` olvidados. Los únicos hallazgos reales fueron dos piezas de código verdaderamente muertas (eliminadas) y dos funciones bien construidas que simplemente nunca llegaron a conectarse con la interfaz (ahora activas y útiles). El nivel de comentarios explicativos ya es alto en los módulos críticos (helpers de permisos, modelos, validaciones de seguridad) — se documenta el *porqué* de las decisiones no obvias, no el *qué* del código.
 
 ### Cambios de versión
 
@@ -2004,7 +2004,7 @@ Se revisaron los 94 archivos PHP con vista de `public_html/` en busca de problem
 
 ### Conclusión
 
-ClanDestino tiene un sistema de diseño responsive **notablemente maduro, consistente y completo** — construido sobre una única fuente de verdad (`nav.php`) que inyecta breakpoints, tipografía escalable y reglas globales a los 94 módulos. La revisión no encontró **ningún bug funcional** de visualización en móvil vertical ni en TV/pantallas grandes; el único hallazgo es una inconsistencia cosmética menor y de bajo impacto en 7 tarjetas del dashboard, documentada arriba con su causa raíz exacta y la ruta de corrección recomendada para cuando se pueda verificar visualmente.
+QuickServe OS tiene un sistema de diseño responsive **notablemente maduro, consistente y completo** — construido sobre una única fuente de verdad (`nav.php`) que inyecta breakpoints, tipografía escalable y reglas globales a los 94 módulos. La revisión no encontró **ningún bug funcional** de visualización en móvil vertical ni en TV/pantallas grandes; el único hallazgo es una inconsistencia cosmética menor y de bajo impacto en 7 tarjetas del dashboard, documentada arriba con su causa raíz exacta y la ruta de corrección recomendada para cuando se pueda verificar visualmente.
 
 > **Nota de método:** esta auditoría se realizó 100% por análisis estático de código — no hay herramienta de navegador/captura de pantalla disponible en este entorno (confirmado al buscar en las herramientas disponibles). Se recomienda una verificación visual en navegador real (DevTools responsive mode + TV/monitor grande) como complemento antes de dar el sistema responsive por "cerrado" definitivamente.
 
@@ -4036,3 +4036,84 @@ selector en compras) + IVA discriminado configurable (`ivaConfig()`; ventas sepa
 1355; toggle en Contabilidad). Migraciones 044/045/046. `APP_VERSION` → 6.0.*
 - WARN G11 (nómina <90%, normal en algunos contratos), G15 (`SMLMV` sin configurar), G19 (nombre
   de negocio default) → config/datos del usuario.
+
+---
+
+## Estado v6.1 (2026-07-05) — Producto genérico "QuickServe OS" + instalador web
+
+Pivote de negocio: se volvió el ERP **genérico y vendible** a otros negocios. Dos entregas:
+de-branding total (la marca anterior salió de TODO el código y los archivos; solo permanece en
+la data de producción) e **instalador web** para instalar desde el navegador. Decisiones del
+usuario: nombre de producto **QuickServe OS**, **renombrar el repo** (`quickserve-os`), y datos de
+ejemplo **opcionales** en la instalación.
+
+### De-branding (código/archivos → 0 ocurrencias de la marca anterior)
+- **`app/config/app.php`**: `APP_NAME` → `'QuickServe OS'`; `SESSION_NAME` → `'quickserve_sess'`
+  (cierra sesión a todos una vez al desplegar); `APP_VERSION` → `6.1`; comentario de APP_BASE
+  genérico.
+- **Helper de marca** en `app/helpers/FormatoHelper.php`: `nombre_negocio()` (lee
+  `configuracion_app.nombre_negocio`, cache, fallback a `APP_NAME`) y `slug_negocio()` (versión
+  segura para nombres de archivo). Los **exports de Excel** (`reportes/*.php`,
+  `clientes/exportar.php`, `activos/exportar.php`) ahora titulan y nombran archivos con el
+  **nombre real del negocio**, no una cadena fija.
+- **`login.php`**: meta/title usan el nombre del negocio; placeholder de email genérico.
+- **De-branding masivo** (sed sobre archivos rastreados, 96 archivos): comentarios/headers
+  `* <marca> ERP` → `QuickServe OS`; `admin@<marca>.local` → `admin@quickserve.local`; se
+  **eliminó `USE <marca>ERP;`** de `schema.sql` y ~25 migraciones (la conexión ya selecciona la
+  BD; además hace las migraciones portables a cualquier nombre de BD).
+- **`tests/suite.php`**: el check "nombre del negocio no es el default" compara contra el nuevo
+  seed `'mi negocio'`; el check de contraseña de ejemplo sigue usando `Admin2026!`.
+- Verificación: `grep -ri "<marca>" public_html/ database/ python/ claude.md` → **0**. `php -l` en
+  los 66 PHP tocados/nuevos → sin errores.
+
+### `schema.sql` para instalación genérica
+- Sin `USE`; encabezado y admin de-brandeados (superadmin por defecto `admin@quickserve.local`,
+  mismo hash de `Admin2026!` → el instalador lo sobrescribe).
+- `nombre_negocio` sembrado neutro (`'Mi Negocio'`).
+- **Datos demo movidos** a `database/sample_data.sql` (NUEVO): productos/insumos/recetas
+  **genéricos** ("Producto de ejemplo 1..4", "Ingrediente A/B/C"), no los del negocio original.
+  `schema.sql` queda con estructura + seeds base (config, catálogos, parámetros laborales, plan de
+  cuentas, admin).
+
+### Instalador web (`public_html/install/`) — subsistema nuevo
+- **`lib.php`**: `qs_requisitos()` (PHP ≥ 8.0, extensiones, escritura de `app/config/`+`uploads/`),
+  `qs_conectar()` (PDO; crea la BD best-effort si se marca), **`qs_run_sql_file()`** (runner
+  **consciente de `DELIMITER`** — corre los 9 triggers `BEGIN…END`, algo que el runner de
+  `admin/backup.php` con `explode(';')` no puede), `qs_crear_admin()` (UPDATE del superadmin con
+  bcrypt cost 12), `qs_set_negocio()`, `qs_write_db_config()` (genera `app/config/database.php`),
+  `qs_ya_instalado()` (candado anti-reinstalación), `qs_crear_lock()`.
+- **`index.php`**: asistente por pasos (Requisitos → BD → Negocio/Admin → Listo) con CSRF propio
+  (`hash_equals`), validaciones, checkbox "cargar datos de ejemplo", UI self-contained mobile-first.
+  Al terminar: crea tablas, admin, nombre de negocio, escribe `database.php`, crea
+  `installed.lock` y pide borrar `/install`.
+- **`sql/schema.sql` + `sql/sample_data.sql`** (copias empaquetadas; el runner prefiere
+  `../../database/*.sql` si existe, si no usa estas) + **`sql/.htaccess`** (deny HTTP; se leen por
+  filesystem). **Mantener `install/sql/*.sql` sincronizados con `database/*.sql`.**
+- **`app/config/database.example.php`** (NUEVO, tracked): plantilla de referencia (el real lo
+  genera el instalador y sigue gitignored).
+- **`.gitignore`**: + `public_html/app/config/installed.lock`.
+- Parser DELIMITER verificado offline contra `schema.sql`: 103 sentencias, 33 CREATE TABLE, 9
+  CREATE TRIGGER, sin fugas de `DELIMITER`/`$$`.
+
+### Repo y carpeta local
+- Repo GitHub renombrado a **`quickserve-os`** (`gh repo rename` + `git remote set-url`).
+- **Carpeta local**: renombrar manualmente la carpeta actual del proyecto a `QuickServeOS` al cerrar
+  la sesión (no se puede con el editor abierto). No es data de producción. claude.md ya referencia
+  la ruta nueva.
+
+### Pendiente del usuario (runtime — no hay MySQL en el entorno de desarrollo)
+1. **Probar el instalador** con XAMPP MySQL (local) o en el hosting: BD vacía → `/install/` →
+   requisitos/BD/negocio → instalar (con y sin datos de ejemplo) → login con el admin creado →
+   reabrir `/install/` debe quedar **bloqueado**; `SHOW TRIGGERS` = 9 (confirma el parser).
+2. **Borrar `/install`** del servidor tras instalar.
+3. **Renombrar la carpeta local** a `QuickServeOS`.
+4. **Nota de datos históricos**: las migraciones históricas (`004_datos_reales.sql`, etc.) aún
+   contienen los datos reales del negocio original como *seed* (ya de-brandeadas de la palabra
+   marca, pero con cifras/nombres reales). No se ejecutan en instalaciones nuevas (schema.sql
+   cubre el install). Si se quiere despachar el producto sin esos datos, se pueden depurar en una
+   pasada aparte.
+
+*Última actualización: 2026-07-05 | v6.1 — producto genérico "QuickServe OS": de-branding total de
+código/archivos (marca solo en data de producción) + instalador web `/install/` (asistente por
+navegador, runner SQL DELIMITER-aware, genera database.php, candado anti-reinstalación) + datos
+demo movidos a database/sample_data.sql. Repo → quickserve-os. `APP_VERSION` → 6.1.*

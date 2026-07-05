@@ -14,7 +14,6 @@
 -- Integridad referencial garantizada por PHP en PresentacionModel y CompraModel.
 -- ============================================================
 
-USE clandestinoERP;
 
 CREATE TABLE IF NOT EXISTS `insumo_presentaciones` (
     `id`                INT           NOT NULL AUTO_INCREMENT,

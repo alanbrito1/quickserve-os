@@ -18,7 +18,6 @@
 --   - inventario/compras.php: calculo y visualizacion de equivalente total
 -- ============================================================
 
-USE clandestinoERP;
 
 ALTER TABLE insumos
     ADD COLUMN equiv_cantidad DECIMAL(10,4) NULL DEFAULT NULL

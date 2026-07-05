@@ -22,7 +22,7 @@ try {
 } catch (Exception $e) { /* tabla puede no existir si migración 016 no se aplicó */ }
 
 $v = [
-    'nombre_negocio'   => $cfg['nombre_negocio']   ?? 'ClanDestino',
+    'nombre_negocio'   => $cfg['nombre_negocio']   ?? 'QuickServe OS',
     'logo_url'         => $cfg['logo_url']         ?? '',
     'logo_url_login'   => $cfg['logo_url_login']   ?? '',
     'theme_brand'      => $cfg['theme_brand']      ?? '#e94f37',

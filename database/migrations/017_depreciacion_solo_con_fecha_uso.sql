@@ -8,9 +8,7 @@
 --   1. Reemplaza ambos triggers para respetar la regla.
 --   2. Limpia los activos sin fecha_inicio_uso (deprec → 0).
 --
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 DELIMITER $$
 

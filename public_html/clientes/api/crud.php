@@ -108,6 +108,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     // Errores inesperados: no exponer detalles internos al cliente
-    error_log('[ClanDestino Clientes CRUD] ' . $e->getMessage());
+    error_log('[QuickServe OS Clientes CRUD] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }

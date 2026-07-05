@@ -12,7 +12,6 @@
 --   pagos_fiado      → saldo_anterior (cuánto debía ANTES del abono)
 -- ============================================================
 
-USE clandestinoERP;
 
 -- ── 1. venta_detalles: nombre del producto al momento de la venta ──────────
 ALTER TABLE venta_detalles

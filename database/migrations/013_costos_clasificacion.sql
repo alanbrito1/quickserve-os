@@ -2,9 +2,7 @@
 -- Migración 013 — Costos: reemplaza empleado_id por clasificacion
 -- Elimina la asignación a empleado (confusa) y agrega el campo
 -- clasificacion (directo/indirecto) para análisis contable.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 ALTER TABLE `costos_indirectos`
   DROP FOREIGN KEY `fk_ci_empleado`,

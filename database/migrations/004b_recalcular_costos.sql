@@ -1,5 +1,4 @@
 -- Recalcular costo_calculado en todos los productos (ejecutar tras migración 004)
-USE `clandestinoERP`;
 UPDATE productos p
 SET p.costo_calculado = (
     SELECT IFNULL(SUM(i.costo_actual * r.cantidad_requerida), 0)

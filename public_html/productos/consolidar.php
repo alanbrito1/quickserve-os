@@ -140,7 +140,7 @@ if ($accion === 'ejecutar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
             } catch (Exception $e) {
                 $pdo->rollBack();
-                error_log('[ClanDestino Consolidar] ' . $e->getMessage());
+                error_log('[QuickServe OS Consolidar] ' . $e->getMessage());
                 $error = 'Error al ejecutar la consolidación. No se realizaron cambios.';
             }
         }

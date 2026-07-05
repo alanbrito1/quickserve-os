@@ -11,7 +11,6 @@
 -- actuales son validos como VARCHAR).
 -- ============================================================
 
-USE clandestinoERP;
 
 -- productos.categoria: permite categorias personalizadas (ej: postre, ensalada)
 ALTER TABLE productos

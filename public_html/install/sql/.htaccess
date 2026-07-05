@@ -1,0 +1,9 @@
+# QuickServe OS — bloquear acceso HTTP directo a los .sql
+# El instalador los lee por sistema de archivos (file_get_contents), no por HTTP.
+<FilesMatch "\.sql$">
+  Require all denied
+</FilesMatch>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

@@ -45,7 +45,7 @@ try {
         (string)$meta, 'UPDATE');
 
 } catch (\Exception $e) {
-    error_log('[ClanDestino] Error al guardar meta_ventas_diaria: ' . $e->getMessage());
+    error_log('[QuickServe OS] Error al guardar meta_ventas_diaria: ' . $e->getMessage());
 }
 
 header('Location: ' . APP_BASE . '/dashboard.php');

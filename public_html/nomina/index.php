@@ -201,7 +201,7 @@ $msg_err = $_GET['err'] ?? '';
         </div>
         <div class="stat-card" style="grid-column: span 1">
             <div class="stat-n" style="color:var(--brand)">$<?= fmt_moneda($resumen['costo_total'] ?? 0) ?></div>
-            <div class="stat-l">Costo real ClanDestino</div>
+            <div class="stat-l">Costo real QuickServe OS</div>
         </div>
     </div>
 

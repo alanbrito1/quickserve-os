@@ -2,9 +2,7 @@
 -- Migración 016c — Sistema tipográfico centralizado
 -- Agrega 8 claves a configuracion_app para controlar
 -- tipografía desde Admin → Apariencia.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 INSERT IGNORE INTO `configuracion_app` (`clave`, `valor`, `descripcion`) VALUES
 ('font_heading',      'system-ui, -apple-system, sans-serif', 'Fuente para títulos y encabezados'),

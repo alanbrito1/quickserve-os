@@ -30,7 +30,7 @@ $uid = (int)($_SESSION['usuario_id'] ?? 0);
 
 try {
     // ── Validar y preparar los valores ───────────────────────────────────────
-    $nombre  = substr(trim($_POST['nombre_negocio'] ?? 'ClanDestino'), 0, 60);
+    $nombre  = substr(trim($_POST['nombre_negocio'] ?? 'QuickServe OS'), 0, 60);
     $brand   = trim($_POST['theme_brand']  ?? '#e94f37');
     $dark    = trim($_POST['theme_dark']   ?? '#111827');
     $font    = trim($_POST['theme_font']   ?? 'system-ui, -apple-system, sans-serif');
@@ -174,6 +174,6 @@ try {
 } catch (RuntimeException $e) {
     echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
 } catch (Exception $e) {
-    error_log('[ClanDestino Admin Apariencia] ' . $e->getMessage());
+    error_log('[QuickServe OS Admin Apariencia] ' . $e->getMessage());
     echo json_encode(['success'=>false,'error'=>'Error interno al guardar.']);
 }

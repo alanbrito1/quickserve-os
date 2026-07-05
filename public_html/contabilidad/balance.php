@@ -42,7 +42,7 @@ if (($_GET['export'] ?? '') === '1') {
     $w->addRow([]);
     $w->addRow(['TOTAL ACTIVOS', '', round($bal['activo'])], total: true);
     $w->addRow(['TOTAL PASIVO + PATRIMONIO', '', round($bal['pasivo_mas_patrimonio'])], total: true);
-    $w->download('ClanDestino_Balance_' . $hasta . '.xlsx');
+    $w->download('QuickServe OS_Balance_' . $hasta . '.xlsx');
     exit;
 }
 function saldoTxt($v){ return '$' . fmt_moneda((float)$v); }

@@ -394,7 +394,7 @@ class VentaModel
             // Contabilidad (Fase 4b): postear el asiento DESPUÉS del commit y aislado —
             // un fallo contable nunca debe romper la venta (el backfill lo reconcilia).
             try { ContabilidadModel::postear_venta($venta_id); }
-            catch (\Throwable $e) { error_log('[ClanDestino contab venta] ' . $e->getMessage()); }
+            catch (\Throwable $e) { error_log('[QuickServe OS contab venta] ' . $e->getMessage()); }
 
             return $venta_id;
 
@@ -524,7 +524,7 @@ class VentaModel
 
             // Contabilidad (Fase 4b): reversar el asiento de la venta (aislado del flujo).
             try { ContabilidadModel::reversar_por_origen('venta', $venta_id); }
-            catch (\Throwable $e) { error_log('[ClanDestino contab anular] ' . $e->getMessage()); }
+            catch (\Throwable $e) { error_log('[QuickServe OS contab anular] ' . $e->getMessage()); }
 
         } catch (Exception $e) {
             $pdo->rollBack();

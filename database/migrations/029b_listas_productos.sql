@@ -9,7 +9,6 @@
 -- Ejecutar SOLO si ya esta aplicada la migracion 029.
 -- ============================================================
 
-USE clandestinoERP;
 
 -- Categorias de productos (antes hardcodeado en guardar_producto.php)
 INSERT INTO listas_sistema (tipo, valor, etiqueta, orden) VALUES

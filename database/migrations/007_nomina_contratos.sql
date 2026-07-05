@@ -1,8 +1,6 @@
 -- ============================================================
 -- Migración 007 — Nómina: tipos de contrato, horas y parámetros por país
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu base de datos
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Actualizar enum tipo_contrato en empleados ─────────────────────────────
 ALTER TABLE `empleados`

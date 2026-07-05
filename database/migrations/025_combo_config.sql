@@ -4,7 +4,6 @@
 -- y registrar en venta_detalles si cada ítem fue vendido como solo o combo.
 -- =============================================================================
 
-USE clandestinoERP;
 
 -- -----------------------------------------------------------------------------
 -- 1. Tabla principal: una configuración de combo por producto

@@ -1,9 +1,7 @@
 -- ============================================================
 -- Migración 006b — Fix: ejecutar SOLO si 006 dio error de columna duplicada
 -- La columna fecha_inicio_uso YA existe. Solo actualizamos los datos.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu base de datos
 -- ============================================================
-USE `clandestinoERP`;
 
 -- Poner fecha_inicio_uso = hoy en activos que no la tienen
 UPDATE `activos`

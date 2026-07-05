@@ -164,10 +164,10 @@ try {
     if ($e->getCode() === '23000') {
         echo json_encode(['success' => false, 'error' => 'Ya existe un ítem con ese valor en este catálogo.']);
     } else {
-        error_log('[ClanDestino ListaCRUD] ' . $e->getMessage());
+        error_log('[QuickServe OS ListaCRUD] ' . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Error de base de datos.']);
     }
 } catch (\Exception $e) {
-    error_log('[ClanDestino ListaCRUD] ' . $e->getMessage());
+    error_log('[QuickServe OS ListaCRUD] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }

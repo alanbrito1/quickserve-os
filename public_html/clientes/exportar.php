@@ -69,5 +69,5 @@ $w->addRow([
     '',
 ], total: true);
 
-$w->download('ClanDestino_Clientes_' . date('Ymd') . '.xlsx');
+$w->download(slug_negocio() . '_Clientes_' . date('Ymd') . '.xlsx');
 exit;

@@ -7,7 +7,6 @@
 -- clientes existentes que solo tienen nombre.
 -- ============================================================
 
-USE clandestinoERP;
 
 ALTER TABLE clientes
     ADD COLUMN apellido VARCHAR(100) NULL DEFAULT NULL AFTER nombre,

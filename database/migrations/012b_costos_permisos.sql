@@ -4,9 +4,7 @@
 -- de permisos falló (error #1054 columna 'permisos_modulos').
 -- Causa: los permisos viven en la tabla permisos_modulos,
 -- no como columna JSON en usuarios.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- Agregar 'costos' al ENUM de módulos permitidos
 ALTER TABLE `permisos_modulos`

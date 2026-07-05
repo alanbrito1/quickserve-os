@@ -85,7 +85,7 @@ try {
     try {
         require_once __DIR__ . '/../../app/models/ContabilidadModel.php';
         ContabilidadModel::postear_ajuste($ajuste_id);
-    } catch (\Throwable $e) { error_log('[ClanDestino contab ajuste] ' . $e->getMessage()); }
+    } catch (\Throwable $e) { error_log('[QuickServe OS contab ajuste] ' . $e->getMessage()); }
 
     // nuevo_stock = stock antes del descuento − cantidad (el UPDATE ya se aplicó en BD)
     echo json_encode(['success' => true, 'nuevo_stock' => (int)$p['stock_disponible'] - $cantidad]);
@@ -95,6 +95,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     $pdo->rollBack();
-    error_log('[ClanDestino AjusteStock] ' . $e->getMessage());
+    error_log('[QuickServe OS AjusteStock] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }

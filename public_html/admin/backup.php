@@ -35,7 +35,7 @@ function csrf_verificar_get(): bool {
 if (($_GET['action'] ?? '') === 'download') {
     if (!csrf_verificar_get()) die('Token inválido.');
 
-    $filename = 'clandestino_backup_' . date('Y-m-d_H-i-s') . '.sql';
+    $filename = 'quickserve_backup_' . date('Y-m-d_H-i-s') . '.sql';
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-cache, no-store');
@@ -44,7 +44,7 @@ if (($_GET['action'] ?? '') === 'download') {
     $pdo    = db();
     $tablas = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
 
-    echo "-- ClanDestino ERP — Database Backup\n";
+    echo "-- QuickServe OS — Database Backup\n";
     echo '-- Generated: ' . date('Y-m-d H:i:s') . "\n";
     echo '-- Version: '   . (defined('APP_VERSION') ? APP_VERSION : '4.x') . "\n";
     echo '-- Tables: '    . count($tablas) . "\n\n";
@@ -108,7 +108,7 @@ if (($_GET['action'] ?? '') === 'download_code') {
     }
 
     $source   = dirname(__DIR__);                                  // public_html/
-    $filename = 'clandestino_codigo_' . date('Y-m-d_H-i-s') . '.zip';
+    $filename = 'quickserve_codigo_' . date('Y-m-d_H-i-s') . '.zip';
     $tmpFile  = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $filename;
 
     $zip = new ZipArchive();

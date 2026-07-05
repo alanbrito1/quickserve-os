@@ -257,7 +257,7 @@ class CompraModel
 
             // Contabilidad (Fase 4b): asiento de la compra, tras el commit y aislado.
             try { ContabilidadModel::postear_compra($compra_id); }
-            catch (\Throwable $e) { error_log('[ClanDestino contab compra] ' . $e->getMessage()); }
+            catch (\Throwable $e) { error_log('[QuickServe OS contab compra] ' . $e->getMessage()); }
 
             return $compra_id;
 

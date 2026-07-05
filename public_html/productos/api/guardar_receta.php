@@ -113,6 +113,6 @@ try {
     }
 
 } catch (Exception $e) {
-    error_log('[ClanDestino Productos] ' . $e->getMessage());
+    error_log('[QuickServe OS Productos] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al guardar la receta.']);
 }

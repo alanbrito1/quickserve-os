@@ -241,6 +241,6 @@ try {
 
 } catch (\Throwable $ex) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino mantenimiento] ' . $ex->getMessage());
+    error_log('[QuickServe OS mantenimiento] ' . $ex->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al ejecutar la operación.']);
 }

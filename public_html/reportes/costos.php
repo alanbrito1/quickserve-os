@@ -187,7 +187,7 @@ if ($_GET['export'] ?? '' === '1') {
     }
     $w->addRow(['TOTAL', $n_compras, round($total_compras)], total: true);
 
-    $w->download('ClanDestino_Costos_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
+    $w->download(slug_negocio() . '_Costos_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
     exit;
 }
 ?>

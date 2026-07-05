@@ -11,7 +11,6 @@
 --   valor_proyecto_snap→ valor del proyecto al liquidar (para por_servicio)
 -- ============================================================
 
-USE clandestinoERP;
 
 ALTER TABLE nomina_liquidaciones
     ADD COLUMN valor_hora_snap     DECIMAL(10,4) DEFAULT NULL

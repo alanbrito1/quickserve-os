@@ -123,7 +123,7 @@ if (($_GET['export'] ?? '') === '1') {
         ]);
     }
 
-    $w->download('ClanDestino_Compras_' . $fecha_desde . '_' . $fecha_hasta . '.xlsx');
+    $w->download(slug_negocio() . '_Compras_' . $fecha_desde . '_' . $fecha_hasta . '.xlsx');
     exit;
 }
 ?>

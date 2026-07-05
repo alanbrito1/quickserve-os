@@ -11,7 +11,6 @@
 --             cant_presentaciones × cantidad_presentacion  = cantidad
 -- ============================================================
 
-USE clandestinoERP;
 
 ALTER TABLE compra_detalles
     ADD COLUMN presentacion         VARCHAR(30)    DEFAULT NULL

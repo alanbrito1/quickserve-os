@@ -11,7 +11,6 @@
 -- insumos.activo ya viene como idx_ins_activo).
 -- ============================================================
 
-USE clandestinoERP;
 
 -- insumos.activo
 SET @idx_ins := (SELECT COUNT(*) FROM information_schema.STATISTICS

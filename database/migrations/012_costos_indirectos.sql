@@ -3,9 +3,7 @@
 -- Crea la tabla para gestionar arriendo, servicios, intereses
 -- y demás costos fijos/variables del negocio. Los costos activos
 -- alimentan el cálculo de costo de producto en el módulo Productos.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 CREATE TABLE IF NOT EXISTS `costos_indirectos` (
     `id`           INT UNSIGNED  NOT NULL AUTO_INCREMENT,

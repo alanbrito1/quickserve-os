@@ -1,10 +1,8 @@
 -- ============================================================
 -- Migracion 026: Obsequio en ventas + tabla ajustes_stock
 -- ============================================================
--- Reemplazar 'clandestinoERP' por el nombre real de la base de datos.
 -- ============================================================
 
-USE clandestinoERP;
 
 -- 1. Agregar 'obsequio' al ENUM de metodo_pago en ventas.
 --    MODIFY COLUMN es idempotente: si 'obsequio' ya existe en el ENUM,

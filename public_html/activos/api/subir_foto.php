@@ -188,6 +188,6 @@ echo json_encode([
 
 } catch (Throwable $e) {
     // Errores inesperados (DB, GD, filesystem): no exponer detalles internos al cliente
-    error_log('[ClanDestino Activos SubirFoto] ' . $e->getMessage());
+    error_log('[QuickServe OS Activos SubirFoto] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al guardar la foto.']);
 }

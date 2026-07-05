@@ -1,8 +1,6 @@
 -- ============================================================
 -- Migración 011 — Módulo Proveedores: enum permisos + campos extra
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Agregar 'proveedores' al enum de permisos_modulos ──────────────────────
 ALTER TABLE `permisos_modulos`

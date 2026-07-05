@@ -1,9 +1,7 @@
 -- ============================================================
 -- Migración 005 — Activos: campos físicos, foto, serial, unidades
 -- Ejecutar DESPUÉS de 003_sprint2.sql
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu base de datos
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Nuevas columnas en activos ────────────────────────────────────────────
 ALTER TABLE `activos`

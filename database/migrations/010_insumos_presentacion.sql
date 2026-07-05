@@ -1,8 +1,6 @@
 -- ============================================================
 -- Migración 010 — Insumos: presentación, unidad básica y notas
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Ampliar unidad_medida con libra ────────────────────────────────────────
 -- La unidad_medida es la unidad BÁSICA para costeo y stock (kg, g, lb, litro, ml, unidad)

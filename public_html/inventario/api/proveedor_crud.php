@@ -65,6 +65,6 @@ try {
 } catch (\RuntimeException $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (\Throwable $e) {
-    error_log('[ClanDestino inv proveedor_crud] ' . $e->getMessage());
+    error_log('[QuickServe OS inv proveedor_crud] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al crear el proveedor.']);
 }

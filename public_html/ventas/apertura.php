@@ -73,7 +73,7 @@ if ($tiene_037) {
                         $stmt_t->execute([$hoy]);
                         $turno_hoy = $stmt_t->fetch();
                     } catch (\Exception $e) {
-                        error_log('[ClanDestino Apertura] ' . $e->getMessage());
+                        error_log('[QuickServe OS Apertura] ' . $e->getMessage());
                         $msg_err = 'Error al abrir el turno.';
                     }
                 }
@@ -96,7 +96,7 @@ if ($tiene_037) {
                         $stmt_t->execute([$hoy]);
                         $turno_hoy = $stmt_t->fetch();
                     } catch (\Exception $e) {
-                        error_log('[ClanDestino Apertura] ' . $e->getMessage());
+                        error_log('[QuickServe OS Apertura] ' . $e->getMessage());
                         $msg_err = 'Error al cerrar el turno.';
                     }
                 }

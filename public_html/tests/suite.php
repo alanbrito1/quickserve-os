@@ -990,11 +990,11 @@ t($G, "Hay al menos un producto activo con precio para el POS",
     "Sin productos activos → el POS estará vacío.",
     $prods_activos === 0);
 
-// El nombre del negocio no debe ser el default 'ClanDestino'
+// El nombre del negocio no debe seguir siendo el default sembrado ('Mi Negocio')
 $nombre_negocio = scalar($pdo,
     "SELECT valor FROM configuracion_app WHERE clave = 'nombre_negocio'");
 t($G, "Nombre del negocio configurado (no es el default)",
-    !empty($nombre_negocio) && strtolower(trim($nombre_negocio)) !== 'clandestino',
+    !empty($nombre_negocio) && strtolower(trim($nombre_negocio)) !== 'mi negocio',
     "Cambiar en Admin → Apariencia.",
     true);
 
@@ -2001,7 +2001,7 @@ $total_pruebas = $pass + $fail + $warn;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Suite de Pruebas — ClanDestino ERP</title>
+    <title>Suite de Pruebas — QuickServe OS</title>
     <style>
         :root {
             --brand:#e94f37; --dark:#111827; --g5:#6b7280; --g8:#d1d5db;
@@ -2042,7 +2042,7 @@ $total_pruebas = $pass + $fail + $warn;
 <body>
 
 <p style="margin-bottom:10px"><a href="<?= APP_BASE ?>/admin/" style="color:#2563eb;text-decoration:none;font-weight:600">&larr; Volver a Admin</a></p>
-<h1>&#129514; Suite de Pruebas — ClanDestino ERP v<?= APP_VERSION ?></h1>
+<h1>&#129514; Suite de Pruebas — QuickServe OS v<?= APP_VERSION ?></h1>
 <p class="meta">
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |

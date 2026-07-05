@@ -20,7 +20,7 @@ $_theme = [
     'font_heading' => 'system-ui, -apple-system, sans-serif',
     'radius'       => '12',
     'logo'         => '',
-    'negocio'      => 'ClanDestino',
+    'negocio'      => 'QuickServe OS',
     // Escala tipográfica (px)
     'fs_title'     => '22',
     'fs_subtitle'  => '15',

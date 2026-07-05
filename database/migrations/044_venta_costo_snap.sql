@@ -13,7 +13,6 @@
 -- Idempotente: solo agrega la columna si no existe (por si se corre dos veces).
 -- ============================================================
 
-USE clandestinoERP;
 
 SET @existe := (SELECT COUNT(*) FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE()

@@ -619,7 +619,7 @@ class NominaModel
                 try {
                     require_once __DIR__ . '/ContabilidadModel.php';
                     ContabilidadModel::postear_nomina((int)$lid);
-                } catch (\Throwable $ex2) { error_log('[ClanDestino contab nomina] ' . $ex2->getMessage()); }
+                } catch (\Throwable $ex2) { error_log('[QuickServe OS contab nomina] ' . $ex2->getMessage()); }
             } catch (\Exception $ex) {
                 $errores[] = $e['nombre_completo'] . ': ' . $ex->getMessage();
             }
@@ -953,7 +953,7 @@ class NominaModel
             try {
                 require_once __DIR__ . '/ContabilidadModel.php';
                 ContabilidadModel::reversar_por_origen('nomina', (int)$row['id']);
-            } catch (\Throwable $ex) { error_log('[ClanDestino contab nomina del] ' . $ex->getMessage()); }
+            } catch (\Throwable $ex) { error_log('[QuickServe OS contab nomina del] ' . $ex->getMessage()); }
         }
         $stmt = db()->prepare(
             'DELETE FROM nomina_liquidaciones WHERE periodo_mes = ? AND periodo_anio = ?'

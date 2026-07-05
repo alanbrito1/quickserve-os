@@ -142,6 +142,6 @@ try {
 
 } catch (\Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino guardar_receta_completa] ' . $e->getMessage());
+    error_log('[QuickServe OS guardar_receta_completa] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al guardar la receta.']);
 }

@@ -105,3 +105,40 @@ function fmt_moneda(float $n): string
     $cfg = config_numeros();
     return fmt_agrupar($n, 0, $cfg);
 }
+
+/**
+ * Nombre del negocio configurado (Admin > Apariencia, clave nombre_negocio),
+ * cacheado por request. Fallback a la constante de producto APP_NAME si la
+ * clave/tabla no existe todavía. Úsalo en encabezados de reportes, títulos de
+ * hojas de Excel y nombres de archivo exportados para que reflejen la marca del
+ * negocio y no un valor hardcodeado.
+ */
+function nombre_negocio(): string
+{
+    static $nombre = null;
+    if ($nombre !== null) return $nombre;
+
+    $fallback = defined('APP_NAME') ? APP_NAME : 'QuickServe OS';
+    try {
+        $val = db()->query(
+            "SELECT valor FROM configuracion_app WHERE clave = 'nombre_negocio' LIMIT 1"
+        )->fetchColumn();
+        $nombre = ($val !== false && trim((string)$val) !== '') ? trim((string)$val) : $fallback;
+    } catch (Exception $e) {
+        $nombre = $fallback;
+    }
+
+    return $nombre;
+}
+
+/**
+ * Versión "slug" del nombre del negocio, segura para nombres de archivo
+ * (solo letras/números/guion bajo). Úsala como prefijo de los archivos Excel
+ * exportados (ej. "Mi_Negocio_Ventas_2026-07.xlsx").
+ */
+function slug_negocio(): string
+{
+    $slug = preg_replace('/[^A-Za-z0-9]+/', '_', nombre_negocio());
+    $slug = trim((string)$slug, '_');
+    return $slug !== '' ? $slug : 'Export';
+}

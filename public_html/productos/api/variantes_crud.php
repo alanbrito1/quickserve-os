@@ -133,7 +133,7 @@ if ($accion === 'reactivar') {
 
 } catch (Throwable $e) {
     // Errores inesperados: no exponer detalles internos al cliente
-    error_log('[ClanDestino Variantes CRUD] ' . $e->getMessage());
+    error_log('[QuickServe OS Variantes CRUD] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }
 

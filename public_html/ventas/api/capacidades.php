@@ -24,7 +24,7 @@ try {
 
     echo json_encode($resultado);
 } catch (Throwable $e) {
-    error_log('[ClanDestino Capacidades] ' . $e->getMessage());
+    error_log('[QuickServe OS Capacidades] ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([]);
 }

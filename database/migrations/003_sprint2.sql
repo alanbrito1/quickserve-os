@@ -3,9 +3,7 @@
 -- Ejecutar en phpMyAdmin DESPUÉS de schema.sql y 002_login_intentos.sql
 -- ============================================================
 
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu base de datos
 -- (el mismo que pusiste en app/config/database.php)
-USE `clandestinoERP`;
 
 SET NAMES utf8mb4;
 

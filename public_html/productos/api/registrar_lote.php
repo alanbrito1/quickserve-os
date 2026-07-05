@@ -137,7 +137,7 @@ try {
             try {
                 require_once __DIR__ . '/../../app/models/ContabilidadModel.php';
                 ContabilidadModel::postear_produccion($lote_id);
-            } catch (\Throwable $e) { error_log('[ClanDestino contab produccion] ' . $e->getMessage()); }
+            } catch (\Throwable $e) { error_log('[QuickServe OS contab produccion] ' . $e->getMessage()); }
 
             echo json_encode([
                 'success'  => true,
@@ -214,6 +214,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino Producción] ' . $e->getMessage());
+    error_log('[QuickServe OS Producción] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }

@@ -399,7 +399,7 @@ $nav_activo = 'ayuda';
             <div class="section-hdr">
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
-                    <div class="section-title">ClanDestino ERP — Visión General</div>
+                    <div class="section-title">QuickServe OS — Visión General</div>
                     <div class="section-badge">v6.0 · Colombia</div>
                 </div>
             </div>
@@ -1910,7 +1910,7 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
 
             <div class="sub-title">Prácticas de seguridad para administradores</div>
             <ul>
-                <li>Cambiar la contraseña del superadmin (<code>admin@clandestino.local</code>) en el primer login</li>
+                <li>Cambiar la contraseña del superadmin (<code>admin@quickserve.local</code>) en el primer login</li>
                 <li>Usar contraseñas de mínimo 12 caracteres con combinación de letras, números y símbolos</li>
                 <li>Hacer backup de la BD antes de ejecutar cualquier migración desde el panel Admin</li>
                 <li>Los logos se guardan en <code>uploads/logos/</code> — no subir archivos PHP a ese directorio</li>

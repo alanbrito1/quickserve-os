@@ -1,6 +1,6 @@
 -- ============================================================
 -- Migración 036 — Ingrediente base en recetas
--- ClanDestino ERP v4.40 | 2026-06-06
+-- QuickServe OS v4.40 | 2026-06-06
 --
 -- Añade la columna es_base a recetas para marcar ingredientes
 -- cuya cantidad NO escala con el factor de variante de tamaño.

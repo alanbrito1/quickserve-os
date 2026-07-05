@@ -366,7 +366,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 1: Insumos ──────────────────────────────────────────────────────
     $w->setSheet('Precios Insumos');
-    $w->addRow(['ClanDestino ERP — Variación de Precios de Insumos'], true);
+    $w->addRow([nombre_negocio() . ' — Variación de Precios de Insumos'], true);
     $w->addRow(["Período: $fecha_desde al $fecha_hasta | Generado: " . date('d/m/Y H:i')]);
     $w->addEmptyRow();
     $w->addRow(['Insumo', 'Unidad', 'Fecha compra', 'Precio/u ($)', 'Cantidad', 'Proveedor', 'Var. %'], true);
@@ -384,7 +384,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 2: Precios de Venta ─────────────────────────────────────────────
     $w->setSheet('Precios Venta');
-    $w->addRow(['ClanDestino ERP — Evolución de Precios de Venta'], true);
+    $w->addRow([nombre_negocio() . ' — Evolución de Precios de Venta'], true);
     $w->addRow(["Período: $fecha_desde al $fecha_hasta"]);
     $w->addEmptyRow();
     $w->addRow(['Producto', 'Nombre complementario', 'Fecha primer cobro', 'Precio ($)', 'Var. %'], true);
@@ -397,7 +397,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 3: Costo de Producción ──────────────────────────────────────────
     $w->setSheet('Costo Producción');
-    $w->addRow(['ClanDestino ERP — Evolución del Costo de Producción'], true);
+    $w->addRow([nombre_negocio() . ' — Evolución del Costo de Producción'], true);
     $w->addRow(["Período: $fecha_desde al $fecha_hasta"]);
     $w->addEmptyRow();
     $w->addRow(['Producto', 'Nombre complementario', 'Fecha lote', 'Costo/u ($)', 'Cantidad', 'Var. %'], true);
@@ -410,7 +410,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 4: Nómina ───────────────────────────────────────────────────────
     $w->setSheet('Nómina');
-    $w->addRow(['ClanDestino ERP — Evolución de Salarios y Costo Laboral'], true);
+    $w->addRow([nombre_negocio() . ' — Evolución de Salarios y Costo Laboral'], true);
     $w->addRow(["Período: $fecha_desde al $fecha_hasta"]);
     $w->addEmptyRow();
     $w->addRow(['Empleado', 'Contrato', 'Período', 'Salario base ($)', 'Costo total ($)', 'Var. salario %'], true);
@@ -426,7 +426,7 @@ if (isset($_GET['export'])) {
 
     // ── Hoja 5: Costos Fijos ─────────────────────────────────────────────────
     $w->setSheet('Costos Fijos');
-    $w->addRow(['ClanDestino ERP — Variación de Costos Fijos e Indirectos'], true);
+    $w->addRow([nombre_negocio() . ' — Variación de Costos Fijos e Indirectos'], true);
     $w->addRow(["Período: $fecha_desde al $fecha_hasta"]);
     $w->addEmptyRow();
     $w->addRow(['Concepto', 'Categoría', 'Clasificación', 'Tipo', 'Valor ($)', 'Frecuencia', 'Val. Mensual ($)', 'Desde', 'Hasta', 'Activo', 'Var. %'], true);
@@ -442,7 +442,7 @@ if (isset($_GET['export'])) {
         }
     }
 
-    $w->download('ClanDestino_VariacionPrecios_' . $fecha_desde . '_' . $fecha_hasta . '.xlsx');
+    $w->download(slug_negocio() . '_VariacionPrecios_' . $fecha_desde . '_' . $fecha_hasta . '.xlsx');
 }
 
 // ── Estadísticas resumen ──────────────────────────────────────────────────────

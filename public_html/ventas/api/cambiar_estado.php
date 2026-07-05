@@ -130,6 +130,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino Ventas] ' . $e->getMessage());
+    error_log('[QuickServe OS Ventas] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno del servidor.']);
 }

@@ -119,5 +119,5 @@ $totales[] = '';
 
 $w->addRow($totales, total: true);
 
-$w->download('ClanDestino_Activos_' . date('Ymd') . '.xlsx');
+$w->download(slug_negocio() . '_Activos_' . date('Ymd') . '.xlsx');
 exit;

@@ -14,7 +14,6 @@
 -- No afecta ninguna logica de negocio: solo es visual.
 -- ============================================================
 
-USE clandestinoERP;
 
 ALTER TABLE productos
     ADD COLUMN nombre2 VARCHAR(120) NULL DEFAULT NULL

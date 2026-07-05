@@ -6,9 +6,7 @@
 -- Ahora:  depreciacion_diaria = depreciacion_mensual / 30.41666
 --
 -- Se recalculan automáticamente todos los activos con fecha_inicio_uso.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 DELIMITER $$
 

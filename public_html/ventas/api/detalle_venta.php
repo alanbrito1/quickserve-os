@@ -63,6 +63,6 @@ try {
     ]);
 
 } catch (\Throwable $e) {
-    error_log('[ClanDestino detalle_venta] ' . $e->getMessage());
+    error_log('[QuickServe OS detalle_venta] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al cargar el detalle.']);
 }

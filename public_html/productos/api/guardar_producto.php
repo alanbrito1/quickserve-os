@@ -215,6 +215,6 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-    error_log('[ClanDestino Productos] ' . $e->getMessage());
+    error_log('[QuickServe OS Productos] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al guardar el producto.']);
 }

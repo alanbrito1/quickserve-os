@@ -4,9 +4,7 @@
 -- Crea tabla configuracion_app para valores de texto (tema, logo,
 -- nombre del negocio) que no caben en configuracion_negocio (DECIMAL).
 -- Actualiza el ENUM de permisos_modulos con todos los módulos actuales.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Tabla de configuración de texto (tema, logo, negocio) ─────────────────
 CREATE TABLE IF NOT EXISTS `configuracion_app` (
@@ -21,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `configuracion_app` (
 
 -- ── 2. Valores por defecto ────────────────────────────────────────────────────
 INSERT IGNORE INTO `configuracion_app` (`clave`, `valor`, `descripcion`) VALUES
-('nombre_negocio', 'ClanDestino',       'Nombre que aparece en el menú y las páginas'),
+('nombre_negocio', 'QuickServe OS',       'Nombre que aparece en el menú y las páginas'),
 ('logo_url',       '',                  'Ruta relativa al logo (vacío = mostrar texto)'),
 ('theme_brand',    '#e94f37',           'Color principal de la marca (botones, badges activos)'),
 ('theme_dark',     '#111827',           'Color de fondo del menú superior'),

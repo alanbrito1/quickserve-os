@@ -26,7 +26,7 @@ if (isset($_GET['export'])) {
     $w = new XlsxWriter();
     $w->setSheet('Nómina ' . $meses_nombres[$mes] . ' ' . $anio);
 
-    $w->addRow(['ClanDestino ERP — Nómina ' . $meses_nombres[$mes] . ' ' . $anio], true);
+    $w->addRow([nombre_negocio() . ' — Nómina ' . $meses_nombres[$mes] . ' ' . $anio], true);
     $w->addRow(['Generado: ' . date('d/m/Y H:i') . '  |  Empleados: ' . count($liquidaciones)]);
     $w->addEmptyRow();
 
@@ -81,7 +81,7 @@ if (isset($_GET['export'])) {
 
     // Hoja 2: Resumen por componente
     $w->setSheet('Resumen');
-    $w->addRow(['ClanDestino ERP — Resumen Nómina ' . $meses_nombres[$mes] . ' ' . $anio], true);
+    $w->addRow([nombre_negocio() . ' — Resumen Nómina ' . $meses_nombres[$mes] . ' ' . $anio], true);
     $w->addEmptyRow();
     $w->addRow(['Componente', 'Monto Total', '% sobre Salarios'], true);
 
@@ -99,7 +99,7 @@ if (isset($_GET['export'])) {
     $w->addEmptyRow();
     $w->addRow(['COSTO TOTAL EMPLEADOR', (float)$resumen['costo_total'], ''], false, true);
 
-    $w->download('ClanDestino_Nomina_' . $mes . '_' . $anio . '.xlsx');
+    $w->download(slug_negocio() . '_Nomina_' . $mes . '_' . $anio . '.xlsx');
 }
 
 $fmt = fn(float $n) => '$' . fmt_moneda($n);

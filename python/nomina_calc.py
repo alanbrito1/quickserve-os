@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ClanDestino ERP v4.0 — Calculadora de Nómina y Carga Prestacional
+QuickServe OS v4.0 — Calculadora de Nómina y Carga Prestacional
 =================================================================
 Herramienta CLI para calcular el costo real de un empleado en Colombia
 según la legislación laboral vigente.
@@ -158,7 +158,7 @@ def imprimir_liquidacion(nombre: str, resultado: dict) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ClanDestino — Calculadora de Nómina y Carga Prestacional"
+        description="QuickServe OS — Calculadora de Nómina y Carga Prestacional"
     )
     parser.add_argument(
         "--salario", type=float,

@@ -2,6 +2,9 @@
 # NUNCA subir a GitHub — contiene usuario y contraseña de la DB
 public_html/app/config/database.php
 
+# Candado del instalador web (se crea al instalar en cada servidor)
+public_html/app/config/installed.lock
+
 # ── Uploads (fotos de activos, pueden ser grandes) ──────────────────
 public_html/uploads/
 

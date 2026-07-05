@@ -1,11 +1,9 @@
 -- ============================================================
--- Migración 004 — Datos reales ClanDestino ERP
--- Fuente: Excel "Extraccion exacta ClanDestino" (Blueprint v4.0)
+-- Migración 004 — Datos reales QuickServe OS
+-- Fuente: Excel "Extraccion exacta QuickServe OS" (Blueprint v4.0)
 -- EJECUTAR DESPUES de 001_schema.sql + 002_login_intentos.sql + 003_sprint2.sql
 -- ============================================================
 
--- IMPORTANTE: Cambiar 'clandestino_erp' por el nombre real de tu base de datos
-USE `clandestinoERP`;
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -92,7 +90,7 @@ VALUES
 ('Chocolatina Jet Bolitas',   'combo',      'unidad',    710.00,  0,   2.0, 1);
 
 -- ============================================================
--- 4. PRODUCTOS ClanDestino — Los 4 sándwiches reales
+-- 4. PRODUCTOS QuickServe OS — Los 4 sándwiches reales
 -- ============================================================
 -- Precios = $18,000 (hoja COSTEO, fila 19)
 INSERT INTO `productos` (`nombre`, `categoria`, `tamano`, `precio_venta`) VALUES
@@ -279,9 +277,9 @@ INSERT INTO `activos` (`nombre`, `descripcion`, `lugar_compra`, `costo_inicial`,
 INSERT INTO `empleados`
     (`nombre_completo`, `cargo`, `tipo_contrato`, `fecha_ingreso`, `salario_base`, `aplica_aux_transporte`)
 VALUES
-('Preparador ClanDestino',  'Preparador',  'tiempo_completo', '2025-01-01', 1750905, 1),
-('Vendedor ClanDestino',    'Vendedor',    'tiempo_completo', '2025-01-01', 1750905, 1),
-('Cocinero ClanDestino',    'Cocinero',    'tiempo_completo', '2025-01-01', 1750905, 1);
+('Preparador QuickServe OS',  'Preparador',  'tiempo_completo', '2025-01-01', 1750905, 1),
+('Vendedor QuickServe OS',    'Vendedor',    'tiempo_completo', '2025-01-01', 1750905, 1),
+('Cocinero QuickServe OS',    'Cocinero',    'tiempo_completo', '2025-01-01', 1750905, 1);
 
 -- ============================================================
 -- 9. CONFIGURACIÓN: actualizar producción diaria

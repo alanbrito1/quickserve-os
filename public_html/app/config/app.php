@@ -1,19 +1,19 @@
 <?php
 /**
  * app/config/app.php
- * Constantes globales de ClanDestino ERP.
+ * Constantes globales de QuickServe OS.
  * Ajustar APP_ENV a 'development' para ver errores en local.
  */
 
-define('APP_NAME',    'ClanDestino ERP');
-define('APP_VERSION', '6.0'); // 2026-07-03: v6.0 (Fase 4c completa) compra a credito (mig 046 compras.a_credito -> postear_compra credita 2205 Proveedores por pagar vs 1105 Caja; selector en compras) + IVA discriminado configurable (iva_activo/iva_tarifa; ventas separan 2408 IVA por pagar, compras 1355 IVA descontable; toggle en Contabilidad). Roadmap contable COMPLETO.
+define('APP_NAME',    'QuickServe OS');
+define('APP_VERSION', '6.1'); // 2026-07-05: v6.1 producto genérico "QuickServe OS" (de-branding total: la marca anterior se removió de todo el código y los archivos; solo permanece en la data de produccion) + instalador web en /install/ (asistente por navegador: requisitos, BD, negocio/admin, datos de ejemplo opcionales; runner SQL con DELIMITER para los triggers; genera app/config/database.php y bloquea reinstalación). schema.sql sin datos demo (movidos a database/sample_data.sql). Roadmap contable v6.0 intacto.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
 define('BASE_PATH', dirname(dirname(__DIR__)));
 
 // Prefijo URL del sistema — funciona tanto en raíz como en subdirectorio.
-// Si el ERP está en www.dominio.com/clandestino/ → APP_BASE = '/clandestino'
+// Si el ERP está en www.dominio.com/miempresa/ → APP_BASE = '/miempresa'
 // Si está en la raíz del dominio          → APP_BASE = ''
 if (!defined('APP_BASE')) {
     $__realBase    = realpath(BASE_PATH);
@@ -32,7 +32,7 @@ if (!defined('APP_BASE')) {
 date_default_timezone_set('America/Bogota');
 
 // Sesión
-define('SESSION_NAME',     'cdestino_sess');
+define('SESSION_NAME',     'quickserve_sess');
 define('SESSION_LIFETIME', 7200); // 2 horas en segundos sin actividad
 
 // Seguridad de contraseñas

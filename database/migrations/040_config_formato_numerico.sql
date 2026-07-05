@@ -13,7 +13,6 @@
 -- app/helpers/FormatoHelper.php::config_numeros().
 -- ============================================================
 
-USE clandestinoERP;
 
 INSERT IGNORE INTO configuracion_app (clave, valor, descripcion) VALUES
   ('num_decimales',   '2', 'Decimales para cantidades (stock, presentaciones, equivalencias, costo por unidad)'),

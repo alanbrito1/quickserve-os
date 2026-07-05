@@ -8,7 +8,6 @@
 -- Idempotente (guard via information_schema).
 -- ============================================================
 
-USE clandestinoERP;
 
 SET @existe := (SELECT COUNT(*) FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE()

@@ -178,7 +178,7 @@ if (($_GET['export'] ?? '') === '1') {
     $w->addRow(['VALORIZACIÓN DE INVENTARIO (fin de período)', round($inv_total)], header: true);
     $w->addRow(['   Insumos (stock × costo)', round($inv_insumos)]);
     $w->addRow(['   Producto terminado (stock × costo)', round($inv_productos)]);
-    $w->download('ClanDestino_PyG_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
+    $w->download(slug_negocio() . '_PyG_' . $meses_es[$mes] . '_' . $anio . '.xlsx');
     exit;
 }
 

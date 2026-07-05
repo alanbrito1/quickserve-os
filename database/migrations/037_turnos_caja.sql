@@ -3,7 +3,6 @@
 -- Permite al cierre (cierre.php) calcular cuánto efectivo se generó vs el fondo.
 -- Un día puede tener máximo un turno activo.
 
-USE clandestinoERP;
 
 CREATE TABLE IF NOT EXISTS `turnos_caja` (
     `id`               INT AUTO_INCREMENT PRIMARY KEY,

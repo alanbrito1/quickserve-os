@@ -79,6 +79,6 @@ try {
     ]);
 } catch (\Exception $e) {
     $pdo->rollBack();
-    error_log('[ClanDestino Conteo] ' . $e->getMessage());
+    error_log('[QuickServe OS Conteo] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno al guardar el conteo.']);
 }

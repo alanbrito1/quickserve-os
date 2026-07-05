@@ -2,9 +2,7 @@
 -- Migración 011b — Activos: agregar proveedor_id (FK a proveedores)
 -- Permite vincular cada activo con el proveedor donde se compró,
 -- en lugar de solo guardar el nombre como texto libre.
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- Agregar proveedor_id como FK opcional a activos
 ALTER TABLE `activos`

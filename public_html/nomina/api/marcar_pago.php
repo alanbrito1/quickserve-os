@@ -51,6 +51,6 @@ try {
         echo json_encode(['success' => false, 'error' => 'Acción inválida.']);
     }
 } catch (Exception $e) {
-    error_log('[ClanDestino Nómina] ' . $e->getMessage());
+    error_log('[QuickServe OS Nómina] ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error interno.']);
 }

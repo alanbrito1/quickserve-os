@@ -8,9 +8,7 @@
 --   venta_detalles.from_stock     → indica si la venta descontó del stock terminado
 --   tabla produccion_lotes        → registro de tandas de producción
 --
--- IMPORTANTE: Cambiar 'clandestinoERP' por el nombre real de tu DB
 -- ============================================================
-USE `clandestinoERP`;
 
 -- ── 1. Campos nuevos en productos ────────────────────────────────────────────
 ALTER TABLE `productos`

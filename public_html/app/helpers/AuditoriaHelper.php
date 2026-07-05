@@ -48,7 +48,7 @@ function log_registrar(
         ]);
     } catch (PDOException $e) {
         // Los errores de auditoría no deben interrumpir el flujo principal de negocio
-        error_log('[ClanDestino Audit] ' . $e->getMessage());
+        error_log('[QuickServe OS Audit] ' . $e->getMessage());
     }
 }
 

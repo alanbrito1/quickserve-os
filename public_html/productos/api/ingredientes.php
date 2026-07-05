@@ -20,7 +20,7 @@ if (!$producto_id) {
 try {
     echo json_encode(RecetaModel::ingredientes_de($producto_id));
 } catch (Throwable $e) {
-    error_log('[ClanDestino Ingredientes] ' . $e->getMessage());
+    error_log('[QuickServe OS Ingredientes] ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([]);
 }
