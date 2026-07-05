@@ -4070,10 +4070,15 @@ ejemplo **opcionales** en la instalación.
 - Sin `USE`; encabezado y admin de-brandeados (superadmin por defecto `admin@quickserve.local`,
   mismo hash de `Admin2026!` → el instalador lo sobrescribe).
 - `nombre_negocio` sembrado neutro (`'Mi Negocio'`).
-- **Datos demo movidos** a `database/sample_data.sql` (NUEVO): productos/insumos/recetas
-  **genéricos** ("Producto de ejemplo 1..4", "Ingrediente A/B/C"), no los del negocio original.
-  `schema.sql` queda con estructura + seeds base (config, catálogos, parámetros laborales, plan de
-  cuentas, admin).
+- **Datos demo movidos** a `database/sample_data.sql` (NUEVO): dataset **completo de prueba**
+  genérico (no el negocio original) — 7 proveedores, 14 insumos + 4 presentaciones (mig 039), 7
+  productos + 4 variantes + 1 combo + recetas, 8 clientes (con fiado), 25 ventas recientes
+  (efectivo/transferencia/fiado/obsequio/descuento/combo/variante/anulada), 1 abono, 5 compras
+  (una a crédito), 5 lotes de producción, 3 ajustes de stock, 3 turnos de caja, 4 empleados + horas
+  + 6 liquidaciones de nómina, 4 costos indirectos y 4 activos. Fechas **relativas** (`NOW()-N`) →
+  el dashboard siempre se ve actual. **Totales verificados** (ventas/compras = Σ detalles; fiado =
+  ventas − abonos; 177 filas con columnas coherentes). `schema.sql` queda con estructura + seeds
+  base (config, catálogos, parámetros laborales, plan de cuentas, admin).
 
 ### Instalador web (`public_html/install/`) — subsistema nuevo
 - **`lib.php`**: `qs_requisitos()` (PHP ≥ 8.0, extensiones, escritura de `app/config/`+`uploads/`),
