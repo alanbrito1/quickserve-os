@@ -136,6 +136,31 @@ try {
     $numSepMillones = in_array($_POST['num_sep_millones'] ?? '.', $sepMilesOk, true) ? $_POST['num_sep_millones'] : '.';
     if ($numSepMillones === $numSepDecimal) { $numSepMillones = $numSepMiles; }
 
+    // ── Validar localización (migración 047 — país/moneda/impuesto) ───────────
+    $paisesOk = ['CO','MX','PE','CL','ES','PA','EC','AR','BR','PY','UY','XX'];
+    $pais = strtoupper(trim($_POST['pais'] ?? 'CO'));
+    if (!in_array($pais, $paisesOk, true)) $pais = 'CO';
+
+    // Símbolo: texto corto (símbolos no ASCII permitidos: S/, €, R$…); sin < > para evitar HTML.
+    $monedaSimbolo = substr(trim($_POST['moneda_simbolo'] ?? '$'), 0, 4);
+    $monedaSimbolo = str_replace(['<', '>'], '', $monedaSimbolo);
+    if ($monedaSimbolo === '') $monedaSimbolo = '$';
+
+    // Código ISO: solo letras, 3-5 caracteres, mayúsculas.
+    $monedaCodigo = strtoupper(preg_replace('/[^A-Za-z]/', '', $_POST['moneda_codigo'] ?? 'COP'));
+    $monedaCodigo = substr($monedaCodigo, 0, 5);
+    if ($monedaCodigo === '') $monedaCodigo = 'COP';
+
+    $monedaDecimales = max(0, min(2, (int)($_POST['moneda_decimales'] ?? 0)));
+
+    // Nombre del impuesto: solo letras/espacios (IVA, IGV, ITBMS…).
+    $impuestoNombre = substr(trim($_POST['impuesto_nombre'] ?? 'IVA'), 0, 20);
+    $impuestoNombre = preg_replace('/[^A-Za-zÁÉÍÓÚÑáéíóúñ \.]/', '', $impuestoNombre);
+    if ($impuestoNombre === '') $impuestoNombre = 'IVA';
+
+    $facturaModo = in_array($_POST['factura_modo'] ?? 'interno', ['interno','legal'], true)
+        ? $_POST['factura_modo'] : 'interno';
+
     // ── Guardar en configuracion_app ─────────────────────────────────────────
     $pares = [
         'nombre_negocio'    => $nombre,
@@ -154,6 +179,12 @@ try {
         'num_sep_miles'     => $numSepMiles,
         'num_sep_millones'  => $numSepMillones,
         'num_sep_decimal'   => $numSepDecimal,
+        'pais'              => $pais,
+        'moneda_simbolo'    => $monedaSimbolo,
+        'moneda_codigo'     => $monedaCodigo,
+        'moneda_decimales'  => (string)$monedaDecimales,
+        'impuesto_nombre'   => $impuestoNombre,
+        'factura_modo'      => $facturaModo,
     ];
     if ($logo_url       !== null) $pares['logo_url']       = $logo_url;
     if ($logo_login_url !== null) $pares['logo_url_login'] = $logo_login_url;

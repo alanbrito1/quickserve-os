@@ -1086,6 +1086,15 @@ INSERT IGNORE INTO `configuracion_app` (`clave`, `valor`, `descripcion`) VALUES
 ('num_sep_decimal',   ',', 'Caracter separador decimal para todos los numeros'),
 ('num_sep_millones',  '.', 'Caracter separador para el grupo de millones (y superiores); si es igual al separador de miles, el formato es uniforme');
 
+-- Localización multi-país (migración 047) — valores de TEXTO (por eso van en configuracion_app)
+INSERT IGNORE INTO `configuracion_app` (`clave`, `valor`, `descripcion`) VALUES
+('pais',             'CO',  'País operativo (ISO): CO, MX, PE, CL, ES, AR, BR, EC, PA, PY, UY'),
+('moneda_codigo',    'COP', 'Código ISO de la moneda (COP, MXN, PEN, CLP, EUR, ARS, BRL, USD…)'),
+('moneda_simbolo',   '$',   'Símbolo de la moneda para mostrar en pantalla'),
+('moneda_decimales', '0',   'Decimales para montos de dinero (0 = enteros)'),
+('impuesto_nombre',  'IVA', 'Nombre del impuesto de ventas (IVA, IGV, ITBMS, IEPS…)'),
+('factura_modo',     'interno', 'Modo de facturación: interno (comprobante propio) o legal (proveedor certificado)');
+
 
 -- ── listas_sistema — presentaciones ──────────────────────────────────────
 INSERT INTO `listas_sistema` (`tipo`, `valor`, `etiqueta`, `orden`) VALUES
@@ -1255,13 +1264,16 @@ CREATE TABLE IF NOT EXISTS `cuentas_contables` (
     `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `codigo`     VARCHAR(10)  NOT NULL,
     `nombre`     VARCHAR(120) NOT NULL,
+    `rol`        VARCHAR(40)  DEFAULT NULL,      -- rol semántico multi-país (mig. 047): caja, ingresos, imp_ventas_por_pagar…
+    `pais`       VARCHAR(5)   NOT NULL DEFAULT 'CO', -- país del plan de cuentas (mig. 047)
     `tipo`       ENUM('activo','pasivo','patrimonio','ingreso','costo','gasto') NOT NULL,
     `naturaleza` ENUM('debito','credito') NOT NULL,
     `es_contra`  TINYINT(1)   NOT NULL DEFAULT 0,
     `activo`     TINYINT(1)   NOT NULL DEFAULT 1,
     `orden`      SMALLINT     NOT NULL DEFAULT 100,
     UNIQUE KEY `uq_cuenta_codigo` (`codigo`),
-    INDEX `idx_cuenta_tipo` (`tipo`)
+    INDEX `idx_cuenta_tipo` (`tipo`),
+    INDEX `idx_cuenta_rol_pais` (`pais`,`rol`)   -- resolver rol→cuenta por país (mig. 047)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `asientos` (
@@ -1289,32 +1301,34 @@ CREATE TABLE IF NOT EXISTS `asiento_lineas` (
     INDEX `idx_al_cuenta` (`cuenta_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed del plan de cuentas simplificado (migración 045)
-INSERT IGNORE INTO `cuentas_contables` (`codigo`, `nombre`, `tipo`, `naturaleza`, `es_contra`, `orden`) VALUES
-  ('1105','Caja',                         'activo','debito',0,10),
-  ('1110','Bancos',                       'activo','debito',0,20),
-  ('1305','Cuentas por cobrar (fiado)',   'activo','debito',0,30),
-  ('1430','Inventario producto terminado','activo','debito',0,40),
-  ('1435','Inventario de insumos',        'activo','debito',0,50),
-  ('1355','IVA descontable',              'activo','debito',0,55),
-  ('1524','Activos fijos',                'activo','debito',0,60),
-  ('1592','Depreciación acumulada',       'activo','credito',1,70),
-  ('2205','Proveedores por pagar',        'pasivo','credito',0,110),
-  ('2408','IVA por pagar',                'pasivo','credito',0,120),
-  ('2510','Nómina por pagar',             'pasivo','credito',0,130),
-  ('3115','Capital social',               'patrimonio','credito',0,210),
-  ('3705','Utilidad del ejercicio',       'patrimonio','credito',0,220),
-  ('4135','Ingresos por ventas',          'ingreso','credito',0,310),
-  ('6135','Costo de ventas',              'costo','debito',0,410),
-  ('5105','Gastos de nómina',             'gasto','debito',0,510),
-  ('5160','Gasto por depreciación',       'gasto','debito',0,520),
-  ('5195','Gastos operativos (indirectos)','gasto','debito',0,530),
-  ('5199','Obsequios y mermas',           'gasto','debito',0,540);
+-- Seed del plan de cuentas simplificado (migración 045) + rol semántico multi-país (migración 047)
+-- Colombia (PUC simplificado). El `rol` desacopla el motor contable del código: el auto-posting
+-- usa roles (caja, ingresos…) y cada país mapea su propio código a esos roles.
+INSERT IGNORE INTO `cuentas_contables` (`codigo`, `nombre`, `rol`, `pais`, `tipo`, `naturaleza`, `es_contra`, `orden`) VALUES
+  ('1105','Caja',                         'caja',                  'CO','activo','debito',0,10),
+  ('1110','Bancos',                       'bancos',                'CO','activo','debito',0,20),
+  ('1305','Cuentas por cobrar (fiado)',   'cxc_fiado',             'CO','activo','debito',0,30),
+  ('1430','Inventario producto terminado','inv_terminado',         'CO','activo','debito',0,40),
+  ('1435','Inventario de insumos',        'inv_insumos',           'CO','activo','debito',0,50),
+  ('1355','IVA descontable',              'imp_descontable',       'CO','activo','debito',0,55),
+  ('1524','Activos fijos',                'activos_fijos',         'CO','activo','debito',0,60),
+  ('1592','Depreciación acumulada',       'deprec_acumulada',      'CO','activo','credito',1,70),
+  ('2205','Proveedores por pagar',        'proveedores_por_pagar', 'CO','pasivo','credito',0,110),
+  ('2408','IVA por pagar',                'imp_ventas_por_pagar',  'CO','pasivo','credito',0,120),
+  ('2510','Nómina por pagar',             'nomina_por_pagar',      'CO','pasivo','credito',0,130),
+  ('3115','Capital social',               'capital',               'CO','patrimonio','credito',0,210),
+  ('3705','Utilidad del ejercicio',       'utilidad',              'CO','patrimonio','credito',0,220),
+  ('4135','Ingresos por ventas',          'ingresos',              'CO','ingreso','credito',0,310),
+  ('6135','Costo de ventas',              'costo_ventas',          'CO','costo','debito',0,410),
+  ('5105','Gastos de nómina',             'gasto_nomina',          'CO','gasto','debito',0,510),
+  ('5160','Gasto por depreciación',       'gasto_depreciacion',    'CO','gasto','debito',0,520),
+  ('5195','Gastos operativos (indirectos)','gastos_operativos',    'CO','gasto','debito',0,530),
+  ('5199','Obsequios y mermas',           'obsequios_mermas',      'CO','gasto','debito',0,540);
 
 -- Config de IVA (migración 045) — por defecto desactivado (régimen simple)
 INSERT IGNORE INTO `configuracion_negocio` (`clave`, `valor`, `descripcion`, `categoria`) VALUES
-  ('iva_activo', 0,  'Discriminar IVA en ventas/compras (0=no, 1=si)', 'impuestos'),
-  ('iva_tarifa', 19, 'Tarifa de IVA por defecto (%)', 'impuestos');
+  ('iva_activo', 0,  'Discriminar impuesto de ventas en ventas/compras (0=no, 1=si)', 'impuestos'),
+  ('iva_tarifa', 19, 'Tarifa del impuesto de ventas por defecto (%)', 'impuestos');
 
 -- ============================================================
 -- FIN DEL ESQUEMA v6.1

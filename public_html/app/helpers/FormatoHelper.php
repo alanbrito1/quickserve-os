@@ -27,17 +27,19 @@ function config_numeros(): array
     static $cfg = null;
     if ($cfg !== null) return $cfg;
 
-    $cfg = ['decimales' => 2, 'sep_miles' => '.', 'sep_decimal' => ',', 'sep_millones' => '.'];
+    // moneda_decimales (mig 047): decimales para DINERO por país (COP/CLP=0, USD/EUR=2…).
+    $cfg = ['decimales' => 2, 'sep_miles' => '.', 'sep_decimal' => ',', 'sep_millones' => '.', 'moneda_decimales' => 0];
     try {
         $rows = db()->query(
             "SELECT clave, valor FROM configuracion_app
-             WHERE clave IN ('num_decimales','num_sep_miles','num_sep_decimal','num_sep_millones')"
+             WHERE clave IN ('num_decimales','num_sep_miles','num_sep_decimal','num_sep_millones','moneda_decimales')"
         )->fetchAll(PDO::FETCH_KEY_PAIR);
 
         if (isset($rows['num_decimales']))   $cfg['decimales']   = max(0, min(4, (int)$rows['num_decimales']));
         if (isset($rows['num_sep_miles']))   $cfg['sep_miles']   = $rows['num_sep_miles'];
         if (isset($rows['num_sep_decimal'])) $cfg['sep_decimal'] = $rows['num_sep_decimal'];
         if (isset($rows['num_sep_millones'])) $cfg['sep_millones'] = $rows['num_sep_millones'];
+        if (isset($rows['moneda_decimales'])) $cfg['moneda_decimales'] = max(0, min(4, (int)$rows['moneda_decimales']));
     } catch (Exception $e) { /* valores por defecto si la tabla no existe aún */ }
 
     return $cfg;
@@ -103,8 +105,40 @@ function fmt_cantidad(float $n, ?int $dec = null): string
 function fmt_moneda(float $n): string
 {
     $cfg = config_numeros();
-    return fmt_agrupar($n, 0, $cfg);
+    // Decimales de dinero según el país (mig 047): 0 para COP/CLP, 2 para USD/EUR/PEN…
+    return fmt_agrupar($n, (int)($cfg['moneda_decimales'] ?? 0), $cfg);
 }
+
+/**
+ * Configuración de moneda (mig 047), cacheada: ['simbolo','codigo','decimales'].
+ * Defaults: $ / COP / 0 (retrocompatible con Colombia).
+ */
+function moneda_config(): array
+{
+    static $m = null;
+    if ($m !== null) return $m;
+    $m = ['simbolo' => '$', 'codigo' => 'COP', 'decimales' => (int)(config_numeros()['moneda_decimales'] ?? 0)];
+    try {
+        $rows = db()->query(
+            "SELECT clave, valor FROM configuracion_app WHERE clave IN ('moneda_simbolo','moneda_codigo')"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+        if (!empty($rows['moneda_simbolo'])) $m['simbolo'] = (string)$rows['moneda_simbolo'];
+        if (!empty($rows['moneda_codigo']))  $m['codigo']  = (string)$rows['moneda_codigo'];
+    } catch (Exception $e) { /* defaults */ }
+    return $m;
+}
+
+/** Símbolo de la moneda configurada (ej. '$', 'S/', '€'). */
+function moneda_simbolo(): string { return moneda_config()['simbolo']; }
+
+/** Código ISO de la moneda configurada (ej. 'COP', 'MXN', 'EUR'). */
+function moneda_codigo(): string { return moneda_config()['codigo']; }
+
+/**
+ * Monto con símbolo de moneda del país (ej. "$ 1.234", "S/ 1,234.50").
+ * Úsalo en vez de anteponer '$' a mano cuando quieras que respete la moneda configurada.
+ */
+function dinero(float $n): string { return moneda_simbolo() . ' ' . fmt_moneda($n); }
 
 /**
  * Nombre del negocio configurado (Admin > Apariencia, clave nombre_negocio),

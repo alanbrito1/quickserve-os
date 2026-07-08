@@ -4196,3 +4196,70 @@ smoke 44 páginas, todo verificado con datos reales). Bug corregido: `estado_vid
 WHERE en 4 queries de depreciación (reportes/costos.php crasheaba; costos/analisis/pyg daban 0 en
 silencio) → TIMESTAMPDIFF con columnas físicas. Afinados suite G03/G11 y sample_data (recetas/costos).
 0 FAIL, solo WARN benignos de instalación nueva. `APP_VERSION` → 6.2.*
+
+---
+
+## Estado v6.3 (2026-07-08) — Arquitectura multi-país, Fase A: núcleo país-agnóstico
+
+Primera fase del plan "Arquitectura multi-país" (`.claude/plans/curried-napping-hollerith.md`):
+separar lo **universal** (motor de partida doble, POS, inventario) de lo **localizable**
+(impuestos, plan de cuentas, moneda, facturación) mediante "country packs". Fase A **desacopla el
+motor contable del PUC colombiano** y añade la config de país/moneda. Colombia queda **idéntico**
+(verificado). Países objetivo: CO, MX, PE, CL, ES, PA, EC, AR, BR, PY, UY + genérico (XX).
+
+### Migración 047 (`database/migrations/047_multipais_nucleo.sql`, idempotente + `schema.sql`)
+- `cuentas_contables` gana **`rol`** VARCHAR(40) (rol semántico: caja, ingresos,
+  imp_ventas_por_pagar…) y **`pais`** VARCHAR(5) DEFAULT 'CO' + índice `idx_cuenta_rol_pais(pais,rol)`.
+  Los 19 códigos PUC colombianos se etiquetan con su rol y `pais='CO'` (UPDATE por CASE).
+- `configuracion_app` gana (TEXTO — por eso van aquí y no en `configuracion_negocio`, que es DECIMAL):
+  **`pais`** (CO), **`moneda_codigo`** (COP), **`moneda_simbolo`** ($), **`moneda_decimales`** (0),
+  **`impuesto_nombre`** (IVA), **`factura_modo`** (interno).
+
+### `ContabilidadModel` — motor por ROLES semánticos (desacople del PUC)
+- Const `ROLES` (rol→código colombiano) como **fallback** si la mig 047 no está aplicada.
+- `paisActivo()` (lee `configuracion_app.pais`, cache), `rolMap()` (overlay de
+  `cuentas_contables.rol WHERE pais=?` sobre el fallback; try/catch si la columna no existe),
+  `cuentaRol(rol)` (rol→código del país→id).
+- `crear_asiento()` acepta líneas por `['rol'=>…]` (además de `codigo`/`cuenta_id`).
+- **Los 6 `postear_*`** (venta, compra, abono, producción, ajuste, nómina) migrados de códigos
+  fijos (`['codigo'=>'1105']`) a roles (`['rol'=>'caja']`). Ej. venta: `efectivo→caja`,
+  `nequi/daviplata/bancolombia→bancos`, `fiado→cxc_fiado`; compra a crédito→`proveedores_por_pagar`.
+- `impuestoVentas()` generaliza el IVA: `['activo','tarifa','nombre']` — nombre configurable
+  (IVA/IGV/ITBMS…). `ivaConfig()` queda como wrapper retrocompatible.
+
+### `FormatoHelper` — moneda por país
+- `config_numeros()` lee **`moneda_decimales`**; `fmt_moneda()` ahora usa esos decimales (COP/CLP=0,
+  USD/EUR/PEN=2) → Colombia sin cambios (0). Nuevos: `moneda_config()` (cache),
+  `moneda_simbolo()`, `moneda_codigo()`, `dinero($n)` (símbolo + monto) para adopción incremental.
+
+### Admin → Apariencia: sección **Localización (país, moneda e impuesto)**
+- `admin/apariencia.php`: selects/inputs para país (12 ISO), símbolo/código/decimales de moneda,
+  nombre del impuesto y modo de factura (interno/legal). `admin/api/guardar_apariencia.php` valida
+  (whitelist de países; código ISO solo letras; símbolo sin `<>`; decimales 0-2) y persiste en
+  `configuracion_app`.
+
+### Verificación (harness MariaDB aislado, puerto 3307 — sin tocar la config real)
+- `schema.sql` + `sample_data.sql` cargan limpio (33 tablas, 9 triggers, 19 cuentas **todas con rol**).
+- Harness contable posteó los **6 flujos** (24 ventas, 5 compras, 1 abono, 5 producciones,
+  3 ajustes, 6 nóminas) vía roles → **44 asientos / 136 líneas, todos cuadran** (Σdebe=Σhaber),
+  **Balance cuadra**, reversa de venta cuadra. **Idéntico a v6.2** — Colombia no cambia.
+- **Prueba multi-país:** sembrado un mini plan México (códigos SAT distintos) + `pais='MX'` →
+  los roles resuelven a **códigos mexicanos** (101.01 caja, 401.01 ingresos, 209.01 IVA trasladado…);
+  roles sin cuenta MX caen al fallback. Confirma que el motor ya **no asume Colombia**.
+- `install/sql/schema.sql` re-sincronizado con `database/schema.sql`.
+
+### Pendiente (siguientes fases del plan)
+- **Fase B:** country pack completo de 1 país prioritario (seed `cuentas_contables` con su plan +
+  roles). **Fase C:** nómina por `PayrollStrategy` por país (asesoría laboral local). **Fase D:**
+  facturación conmutable interno/legal con driver/PAC por país. **Fase E:** el instalador elige país
+  → carga su country pack; i18n si aplica (Brasil = portugués).
+- **Adopción de moneda:** `dinero()`/`moneda_simbolo()` disponibles pero las páginas siguen
+  anteponiendo `$` a mano; migrarlas incrementalmente (como el patrón de formato numérico v4.87+).
+- Usuario (runtime): aplicar **mig 047** en producción; Admin → Apariencia → Localización.
+
+*Última actualización: 2026-07-08 | v6.3 — Fase A multi-país (núcleo país-agnóstico): mig 047
+(cuentas_contables +rol/+pais, configuracion_app +pais/moneda/impuesto/factura_modo);
+ContabilidadModel usa ROLES semánticos resueltos por país (6 postear_* migrados; impuestoVentas()
+generaliza el IVA); FormatoHelper moneda por país; Admin → Apariencia sección Localización. Verificado
+en MariaDB aislada (44 asientos + Balance cuadran; Colombia idéntico; prueba MX resuelve a códigos SAT).
+`APP_VERSION` → 6.3. Sin cambios de comportamiento en Colombia.*

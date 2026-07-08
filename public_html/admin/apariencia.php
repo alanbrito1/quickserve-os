@@ -40,6 +40,20 @@ $v = [
     'num_sep_miles'    => $cfg['num_sep_miles']   ?? '.',
     'num_sep_decimal'  => $cfg['num_sep_decimal'] ?? ',',
     'num_sep_millones' => $cfg['num_sep_millones'] ?? '.',
+    // Localización (mig 047 — país/moneda/impuesto)
+    'pais'             => $cfg['pais']             ?? 'CO',
+    'moneda_codigo'    => $cfg['moneda_codigo']    ?? 'COP',
+    'moneda_simbolo'   => $cfg['moneda_simbolo']   ?? '$',
+    'moneda_decimales' => (int)($cfg['moneda_decimales'] ?? 0),
+    'impuesto_nombre'  => $cfg['impuesto_nombre']  ?? 'IVA',
+    'factura_modo'     => $cfg['factura_modo']     ?? 'interno',
+];
+
+// Países soportados (ISO → nombre). El super admin elige el país operativo de la instancia.
+$PAISES = [
+    'CO' => 'Colombia', 'MX' => 'México', 'PE' => 'Perú', 'CL' => 'Chile',
+    'ES' => 'España', 'PA' => 'Panamá', 'EC' => 'Ecuador', 'AR' => 'Argentina',
+    'BR' => 'Brasil', 'PY' => 'Paraguay', 'UY' => 'Uruguay', 'XX' => 'Genérico / configurable',
 ];
 
 // Opciones de fuente (sin CDN — solo fuentes del sistema para garantizar disponibilidad)
@@ -411,6 +425,52 @@ $FUENTES = [
             </div>
         </div>
 
+        <!-- Localización (país, moneda e impuesto) -->
+        <div class="card">
+            <div class="card-title">Localización (país, moneda e impuesto)</div>
+            <span class="hint" style="display:block;margin-bottom:10px">Define el país operativo de la instancia. La contabilidad usa roles semánticos de cuenta, así que el motor no depende de un plan de cuentas de un país concreto. Colombia es el valor por defecto.</span>
+            <div class="fg">
+                <label>País operativo</label>
+                <select id="ap-pais">
+                    <?php foreach ($PAISES as $iso => $nom): ?>
+                    <option value="<?= $iso ?>" <?= $v['pais'] === $iso ? 'selected' : '' ?>><?= htmlspecialchars($nom) ?> (<?= $iso ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="fg">
+                <label>Símbolo de la moneda</label>
+                <input type="text" id="ap-moneda-simbolo" maxlength="4" value="<?= htmlspecialchars($v['moneda_simbolo']) ?>" placeholder="$">
+                <span class="hint">Ej.: $ (peso/dólar), S/ (sol), € (euro), R$ (real).</span>
+            </div>
+            <div class="fg">
+                <label>Código ISO de la moneda</label>
+                <input type="text" id="ap-moneda-codigo" maxlength="5" value="<?= htmlspecialchars($v['moneda_codigo']) ?>" placeholder="COP" style="text-transform:uppercase">
+                <span class="hint">Ej.: COP, MXN, PEN, CLP, EUR, ARS, BRL, USD.</span>
+            </div>
+            <div class="fg">
+                <label>Decimales de la moneda</label>
+                <select id="ap-moneda-decimales">
+                    <?php for ($i = 0; $i <= 2; $i++): ?>
+                    <option value="<?= $i ?>" <?= $v['moneda_decimales'] === $i ? 'selected' : '' ?>><?= $i ?></option>
+                    <?php endfor; ?>
+                </select>
+                <span class="hint">0 para pesos enteros (COP, CLP). 2 para monedas con centavos (USD, EUR, PEN).</span>
+            </div>
+            <div class="fg">
+                <label>Nombre del impuesto de ventas</label>
+                <input type="text" id="ap-impuesto-nombre" maxlength="20" value="<?= htmlspecialchars($v['impuesto_nombre']) ?>" placeholder="IVA">
+                <span class="hint">Ej.: IVA (CO/MX/ES/AR), IGV (PE), ITBMS (PA). La tarifa se configura en Contabilidad.</span>
+            </div>
+            <div class="fg">
+                <label>Modo de facturación</label>
+                <select id="ap-factura-modo">
+                    <option value="interno" <?= $v['factura_modo'] === 'interno' ? 'selected' : '' ?>>Interno (comprobante propio, sin proveedor)</option>
+                    <option value="legal"   <?= $v['factura_modo'] === 'legal'   ? 'selected' : '' ?>>Legal (proveedor certificado del país)</option>
+                </select>
+                <span class="hint">Interno: recibo/comprobante propio no fiscal (por defecto). Legal: factura electrónica vía proveedor certificado del país (requiere integración por país — próximas fases).</span>
+            </div>
+        </div>
+
         <button class="btn-save" onclick="guardarApariencia()">Guardar cambios</button>
     </div>
 
@@ -567,6 +627,12 @@ async function guardarApariencia(){
     fd.append('num_sep_miles',    document.getElementById('ap-num-sep-miles').value);
     fd.append('num_sep_millones', document.getElementById('ap-num-sep-millones').value);
     fd.append('num_sep_decimal',  document.getElementById('ap-num-sep-decimal').value);
+    fd.append('pais',             document.getElementById('ap-pais').value);
+    fd.append('moneda_simbolo',   document.getElementById('ap-moneda-simbolo').value.trim());
+    fd.append('moneda_codigo',    document.getElementById('ap-moneda-codigo').value.trim().toUpperCase());
+    fd.append('moneda_decimales', document.getElementById('ap-moneda-decimales').value);
+    fd.append('impuesto_nombre',  document.getElementById('ap-impuesto-nombre').value.trim());
+    fd.append('factura_modo',     document.getElementById('ap-factura-modo').value);
     fd.append('logo_quitar',       document.getElementById('logo-quitar').value);
     fd.append('logo_login_quitar', document.getElementById('logo-login-quitar').value);
 

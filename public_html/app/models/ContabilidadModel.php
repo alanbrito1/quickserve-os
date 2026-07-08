@@ -46,12 +46,73 @@ class ContabilidadModel
         return self::mapaCuentas()[$codigo] ?? null;
     }
 
-    /** Configuración de IVA (mig 045): [activo(bool), tarifa(float %)]. Cacheado. */
-    public static function ivaConfig(): array
+    // ── Multi-país (mig 047): roles semánticos ────────────────────────────────
+    // El auto-posting usa ROLES (caja, ingresos, imp_ventas_por_pagar…) en vez de
+    // códigos fijos. Cada país mapea su plan de cuentas a estos roles vía
+    // cuentas_contables.rol. Este arreglo es el FALLBACK (códigos colombianos) por
+    // si la columna `rol` aún no existe (migración 047 no aplicada).
+    private const ROLES = [
+        'caja'                  => '1105', 'bancos'               => '1110',
+        'cxc_fiado'             => '1305', 'inv_terminado'        => '1430',
+        'inv_insumos'           => '1435', 'imp_descontable'      => '1355',
+        'activos_fijos'         => '1524', 'deprec_acumulada'     => '1592',
+        'proveedores_por_pagar' => '2205', 'imp_ventas_por_pagar' => '2408',
+        'nomina_por_pagar'      => '2510', 'capital'              => '3115',
+        'utilidad'              => '3705', 'ingresos'             => '4135',
+        'costo_ventas'          => '6135', 'gasto_nomina'         => '5105',
+        'gasto_depreciacion'    => '5160', 'gastos_operativos'    => '5195',
+        'obsequios_mermas'      => '5199',
+    ];
+
+    /** País operativo de la instancia (ISO, ej. 'CO'). Cacheado. */
+    public static function paisActivo(): string
+    {
+        static $p = null;
+        if ($p === null) {
+            $p = 'CO';
+            try {
+                $v = db()->query("SELECT valor FROM configuracion_app WHERE clave='pais' LIMIT 1")->fetchColumn();
+                if ($v) $p = strtoupper(trim((string)$v));
+            } catch (\Throwable $e) {}
+        }
+        return $p;
+    }
+
+    /** Mapa rol→código del país activo (BD sobre los defaults colombianos). Cacheado. */
+    private static function rolMap(): array
+    {
+        static $m = null;
+        if ($m === null) {
+            $m = self::ROLES; // fallback: códigos colombianos
+            try {
+                $st = db()->prepare(
+                    "SELECT rol, codigo FROM cuentas_contables
+                     WHERE rol IS NOT NULL AND rol <> '' AND pais = ?"
+                );
+                $st->execute([self::paisActivo()]);
+                foreach ($st->fetchAll() as $r) $m[$r['rol']] = $r['codigo']; // el país gana
+            } catch (\Throwable $e) { /* columna rol/pais no existe aún → usa ROLES */ }
+        }
+        return $m;
+    }
+
+    /** id de la cuenta que cumple un rol semántico en el país activo (o null). */
+    public static function cuentaRol(string $rol): ?int
+    {
+        $cod = self::rolMap()[$rol] ?? null;
+        return $cod ? self::cuentaId($cod) : null;
+    }
+
+    /**
+     * Configuración del impuesto de ventas (generaliza el IVA — mig 047):
+     * ['activo'=>bool, 'tarifa'=>float %, 'nombre'=>string]. El nombre es
+     * configurable por país (IVA/IGV/ITBMS/IEPS…). Cacheado.
+     */
+    public static function impuestoVentas(): array
     {
         static $cfg = null;
         if ($cfg === null) {
-            $activo = 0.0; $tarifa = 0.0;
+            $activo = 0.0; $tarifa = 0.0; $nombre = 'IVA';
             try {
                 $rows = db()->query(
                     "SELECT clave, valor FROM configuracion_negocio WHERE clave IN ('iva_activo','iva_tarifa')"
@@ -59,9 +120,20 @@ class ContabilidadModel
                 $activo = (float)($rows['iva_activo'] ?? 0);
                 $tarifa = (float)($rows['iva_tarifa'] ?? 0);
             } catch (\Throwable $e) {}
-            $cfg = [$activo >= 1, $tarifa];
+            try {
+                $n = db()->query("SELECT valor FROM configuracion_app WHERE clave='impuesto_nombre' LIMIT 1")->fetchColumn();
+                if ($n) $nombre = (string)$n;
+            } catch (\Throwable $e) {}
+            $cfg = ['activo' => $activo >= 1, 'tarifa' => $tarifa, 'nombre' => $nombre];
         }
         return $cfg;
+    }
+
+    /** Compat: [activo(bool), tarifa(float %)]. Usa impuestoVentas() por dentro. */
+    public static function ivaConfig(): array
+    {
+        $t = self::impuestoVentas();
+        return [$t['activo'], $t['tarifa']];
     }
 
     /**
@@ -78,8 +150,10 @@ class ContabilidadModel
         // Normalizar y validar líneas
         $totDebe = 0.0; $totHaber = 0.0; $norm = [];
         foreach ($lineas as $l) {
-            $cid = isset($l['cuenta_id']) ? (int)$l['cuenta_id'] : self::cuentaId((string)($l['codigo'] ?? ''));
-            if (!$cid) throw new RuntimeException('Cuenta contable no encontrada: ' . ($l['codigo'] ?? $l['cuenta_id'] ?? '?'));
+            if (isset($l['cuenta_id']))   $cid = (int)$l['cuenta_id'];
+            elseif (isset($l['rol']))     $cid = (int)self::cuentaRol((string)$l['rol']);   // multi-país (mig 047)
+            else                          $cid = (int)self::cuentaId((string)($l['codigo'] ?? ''));
+            if (!$cid) throw new RuntimeException('Cuenta contable no encontrada: ' . ($l['rol'] ?? $l['codigo'] ?? $l['cuenta_id'] ?? '?'));
             $debe  = round((float)($l['debe']  ?? 0), 2);
             $haber = round((float)($l['haber'] ?? 0), 2);
             if ($debe < 0 || $haber < 0) throw new RuntimeException('Debe/haber no puede ser negativo.');
@@ -229,28 +303,28 @@ class ContabilidadModel
         $lineas = [];
         if ($metodo === 'obsequio') {
             if ($cogs <= 0) return;
-            $lineas[] = ['codigo' => '5199', 'debe' => $cogs, 'haber' => 0];
-            if ($cTerm > 0) $lineas[] = ['codigo' => '1430', 'debe' => 0, 'haber' => $cTerm];
-            if ($cIns  > 0) $lineas[] = ['codigo' => '1435', 'debe' => 0, 'haber' => $cIns];
+            $lineas[] = ['rol' => 'obsequios_mermas', 'debe' => $cogs, 'haber' => 0];
+            if ($cTerm > 0) $lineas[] = ['rol' => 'inv_terminado', 'debe' => 0, 'haber' => $cTerm];
+            if ($cIns  > 0) $lineas[] = ['rol' => 'inv_insumos',   'debe' => 0, 'haber' => $cIns];
             $desc = 'Obsequio venta #' . $venta_id;
         } else {
             if ($total <= 0) return;
-            $cta = $metodo === 'efectivo' ? '1105' : ($metodo === 'fiado' ? '1305' : '1110');
-            $lineas[] = ['codigo' => $cta, 'debe' => $total, 'haber' => 0];
+            $rolCta = $metodo === 'efectivo' ? 'caja' : ($metodo === 'fiado' ? 'cxc_fiado' : 'bancos');
+            $lineas[] = ['rol' => $rolCta, 'debe' => $total, 'haber' => 0];
             [$ivaAct, $ivaTarifa] = self::ivaConfig();
             if ($ivaAct && $ivaTarifa > 0) {
-                // El total incluye IVA → separar ingreso base + IVA por pagar (2408).
+                // El total incluye impuesto → separar ingreso base + impuesto por pagar.
                 $base = round($total / (1 + $ivaTarifa / 100), 2);
                 $iva  = round($total - $base, 2);
-                $lineas[] = ['codigo' => '4135', 'debe' => 0, 'haber' => $base];
-                if ($iva > 0) $lineas[] = ['codigo' => '2408', 'debe' => 0, 'haber' => $iva];
+                $lineas[] = ['rol' => 'ingresos', 'debe' => 0, 'haber' => $base];
+                if ($iva > 0) $lineas[] = ['rol' => 'imp_ventas_por_pagar', 'debe' => 0, 'haber' => $iva];
             } else {
-                $lineas[] = ['codigo' => '4135', 'debe' => 0, 'haber' => $total];
+                $lineas[] = ['rol' => 'ingresos', 'debe' => 0, 'haber' => $total];
             }
             if ($cogs > 0) {
-                $lineas[] = ['codigo' => '6135', 'debe' => $cogs, 'haber' => 0];
-                if ($cTerm > 0) $lineas[] = ['codigo' => '1430', 'debe' => 0, 'haber' => $cTerm];
-                if ($cIns  > 0) $lineas[] = ['codigo' => '1435', 'debe' => 0, 'haber' => $cIns];
+                $lineas[] = ['rol' => 'costo_ventas', 'debe' => $cogs, 'haber' => 0];
+                if ($cTerm > 0) $lineas[] = ['rol' => 'inv_terminado', 'debe' => 0, 'haber' => $cTerm];
+                if ($cIns  > 0) $lineas[] = ['rol' => 'inv_insumos',   'debe' => 0, 'haber' => $cIns];
             }
             $desc = 'Venta #' . $venta_id . ' (' . $metodo . ')';
         }
@@ -273,20 +347,20 @@ class ContabilidadModel
         $total = round((float)$compra['total'], 2);
         if ($total <= 0) return;
         $aCredito = (int)($compra['a_credito'] ?? 0) === 1;
-        $ctaSalida = $aCredito ? '2205' : '1105'; // por pagar (crédito) vs caja (contado)
+        $rolSalida = $aCredito ? 'proveedores_por_pagar' : 'caja'; // por pagar (crédito) vs caja (contado)
 
         [$ivaAct, $ivaTarifa] = self::ivaConfig();
         $lineas = [];
         if ($ivaAct && $ivaTarifa > 0) {
-            // El total incluye IVA → separar base + IVA descontable (1355).
+            // El total incluye impuesto → separar base + impuesto descontable.
             $base = round($total / (1 + $ivaTarifa / 100), 2);
             $iva  = round($total - $base, 2);
-            $lineas[] = ['codigo' => '1435', 'debe' => $base, 'haber' => 0];
-            if ($iva > 0) $lineas[] = ['codigo' => '1355', 'debe' => $iva, 'haber' => 0];
+            $lineas[] = ['rol' => 'inv_insumos',     'debe' => $base, 'haber' => 0];
+            if ($iva > 0) $lineas[] = ['rol' => 'imp_descontable', 'debe' => $iva, 'haber' => 0];
         } else {
-            $lineas[] = ['codigo' => '1435', 'debe' => $total, 'haber' => 0];
+            $lineas[] = ['rol' => 'inv_insumos', 'debe' => $total, 'haber' => 0];
         }
-        $lineas[] = ['codigo' => $ctaSalida, 'debe' => 0, 'haber' => $total];
+        $lineas[] = ['rol' => $rolSalida, 'debe' => 0, 'haber' => $total];
         self::crear_asiento(substr((string)$compra['fecha_compra'], 0, 10),
             'Compra #' . $compra_id . ($aCredito ? ' (a crédito)' : ''), 'compra', $compra_id, $lineas);
     }
@@ -304,10 +378,10 @@ class ContabilidadModel
         if (!$ab) return;
         $monto = round((float)$ab['monto'], 2);
         if ($monto <= 0) return;
-        $cta = ($ab['metodo_pago'] ?? 'efectivo') === 'efectivo' ? '1105' : '1110';
+        $rolCta = ($ab['metodo_pago'] ?? 'efectivo') === 'efectivo' ? 'caja' : 'bancos';
         self::crear_asiento(substr((string)$ab['created_at'], 0, 10), 'Abono fiado #' . $abono_id, 'abono', $abono_id, [
-            ['codigo' => $cta,  'debe' => $monto, 'haber' => 0],   // entra caja/bancos
-            ['codigo' => '1305','debe' => 0,      'haber' => $monto], // baja la cuenta por cobrar
+            ['rol' => $rolCta,    'debe' => $monto, 'haber' => 0],   // entra caja/bancos
+            ['rol' => 'cxc_fiado','debe' => 0,      'haber' => $monto], // baja la cuenta por cobrar
         ]);
     }
 
@@ -325,8 +399,8 @@ class ContabilidadModel
         $valor = round((float)$lote['cantidad'] * (float)$lote['costo_unitario'], 2);
         if ($valor <= 0) return;
         self::crear_asiento(substr((string)$lote['fecha_produccion'], 0, 10), 'Producción lote #' . $lote_id, 'produccion', $lote_id, [
-            ['codigo' => '1430', 'debe' => $valor, 'haber' => 0],   // entra producto terminado
-            ['codigo' => '1435', 'debe' => 0,      'haber' => $valor], // salen insumos
+            ['rol' => 'inv_terminado', 'debe' => $valor, 'haber' => 0],   // entra producto terminado
+            ['rol' => 'inv_insumos',   'debe' => 0,      'haber' => $valor], // salen insumos
         ]);
     }
 
@@ -349,8 +423,8 @@ class ContabilidadModel
         $valor = round((float)$aj['cantidad'] * (float)$aj['costo_calculado'], 2);
         if ($valor <= 0) return;
         self::crear_asiento(substr((string)$aj['fecha_ajuste'], 0, 10), 'Ajuste stock #' . $ajuste_id, 'ajuste', $ajuste_id, [
-            ['codigo' => '5199', 'debe' => $valor, 'haber' => 0],   // gasto (obsequio/merma)
-            ['codigo' => '1430', 'debe' => 0,      'haber' => $valor], // baja producto terminado
+            ['rol' => 'obsequios_mermas', 'debe' => $valor, 'haber' => 0],   // gasto (obsequio/merma)
+            ['rol' => 'inv_terminado',    'debe' => 0,      'haber' => $valor], // baja producto terminado
         ]);
     }
 
@@ -371,8 +445,8 @@ class ContabilidadModel
         // Fecha del gasto = último día del período liquidado
         $fecha = date('Y-m-t', mktime(0, 0, 0, (int)$liq['periodo_mes'], 1, (int)$liq['periodo_anio']));
         self::crear_asiento($fecha, 'Nómina liquidación #' . $liquidacion_id, 'nomina', $liquidacion_id, [
-            ['codigo' => '5105', 'debe' => $costo, 'haber' => 0],   // gasto de nómina (causación)
-            ['codigo' => '2510', 'debe' => 0,      'haber' => $costo], // nómina por pagar
+            ['rol' => 'gasto_nomina',     'debe' => $costo, 'haber' => 0],   // gasto de nómina (causación)
+            ['rol' => 'nomina_por_pagar', 'debe' => 0,      'haber' => $costo], // nómina por pagar
         ]);
     }
 
