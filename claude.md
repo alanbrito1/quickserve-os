@@ -1,7 +1,18 @@
-# QuickServe OS v6.2 — Memoria de Sesión
-# Última sesión: 2026-07-07 | Próxima sesión: continuar desde este punto
+# QuickServe OS v6.6 — Memoria de Sesión
+# Última sesión: 2026-07-08 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
+
+> **ARQUITECTURA MULTI-PAÍS (desde v6.3-v6.6):** El sistema es **multi-país**. Lo universal (POS,
+> inventario, motor contable de partida doble) es igual en todos; lo localizable (moneda, impuesto,
+> plan de cuentas, nómina, facturación) se ajusta por país. Colombia es el default y quedó IDÉNTICO.
+> Piezas: mig 047 (`cuentas_contables` +rol/+pais, `configuracion_app` +pais/moneda/impuesto);
+> `ContabilidadModel` postea por ROLES resueltos por país; `database/paises/<ISO>.sql` (country packs:
+> CO/MX/XX); `app/helpers/PaisesHelper.php` (catálogo único: moneda/impuesto/estado/facturación por
+> país); `NominaModel::estrategia($pais)` → `PayrollStrategy` (solo Colombia validada; resto fallback
+> CO); Admin → Localización + instalador eligen país con alerta de consideraciones. Ver Estados
+> v6.3-v6.6. Pendiente (requiere terceros): nómina extranjera (contador local) y facturación legal
+> (PAC por país) — la alerta lo advierte.
 
 ---
 

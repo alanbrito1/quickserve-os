@@ -211,6 +211,7 @@ $nav_activo = 'ayuda';
             <a href="#analisis"   class="side-link" onclick="activar(this)">Análisis y PE</a>
             <a href="#reportes"   class="side-link" onclick="activar(this)">Reportes</a>
             <a href="#contabilidad" class="side-link" onclick="activar(this)">Contabilidad</a>
+            <a href="#localizacion" class="side-link" onclick="activar(this)">Multi-país / Localización</a>
             <a href="#admin"      class="side-link" onclick="activar(this)">Admin</a>
             <a href="#seguridad"  class="side-link" onclick="activar(this)">Seguridad</a>
             <a href="#pruebas"   class="side-link" onclick="activar(this)">Pruebas / Tests</a>
@@ -460,10 +461,10 @@ $nav_activo = 'ayuda';
                 <div class="section-icon" style="background:#fef2f0">&#127829;</div>
                 <div>
                     <div class="section-title">QuickServe OS — Visión General</div>
-                    <div class="section-badge">v6.0 · Colombia</div>
+                    <div class="section-badge">v6.6 · multi-país</div>
                 </div>
             </div>
-            <p>Sistema de gestión empresarial para negocios de sándwiches. Controla ventas, inventario, producción, nómina, activos, costos y <strong>contabilidad de partida doble</strong> desde un único panel adaptado a la legislación colombiana.</p>
+            <p>Sistema de gestión empresarial para negocios de comida y servicio rápido. Controla ventas, inventario, producción, nómina, activos, costos y <strong>contabilidad de partida doble</strong> desde un único panel. Es <strong>multi-país</strong>: el país (moneda, impuesto, plan de cuentas) se elige al instalar o en Admin &rarr; Localización — ver la sección <a href="#localizacion" onclick="activar(document.querySelector('a[href=&quot;#localizacion&quot;]'))">Multi-país / Localización</a>. Por defecto viene configurado para <strong>Colombia</strong>.</p>
             <div class="tip"><strong>Panel de alertas en el Dashboard:</strong> Al ingresar al sistema, la página de inicio muestra automáticamente alertas operativas si hay insumos con stock bajo, clientes con fiado pendiente o productos con stock por debajo del mínimo configurado. Cada alerta tiene un enlace directo al módulo correspondiente para actuar de inmediato.</div>
 
             <div class="sub-title">Interfaz — iconos de acción y uso en móvil (v4.97)</div>
@@ -1784,6 +1785,56 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
+        <!--  MULTI-PAÍS / LOCALIZACIÓN                                    -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <div class="section" id="localizacion">
+            <div class="section-hdr">
+                <div class="section-icon" style="background:#eff6ff">&#127758;</div>
+                <div><div class="section-title">Multi-país / Localización</div>
+                     <div class="section-badge">v6.6 · país configurable</div></div>
+            </div>
+            <p>QuickServe OS se puede operar en distintos países. Lo <strong>universal</strong> (punto de venta, inventario, compras, motor contable de partida doble) es igual en todos; lo <strong>localizable</strong> (moneda, impuesto, plan de cuentas, nómina, facturación) se ajusta por país. Por defecto, el sistema viene configurado para <strong>Colombia</strong>.</p>
+
+            <div class="warn"><strong>Honestidad por capas:</strong> la <strong>contabilidad y la moneda</strong> ya son multi-país y están verificadas. La <strong>nómina</strong> tiene el cálculo validado <strong>solo para Colombia</strong> (otros países usan ese motor por defecto hasta tener el suyo). La <strong>facturación electrónica legal</strong> de cada país requiere integrar un proveedor certificado (fase posterior). Al elegir un país verás una <strong>alerta de consideraciones</strong> que te dice exactamente qué está listo y qué falta.</div>
+
+            <div class="sub-title">Elegir el país — dos momentos</div>
+            <table class="data-table">
+                <tr><th>Dónde</th><th>Qué hace</th></tr>
+                <tr><td><strong>Instalador</strong> (al montar el sistema)</td><td>El paso "Negocio" tiene un <strong>selector de país</strong>. Al instalar, carga el plan de cuentas del país (si existe) y fija su moneda e impuesto. Muestra la alerta de consideraciones.</td></tr>
+                <tr><td><strong>Admin &rarr; Apariencia &rarr; Localización</strong> (después, solo admin)</td><td>Cambiar país, moneda (símbolo/código/decimales), nombre del impuesto y modo de factura. Al elegir un país, <strong>autocompleta</strong> la moneda y el impuesto sugeridos (editables) y muestra la alerta.</td></tr>
+            </table>
+
+            <div class="sub-title">Contabilidad por "roles" (no depende de un país)</div>
+            <p>El motor contable no usa códigos de cuenta fijos: usa <strong>roles</strong> (caja, ingresos, IVA por pagar, costo de ventas…). Cada país tiene un <strong>"country pack"</strong> — su plan de cuentas oficial mapeado a esos roles. Así, la misma venta genera el asiento correcto con el código de cuenta de <em>cada</em> país (ej. <code>1105</code> en Colombia, <code>100.01</code> del SAT en México), y el Balance cuadra igual. Añadir un país nuevo es agregar su plan de cuentas — <strong>sin tocar el código</strong>.</p>
+
+            <div class="sub-title">Estado por país</div>
+            <table class="data-table">
+                <tr><th>País</th><th>Moneda</th><th>Impuesto</th><th>Contabilidad</th><th>Facturación legal (integración futura)</th></tr>
+                <tr><td>Colombia (CO)</td><td>COP $</td><td>IVA 19%</td><td>Plan propio ✓ · Nómina ✓</td><td>DIAN</td></tr>
+                <tr><td>México (MX)</td><td>MXN $</td><td>IVA 16%</td><td>Plan SAT ✓ <span class="badge">validar con contador</span></td><td>CFDI 4.0 / SAT (PAC)</td></tr>
+                <tr><td>Perú (PE)</td><td>PEN S/</td><td>IGV 18%</td><td>Genérico</td><td>SUNAT (OSE/PSE)</td></tr>
+                <tr><td>Chile (CL)</td><td>CLP $</td><td>IVA 19%</td><td>Genérico</td><td>SII (DTE)</td></tr>
+                <tr><td>España (ES)</td><td>EUR €</td><td>IVA 21%</td><td>Genérico</td><td>AEAT (Veri*Factu / TicketBAI)</td></tr>
+                <tr><td>Panamá (PA)</td><td>USD $</td><td>ITBMS 7%</td><td>Genérico</td><td>DGI</td></tr>
+                <tr><td>Ecuador (EC)</td><td>USD $</td><td>IVA 15%</td><td>Genérico</td><td>SRI</td></tr>
+                <tr><td>Argentina (AR)</td><td>ARS $</td><td>IVA 21%</td><td>Genérico</td><td>AFIP/ARCA (CAE)</td></tr>
+                <tr><td>Brasil (BR)</td><td>BRL R$</td><td>ICMS/ISS</td><td>Genérico</td><td>SEFAZ NF-e/SPED <span class="badge">el más complejo</span></td></tr>
+                <tr><td>Paraguay (PY)</td><td>PYG &#8370;</td><td>IVA 10%</td><td>Genérico</td><td>DNIT (SIFEN)</td></tr>
+                <tr><td>Uruguay (UY)</td><td>UYU $</td><td>IVA 22%</td><td>Genérico</td><td>DGI (CFE)</td></tr>
+                <tr><td>Genérico (XX)</td><td>configurable</td><td>configurable</td><td>Genérico</td><td>— (solo comprobante interno)</td></tr>
+            </table>
+            <p class="muted"><em>"Genérico"</em> = usa un plan de cuentas base (funciona y cuadra); ajústalo al plan oficial del país cuando lo necesites. Las tarifas son valores por defecto editables.</p>
+
+            <div class="sub-title">Nómina por país</div>
+            <p>El cálculo de nómina se resuelve por el <strong>país laboral de cada empleado</strong>. Hoy existe la estrategia de <strong>Colombia</strong> (prestaciones, parafiscales, auxilio de transporte, recargos de ley). Un empleado con país distinto usa ese mismo cálculo por defecto — por eso la alerta avisa que <strong>no es legalmente válido</strong> para otro país hasta construir y validar su estrategia con un contador local. <strong>La nómina de Colombia no cambió: quedó idéntica.</strong></p>
+
+            <div class="sub-title">Modo de facturación: Interno vs. Legal</div>
+            <p>En <strong>Localización</strong> el superadmin elige el <strong>modo de factura</strong>: <strong>Interno</strong> (comprobante/recibo propio, sin dependencias externas — lo actual) o <strong>Legal</strong> (factura electrónica con el proveedor certificado del país). El modo Legal es una integración por país (costo/contrato del negocio) que se conecta más adelante; la alerta te indica cuál es el sistema objetivo de tu país.</p>
+
+            <div class="tip"><strong>Para técnicos:</strong> los country packs viven en <code>database/paises/&lt;ISO&gt;.sql</code> (y su copia en <code>install/sql/paises/</code>). El catálogo de países (moneda/impuesto/estado/sistema de facturación) es <code>app/helpers/PaisesHelper.php</code> — fuente única que alimentan Admin y el instalador. Para agregar un país: copia <code>XX.sql</code>, pon el plan de cuentas oficial conservando la columna <code>rol</code>, y ajusta su fila en el catálogo.</div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
         <!--  MÓDULO: ADMIN                                                -->
         <!-- ══════════════════════════════════════════════════════════════ -->
         <div class="section" id="admin">
@@ -1803,7 +1854,7 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
                 <tr><td>Base de Datos</td><td>4 funciones: backup SQL, backup código ZIP, ejecutar migración .sql, aplicar actualización .zip</td></tr>
                 <tr><td>Mantenimiento de datos</td><td><strong>Solo superadmin.</strong> Limpieza masiva de registros (ver abajo)</td></tr>
                 <tr><td>Auditor de costos</td><td><strong>Solo superadmin.</strong> Diagnostica la cadena de costos: insumos con costo desalineado de su presentación, productos con receta pero costo en 0 (con botón "Recalcular costos"), equivalencias físicas a medias y compras con presentación incoherente. Solo lectura + recalcular; no borra ni edita maestros.</td></tr>
-                <tr><td>Pruebas de integridad</td><td><strong>Solo superadmin.</strong> Ejecuta la suite de tests (<code>/tests/suite.php</code>, 37 grupos): esquema, datos, seguridad, formato, contabilidad de partida doble, etc.</td></tr>
+                <tr><td>Pruebas de integridad</td><td><strong>Solo superadmin.</strong> Ejecuta la suite de tests (<code>/tests/suite.php</code>, 38 grupos): esquema, datos, seguridad, formato, contabilidad de partida doble, multi-país, etc.</td></tr>
             </table>
 
             <div class="sub-title">Mantenimiento de datos (v5.0) — solo superadmin</div>
@@ -2149,6 +2200,7 @@ La barra de progreso muestra el % del PE alcanzado en el mes</span></div>
                     <tr><td>G35 Mantenimiento y filtro</td><td>Página/endpoint de mantenimiento presentes. Helper de filtro de estado genera los fragmentos SQL esperados.</td></tr>
                     <tr><td>G36 Coherencia de costos (COGS)</td><td>costo_unit_snap (mig. 044) nunca negativo. Costo de insumo alineado a su presentación. P&amp;G/simulador/auditor presentes.</td></tr>
                     <tr><td>G37 Contabilidad (partida doble)</td><td>Tablas de la mig. 045 y plan de cuentas sembrado. <strong>Todo asiento cuadra</strong> (Σ debe = Σ haber). Líneas válidas. <strong>El Balance General cuadra</strong>.</td></tr>
+                    <tr><td>G38 Multi-país</td><td>Columnas rol/país (mig. 047) y claves de localización presentes. Cada plan de cuentas por país cubre los 19 roles. <code>cuentaRol()</code> resuelve. Estrategias de nómina presentes (<code>PayrollStrategy</code> + Colombia).</td></tr>
                     <tr><td>Auditoría y Seguridad</td><td><code>logs_historial</code> activo. Contraseñas de usuarios usan bcrypt.</td></tr>
                 </tbody>
             </table>
