@@ -58,6 +58,9 @@
  *                              ≈ precio_ref/cantidad_base; equivalencia física coherente (v5.1)
  *   G37  Contabilidad         — partida doble (mig 045): tablas + plan de cuentas sembrado;
  *                              todo asiento cuadra; Balance General cuadra (v5.5)
+ *   G38  Multi-país           — desacople del PUC (mig 047): columnas rol/pais + claves de
+ *                              localización; cada country pack cubre los 19 roles;
+ *                              cuentaRol() resuelve; packs database/paises/ presentes (v6.3)
  *
  * EJECUTAR: /tests/suite.php (navegador, sesión activa como superadmin)
  */
@@ -1989,6 +1992,78 @@ if ($tieneContab) {
         empty($faltan_ct), empty($faltan_ct) ? '' : 'Faltan: ' . implode(', ', $faltan_ct));
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+//  G38 — MULTI-PAÍS (migración 047, Fase A/B)
+//  Verifica el desacople del motor contable del PUC colombiano: columnas rol/pais,
+//  claves de localización, y que cada country pack cubra los 19 roles (completitud).
+// ════════════════════════════════════════════════════════════════════════════════
+
+$G = 'G38 Multi-país (contabilidad por roles)';
+
+$rolPaisOk = tabla_existe($pdo, 'cuentas_contables')
+    && columna_existe($pdo, 'cuentas_contables', 'rol')
+    && columna_existe($pdo, 'cuentas_contables', 'pais');
+t($G, "cuentas_contables tiene columnas rol/pais (migración 047)",
+    $rolPaisOk, "Aplicar 047_multipais_nucleo.sql en producción.", !$rolPaisOk);
+
+// Claves de localización en configuracion_app (mig 047)
+if (tabla_existe($pdo, 'configuracion_app')) {
+    $locKeys = (int)scalar($pdo,
+        "SELECT COUNT(*) FROM configuracion_app
+         WHERE clave IN ('pais','moneda_codigo','moneda_simbolo','moneda_decimales','impuesto_nombre','factura_modo')");
+    t($G, "Claves de localización sembradas (pais/moneda/impuesto/factura_modo)",
+        $locKeys === 6, "Solo {$locKeys}/6 claves — revisar seed de configuracion_app (mig 047).",
+        $locKeys > 0 && $locKeys < 6);
+}
+
+if ($rolPaisOk) {
+    $ROLES_ESPERADOS = ['caja','bancos','cxc_fiado','inv_terminado','inv_insumos','imp_descontable',
+        'activos_fijos','deprec_acumulada','proveedores_por_pagar','imp_ventas_por_pagar',
+        'nomina_por_pagar','capital','utilidad','ingresos','costo_ventas','gasto_nomina',
+        'gasto_depreciacion','gastos_operativos','obsequios_mermas'];
+
+    // Mapa país → conjunto de roles sembrados
+    $porPais = [];
+    foreach ($pdo->query("SELECT pais, rol FROM cuentas_contables WHERE rol IS NOT NULL AND rol <> ''")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $porPais[$r['pais']][$r['rol']] = true;
+    }
+
+    // País activo: su pack DEBE cubrir los 19 roles (si no, el motor cae al fallback CO)
+    $paisActivo = (string)(scalar($pdo, "SELECT valor FROM configuracion_app WHERE clave='pais'") ?: 'CO');
+    $faltanActivo = array_values(array_diff($ROLES_ESPERADOS, array_keys($porPais[$paisActivo] ?? [])));
+    t($G, "País activo ('{$paisActivo}') cubre los 19 roles contables",
+        empty($faltanActivo),
+        empty($faltanActivo) ? '' : 'Roles sin cuenta: ' . implode(', ', $faltanActivo));
+
+    // Cualquier otro país sembrado también debería estar completo (WARN si parcial)
+    foreach ($porPais as $p => $set) {
+        if ($p === $paisActivo) continue;
+        $faltan = array_values(array_diff($ROLES_ESPERADOS, array_keys($set)));
+        t($G, "Country pack '{$p}' completo (19 roles)",
+            empty($faltan),
+            empty($faltan) ? '' : "Pack parcial — roles sin cuenta: " . implode(', ', $faltan),
+            !empty($faltan)); // parcial = WARN (puede ser un pack en construcción)
+    }
+
+    // Resolución por roles funciona en el país activo
+    require_once BASE_PATH . '/app/models/ContabilidadModel.php';
+    $sinResolver = [];
+    foreach ($ROLES_ESPERADOS as $rol) {
+        if (!ContabilidadModel::cuentaRol($rol)) $sinResolver[] = $rol;
+    }
+    t($G, "ContabilidadModel::cuentaRol() resuelve los 19 roles",
+        empty($sinResolver),
+        empty($sinResolver) ? '' : 'No resuelven: ' . implode(', ', $sinResolver));
+}
+
+// Country packs presentes en el repo (Fase B)
+$faltan_packs = array_values(array_filter(
+    ['database/paises/CO.sql','database/paises/MX.sql','database/paises/XX.sql','database/paises/README.md'],
+    fn($f) => !file_exists(BASE_PATH . '/../' . $f)));
+t($G, "Country packs presentes (database/paises/: CO, MX, XX, README)",
+    empty($faltan_packs), empty($faltan_packs) ? '' : 'Faltan: ' . implode(', ', $faltan_packs),
+    !empty($faltan_packs)); // WARN: los .sql pueden no subirse al servidor (se usan al instalar)
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;
@@ -2048,7 +2123,7 @@ $total_pruebas = $pass + $fail + $warn;
     Ejecutado: <?= date('d/m/Y H:i:s') ?> |
     <?= $tiempo ?>s |
     <?= $total_pruebas ?> pruebas |
-    37 grupos
+    38 grupos
 </p>
 
 <!-- Resumen global -->

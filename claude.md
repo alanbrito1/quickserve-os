@@ -4263,3 +4263,61 @@ ContabilidadModel usa ROLES semánticos resueltos por país (6 postear_* migrado
 generaliza el IVA); FormatoHelper moneda por país; Admin → Apariencia sección Localización. Verificado
 en MariaDB aislada (44 asientos + Balance cuadran; Colombia idéntico; prueba MX resuelve a códigos SAT).
 `APP_VERSION` → 6.3. Sin cambios de comportamiento en Colombia.*
+
+---
+
+## Estado v6.4 (2026-07-08) — Arquitectura multi-país, Fase B: country packs (plan de cuentas por país)
+
+Segunda fase del plan multi-país. Fase A dio el motor país-agnóstico (roles); Fase B entrega los
+**country packs**: el plan de cuentas de cada país mapeado a los roles + su localización, como
+archivos aplicables (una pieza por país). Valida el diseño **con 2 países** (Colombia + México)
+end-to-end. La contabilidad es la parte **menos riesgosa** de localizar (planes de cuentas =
+catálogos públicos); nómina (Fase C) y facturación (Fase D) exigen asesoría local.
+
+### `database/paises/` — formato de country pack (nuevo)
+- **`CO.sql`** (Colombia, PUC simplificado, COP/IVA 19%) · **`MX.sql`** (México, **código
+  agrupador SAT**, MXN/IVA 16% — *arranque a validar por contador MX*) · **`XX.sql`** (genérico,
+  numeración neutra, para cualquier país nuevo o configurable) · **`README.md`** (formato, los 19
+  roles que todo pack debe cubrir, cómo aplicar/añadir un país, alcance honesto por fase).
+- Cada pack: `INSERT IGNORE` de las 19 cuentas con su `rol`+`pais` (aditivo, coexisten varios
+  países en la BD) + `INSERT … ON DUPLICATE KEY UPDATE` de la localización (`configuracion_app`
+  país/moneda/impuesto/factura_modo + `configuracion_negocio.iva_tarifa`). Idempotente, sin `USE`.
+- **Aplicar** = correr el `.sql` como una migración (`mysql … < database/paises/MX.sql`) → la
+  instancia pasa a operar como ese país. Un solo país activo (`configuracion_app.pais`); el
+  superadmin también lo cambia en Admin → Localización. El instalador cargará el pack elegido en
+  Fase E.
+- **Lo que el motor usa es el ROL, no el código** → el plan de cuentas de un país se puede ajustar
+  (revisión de un contador local) sin tocar código de la app.
+
+### Suite G38 «Multi-país» (38 grupos)
+Columnas `rol`/`pais` (mig 047) + 6 claves de localización presentes; **el país activo cubre los 19
+roles** (si falta alguno el motor cae al fallback CO — FAIL); cada otro país sembrado completo (WARN
+si parcial); `ContabilidadModel::cuentaRol()` resuelve los 19 roles; packs `database/paises/`
+presentes (WARN — los `.sql` pueden no subirse al servidor, se usan al instalar).
+
+### Verificación (MariaDB aislada, sin tocar config real)
+- `schema.sql` (CO) + `sample_data.sql` + **aplicar `MX.sql`** → país=MX, 19 cuentas MX (código
+  SAT) **+ 19 CO coexisten**, MXN, IVA 16%.
+- Harness E2E bajo MX: los **6 flujos** postean → **44 asientos / 136 líneas cuadran**, **Balance
+  cuadra**, y el **100% de las líneas usan cuentas MX** (ej. venta: `100.01 Caja` / `401.01 Ventas`
+  / `501.01 Costo de venta` / `115.01 Inventario`). Mismos totales que Colombia (solo cambian los
+  códigos) → **el diseño funciona con 2 países reales**.
+
+### Pendiente (siguientes fases)
+- **Fase C — Nómina por país:** extraer Colombia a `PayrollStrategyColombia` + interface
+  `PayrollStrategy` enrutada por `empleados.pais_laboral`; agregar México (ISR/IMSS/aguinaldo) con
+  **asesoría laboral local**. Es la fase de mayor riesgo legal.
+- **Fase D — Facturación conmutable** interno/legal (toggle ya sembrado en `factura_modo`) con
+  driver/PAC por país (CFDI/SAT, DTE/SII, DIAN…). **Fase E — Empaquetado:** el instalador pregunta
+  el país → carga su country pack; i18n si aplica (Brasil = portugués).
+- Más países: copiar `XX.sql` → `<ISO>.sql` con el plan oficial (PCGE Perú, SII Chile, PGC España…),
+  conservando `rol`/`pais`; validar con el harness + G38.
+- Usuario (runtime): aplicar **mig 047**; para operar en otro país, correr su pack (`database/paises/<ISO>.sql`)
+  o elegirlo en Admin → Localización.
+
+*Última actualización: 2026-07-08 | v6.4 — Fase B multi-país (country packs): `database/paises/`
+con CO/MX/XX + README (plan de cuentas por país mapeado a roles + localización, aplicable como
+migración; México = código agrupador SAT a validar). Suite G38 (38 grupos: rol/pais, localización,
+completitud de packs, resolución). Verificado en MariaDB: aplicar MX.sql → 6 flujos postean bajo MX,
+44 asientos + Balance cuadran, 100% líneas con códigos SAT (Colombia + México validan el diseño).
+`APP_VERSION` → 6.4. Sin cambios de comportamiento en Colombia.*
