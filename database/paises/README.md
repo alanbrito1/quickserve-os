@@ -72,13 +72,48 @@ en `cuentas_contables` cubra los 19 roles.
 4. Validar con el harness contable (postear los 6 flujos → asientos y Balance cuadran) y
    correr `tests/suite.php` G38.
 
+## Facturación electrónica legal por país (objetivo de integración — Fase D)
+
+El catálogo `app/helpers/PaisesHelper.php` guarda, por país, el **sistema de facturación
+electrónica legal representativo** — el objetivo de integración del modo "Legal" (Fase D).
+Hoy el sistema opera en modo **Interno** (comprobante propio, sin dependencias externas); el
+modo Legal integra un **proveedor certificado/PAC** por país (costo y contrato del negocio).
+
+| País | Sistema legal representativo |
+|------|------------------------------|
+| Colombia (CO) | **DIAN** — Factura Electrónica (proveedor tecnológico autorizado) |
+| México (MX) | **SAT** — CFDI 4.0 (vía **PAC**: Proveedor Autorizado de Certificación) |
+| Perú (PE) | **SUNAT** — Comprobante de Pago Electrónico (OSE/PSE) |
+| Chile (CL) | **SII** — Documento Tributario Electrónico (DTE) |
+| España (ES) | **AEAT** — Veri*Factu / SII (TicketBAI en el País Vasco) |
+| Panamá (PA) | **DGI** — Factura Electrónica de Panamá (PAC) |
+| Ecuador (EC) | **SRI** — Comprobantes Electrónicos |
+| Argentina (AR) | **AFIP/ARCA** — Factura Electrónica (CAE) |
+| Brasil (BR) | **SEFAZ** — NF-e / NFC-e (SPED) — el más complejo; varía por estado/municipio |
+| Paraguay (PY) | **DNIT** — SIFEN (Factura Electrónica Nacional) |
+| Uruguay (UY) | **DGI** — Comprobante Fiscal Electrónico (CFE) |
+
+Estos nombres se muestran como **alerta de consideraciones** cuando el superadmin elige el
+país en Admin → Apariencia → Localización, y cuando se elige el país en el instalador.
+
 ## Alcance y honestidad
 
 - La **contabilidad** (este pack) es la parte menos riesgosa de localizar: los planes de
   cuentas son catálogos públicos y estandarizados. Aun así, **el mapeo definitivo debe
   revisarlo un contador del país**.
-- La **nómina** (prestaciones, aportes, impuestos laborales) es **Fase C** — cada país
-  exige la validación de un contador/abogado laboral local; no es solo "corre sin error",
-  debe dar el neto/aportes correctos por ley.
-- La **facturación electrónica legal** (CFDI/SAT, DTE/SII, DIAN, etc.) es **Fase D** —
-  requiere integrar un **proveedor certificado por país** (costo/contrato del negocio).
+- La **nómina** (prestaciones, aportes, impuestos laborales) es **Fase C** — hoy solo
+  Colombia tiene cálculo validado; los demás países usan el motor colombiano por fallback
+  (NO válido legalmente) hasta tener su `PayrollStrategy` propia, que exige la validación de
+  un contador/abogado laboral local (no basta "corre sin error": debe dar el neto/aportes
+  correctos por ley).
+- La **facturación electrónica legal** (tabla de arriba) es **Fase D** — requiere integrar un
+  **proveedor certificado por país** (costo/contrato del negocio); **Brasil es el más costoso**.
+
+## El instalador elige el país
+
+El instalador web (`/install/`) incluye un **selector de país** en el paso "Negocio": al
+instalar aplica el country pack del país elegido (o fija su localización desde
+`PaisesHelper` si aún no tiene pack dedicado) y muestra la alerta de consideraciones. Para
+mantenerlo funcionando en el servidor (donde solo se sube `public_html/`), los packs se
+copian en `public_html/install/sql/paises/` — **mantener esas copias sincronizadas** con
+`database/paises/`.

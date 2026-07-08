@@ -10,6 +10,7 @@
  */
 
 require_once __DIR__ . '/lib.php';
+require_once __DIR__ . '/../app/helpers/PaisesHelper.php';
 session_start();
 
 /** Escape corto para HTML. */
@@ -58,7 +59,9 @@ $neg = [
     'admin_nombre' => trim($_POST['admin_nombre'] ?? ''),
     'admin_email'  => trim($_POST['admin_email'] ?? ''),
     'ejemplo'      => isset($_POST['ejemplo']),
+    'pais'         => strtoupper(preg_replace('/[^A-Za-z]/', '', $_POST['pais'] ?? 'CO')) ?: 'CO',
 ];
+if (!isset(paises_meta()[$neg['pais']])) $neg['pais'] = 'CO';
 $okConfig     = true;
 $configManual = '';
 
@@ -101,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (!$schema) throw new RuntimeException('No se encontró el script schema.sql.');
 
                         qs_run_sql_file($pdo, $schema);
+                        qs_aplicar_pais($pdo, $neg['pais']);   // país elegido → plan de cuentas + localización (Fase E)
                         if ($neg['ejemplo']) {
                             $sd = qs_sql_path('sample_data.sql');
                             if ($sd) qs_run_sql_file($pdo, $sd);
@@ -205,6 +209,19 @@ render_layout($titulos[$paso] ?? 'Instalación', function () use ($paso, $errore
            . '<input type="hidden" name="db_pass" value="' . h($db['pass']) . '">'
            . ($db['crear'] ? '<input type="hidden" name="db_crear" value="1">' : '');
         campo('negocio', 'Nombre del negocio', $neg['negocio'], 'text', 'Aparecerá en el menú, login y reportes');
+
+        // Selector de país (define moneda, impuesto y plan de cuentas — Fase E)
+        echo '<label class="field"><span>País del negocio</span>'
+           . '<select name="pais" id="inst-pais" onchange="instPais()" '
+           . 'style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:#fff">';
+        foreach (paises_meta() as $iso => $m) {
+            echo '<option value="' . h($iso) . '"' . ($neg['pais'] === $iso ? ' selected' : '') . '>'
+               . h($m['nombre']) . ' (' . h($iso) . ')</option>';
+        }
+        echo '</select><em class="hint">Fija la moneda, el impuesto y el plan de cuentas contable de tu país.</em></label>';
+        echo '<div id="inst-loc-alert" style="display:none;border-radius:10px;padding:11px 13px;'
+           . 'margin:2px 0 10px;font-size:12px;line-height:1.5;border:1px solid #fcd34d;background:#fffbeb;color:#78350f"></div>';
+
         echo '<div class="sep">Administrador</div>';
         campo('admin_nombre', 'Nombre del administrador', $neg['admin_nombre']);
         campo('admin_email', 'Correo (usuario para entrar)', $neg['admin_email'], 'email');
@@ -215,6 +232,30 @@ render_layout($titulos[$paso] ?? 'Instalación', function () use ($paso, $errore
            . '<span class="muted">(productos e insumos de muestra, editables o borrables después)</span></label>';
         echo '<button class="btn" type="submit">Instalar QuickServe OS</button>';
         echo '</form>';
+
+        // Alerta dinámica de consideraciones según el país elegido
+        $metaJson = json_encode(paises_meta(), JSON_UNESCAPED_UNICODE);
+        echo <<<HTML
+<script>
+var PAISES_META = {$metaJson};
+function instPais(){
+  var iso=document.getElementById('inst-pais').value, m=PAISES_META[iso], el=document.getElementById('inst-loc-alert');
+  if(!m){ el.style.display='none'; return; }
+  var contab=(m.contabilidad==='pack')
+    ? '✅ <b>Contabilidad:</b> plan de cuentas de '+m.nombre+' incluido.'
+    : '⚙️ <b>Contabilidad:</b> plan de cuentas genérico (ajústalo al plan oficial de '+m.nombre+' después de instalar).';
+  var nom=(m.nomina==='validada')
+    ? '✅ <b>Nómina:</b> cálculo de '+m.nombre+' validado.'
+    : '⚠️ <b>Nómina:</b> por ahora usa el motor colombiano por defecto — <b>NO es válida legalmente para '+m.nombre+'</b> hasta tener una estrategia local validada por un contador.';
+  var fac='🧾 <b>Facturación legal:</b> '+m.factura_legal+'. Requiere integrar un proveedor certificado del país (fase posterior); por ahora, comprobante Interno.';
+  var ok=(m.contabilidad==='pack'&&m.nomina==='validada');
+  el.style.borderColor=ok?'#86efac':'#fcd34d'; el.style.background=ok?'#f0fdf4':'#fffbeb'; el.style.color=ok?'#14532d':'#78350f';
+  el.innerHTML='<div style="font-weight:700;margin-bottom:5px">Consideraciones para '+m.nombre+'</div>'+contab+'<br>'+nom+'<br>'+fac;
+  el.style.display='block';
+}
+instPais();
+</script>
+HTML;
         return;
     }
 

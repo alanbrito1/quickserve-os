@@ -5,6 +5,7 @@
  * Los cambios se guardan en configuracion_app y se inyectan via nav.php.
  */
 require_once __DIR__ . '/../app/middleware/auth_check.php';
+require_once __DIR__ . '/../app/helpers/PaisesHelper.php';
 
 $nav_activo = 'admin';
 $nav_sub    = 'apariencia';
@@ -431,12 +432,15 @@ $FUENTES = [
             <span class="hint" style="display:block;margin-bottom:10px">Define el país operativo de la instancia. La contabilidad usa roles semánticos de cuenta, así que el motor no depende de un plan de cuentas de un país concreto. Colombia es el valor por defecto.</span>
             <div class="fg">
                 <label>País operativo</label>
-                <select id="ap-pais">
+                <select id="ap-pais" onchange="onPaisChange(true)">
                     <?php foreach ($PAISES as $iso => $nom): ?>
                     <option value="<?= $iso ?>" <?= $v['pais'] === $iso ? 'selected' : '' ?>><?= htmlspecialchars($nom) ?> (<?= $iso ?>)</option>
                     <?php endforeach; ?>
                 </select>
             </div>
+
+            <!-- Alerta de consideraciones del país (dinámica) -->
+            <div id="loc-alert" style="display:none;border-radius:10px;padding:12px 14px;margin:4px 0 12px;font-size:12.5px;line-height:1.5;border:1px solid #fcd34d;background:#fffbeb;color:#78350f"></div>
             <div class="fg">
                 <label>Símbolo de la moneda</label>
                 <input type="text" id="ap-moneda-simbolo" maxlength="4" value="<?= htmlspecialchars($v['moneda_simbolo']) ?>" placeholder="$">
@@ -511,6 +515,43 @@ function toast(m,t){
     var el=document.getElementById('toast'); el.textContent=m;
     el.className='toast toast-'+t+' on';
     clearTimeout(_tt); _tt=setTimeout(function(){ el.classList.remove('on'); },3200);
+}
+
+/* ── Localización: metadatos por país + alerta de consideraciones ───── */
+var PAISES_META = <?= json_encode(paises_meta(), JSON_UNESCAPED_UNICODE) ?>;
+
+function onPaisChange(prefill){
+    var iso = document.getElementById('ap-pais').value;
+    var m   = PAISES_META[iso];
+    if (!m) { document.getElementById('loc-alert').style.display='none'; return; }
+
+    // Al ELEGIR un país (prefill=true), sugerir su moneda e impuesto (editable después).
+    if (prefill) {
+        document.getElementById('ap-moneda-simbolo').value   = m.moneda_simbolo;
+        document.getElementById('ap-moneda-codigo').value    = m.moneda_codigo;
+        document.getElementById('ap-moneda-decimales').value = String(m.moneda_decimales);
+        document.getElementById('ap-impuesto-nombre').value  = m.impuesto_nombre;
+    }
+
+    // Alerta de consideraciones (honesta) según el estado de cada capa.
+    var contab = (m.contabilidad === 'pack')
+        ? '✅ <b>Contabilidad:</b> plan de cuentas de ' + m.nombre + ' disponible.'
+        : '⚙️ <b>Contabilidad:</b> usa un plan de cuentas genérico. Carga/ajusta el plan oficial de ' + m.nombre + ' (ver database/paises/).';
+    var nomina = (m.nomina === 'validada')
+        ? '✅ <b>Nómina:</b> cálculo de ' + m.nombre + ' validado.'
+        : '⚠️ <b>Nómina:</b> por ahora usa el motor <u>colombiano</u> por defecto — <b>NO es válida legalmente para ' + m.nombre + '</b>. Requiere una estrategia local validada por un contador/abogado laboral.';
+    var factura = '🧾 <b>Facturación legal:</b> ' + m.factura_legal + '.'
+        + ' La factura electrónica legal requiere integrar un <b>proveedor certificado</b> del país (costo/contrato del negocio). Mientras tanto, usa el modo <b>Interno</b> (comprobante propio).';
+
+    var el = document.getElementById('loc-alert');
+    // Verde si todo está validado (solo Colombia hoy); ámbar si hay pendientes.
+    var todoOk = (m.contabilidad === 'pack' && m.nomina === 'validada');
+    el.style.borderColor = todoOk ? '#86efac' : '#fcd34d';
+    el.style.background   = todoOk ? '#f0fdf4' : '#fffbeb';
+    el.style.color        = todoOk ? '#14532d' : '#78350f';
+    el.innerHTML = '<div style="font-weight:700;margin-bottom:6px">Consideraciones para ' + m.nombre + '</div>'
+                 + contab + '<br>' + nomina + '<br>' + factura;
+    el.style.display = 'block';
 }
 
 /* ── Sincronizar picker de color con campo de texto ─────────────────── */
@@ -656,6 +697,9 @@ async function guardarApariencia(){
         else toast(d.error||'Error al guardar.','err');
     } catch(e){ toast('Error de conexión.','err'); }
 }
+
+/* Mostrar la alerta del país actual al cargar (sin sobreescribir los valores guardados). */
+onPaisChange(false);
 </script>
 <!-- Flags para quitar logos -->
 <input type="hidden" id="logo-quitar"       value="0">

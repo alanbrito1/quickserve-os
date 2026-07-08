@@ -4373,3 +4373,62 @@ Colombia): extracción verbatim del cálculo colombiano a `PayrollStrategyColomb
 `estrategia($pais)` enruta por `pais_laboral` (default/fallback Colombia). Colombia IDÉNTICO (golden
 test 7/7 + wiring `===`). Suite G38 verifica las estrategias. NO se construyó nómina extranjera (Fase C
 completa = con asesoría laboral local). `APP_VERSION` → 6.5.*
+
+---
+
+## Estado v6.6 (2026-07-08) — Multi-país UX: catálogo de países, alerta de consideraciones + instalador elige país
+
+A pedido del usuario: (1) al **elegir un país** mostrar una **alerta de consideraciones** (qué está
+listo vs. qué requiere validación/integración local), (2) documentar las **integraciones de
+facturación representativas** por país, (3) el **instalador debe elegir el país**. Todo se centraliza
+en una **fuente única de metadatos por país**.
+
+### `app/helpers/PaisesHelper.php` (nuevo) — catálogo único
+`paises_meta()` / `pais_meta($iso)` — por cada país (CO, MX, PE, CL, ES, PA, EC, AR, BR, PY, UY + XX
+genérico): `nombre`, `moneda_codigo/simbolo/decimales`, `impuesto_nombre/tarifa`, y estados honestos:
+- `contabilidad`: `pack` (tiene plan de cuentas propio en `database/paises/<ISO>.sql` → CO, MX) o
+  `generico` (usa plan genérico/CO por fallback de rol; ajustar al oficial).
+- `nomina`: `validada` (solo **Colombia** hoy) o `fallback` (usa el motor colombiano — **NO válido
+  legalmente** para ese país hasta tener su `PayrollStrategy` validada por un contador).
+- `factura_legal`: el sistema de **facturación electrónica legal representativo** (objetivo de
+  integración Fase D): **DIAN** (CO), **CFDI 4.0/SAT vía PAC** (MX), **SUNAT** OSE/PSE (PE), **SII**
+  DTE (CL), **AEAT** Veri*Factu/TicketBAI (ES), **DGI** (PA/UY), **SRI** (EC), **AFIP/ARCA** CAE (AR),
+  **SEFAZ** NF-e/SPED (BR, el más complejo), **DNIT** SIFEN (PY).
+
+### Admin → Apariencia → Localización
+El selector de país ahora: (a) **autocompleta** moneda (símbolo/código/decimales) e impuesto al
+elegir un país (editable), y (b) muestra una **alerta dinámica** (`#loc-alert`, verde si todo
+validado — solo CO — ámbar si hay pendientes) con las 3 consideraciones (contabilidad / nómina /
+facturación legal). `PAISES_META` embebido como JSON; se pinta también al cargar (sin sobreescribir
+lo guardado).
+
+### Instalador (`/install/`) elige el país (Fase E — inicio)
+- Nuevo **selector de país** en el paso "Negocio" + la **misma alerta** de consideraciones (JS
+  con `paises_meta()`).
+- `lib.php`: **`qs_aplicar_pais($pdo,$iso)`** — si el país tiene country pack lo ejecuta
+  (`qs_pais_pack_path` busca `../../database/paises/<ISO>.sql` o `./sql/paises/<ISO>.sql`); si no,
+  fija la localización desde `PaisesHelper` (el plan de cuentas queda CO por fallback). Se llama en
+  la instalación tras `schema.sql`, antes de `sample_data.sql`.
+- Packs copiados a **`public_html/install/sql/paises/{CO,MX,XX}.sql`** (+ `.htaccess` deny) — el
+  servidor solo recibe `public_html/`. **Mantenerlos sincronizados** con `database/paises/`.
+
+### Verificación (MariaDB aislada)
+- Instalar con **MX** (país con pack): `qs_aplicar_pais` aplica el pack SAT → país=MX, MXN, **19
+  cuentas MX** con rol, IVA 16. **Instalar con PE** (sin pack): fija país=PE, PEN, S/, IGV, tarifa
+  18, y **el plan CO permanece** (el motor lo usa por fallback de rol; sin cuentas PE dedicadas —
+  esperado). **11/11 checks PASS.**
+
+### Pendiente (fases que requieren terceros/asesoría — no se improvisan)
+- **Nómina por país** (Fase C completa): `PayrollStrategy<País>` validada por un contador/abogado
+  laboral local. La alerta ya avisa que hoy es fallback colombiano.
+- **Facturación legal** (Fase D): integrar el PAC/proveedor certificado de cada país (la alerta ya
+  nombra el sistema objetivo). **Brasil = el más costoso.**
+- **Country packs de más países** (PE/CL/ES/…): copiar `XX.sql` → `<ISO>.sql` con el plan oficial;
+  el instalador y Admin los detectan automáticamente.
+
+*Última actualización: 2026-07-08 | v6.6 — multi-país UX: catálogo único `PaisesHelper` (moneda/
+impuesto + estado contabilidad/nómina + sistema de facturación legal por país); Admin → Localización
+autocompleta moneda/impuesto y muestra alerta de consideraciones al elegir país; el instalador elige
+país (selector + `qs_aplicar_pais()` aplica pack o localización + misma alerta; packs en
+install/sql/paises/). README de paises documenta la facturación por país. Verificado en MariaDB
+(instalar MX = pack SAT; PE = localización + plan CO por fallback, 11/11). `APP_VERSION` → 6.6.*

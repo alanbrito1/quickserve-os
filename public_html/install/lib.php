@@ -226,6 +226,61 @@ function qs_set_negocio(PDO $pdo, string $nombreNegocio): void
     )->execute([$nombreNegocio]);
 }
 
+/** Ruta del country pack de un país (database/paises/<ISO>.sql o ./sql/paises/<ISO>.sql). */
+function qs_pais_pack_path(string $iso): ?string
+{
+    $iso = strtoupper(preg_replace('/[^A-Za-z]/', '', $iso));
+    if ($iso === '') return null;
+    foreach ([
+        dirname(dirname(__DIR__)) . '/database/paises/' . $iso . '.sql', // ../../database/paises/
+        __DIR__ . '/sql/paises/' . $iso . '.sql',                        // ./sql/paises/
+    ] as $p) {
+        if (is_file($p)) return $p;
+    }
+    return null;
+}
+
+/**
+ * Aplica el país elegido en el instalador (multi-país, Fase E).
+ * Si el país tiene country pack (plan de cuentas propio), lo ejecuta; si no, fija la
+ * localización (país/moneda/impuesto) desde el catálogo de países — el plan de cuentas
+ * queda genérico (el motor contable usa el fallback por rol). factura_modo = 'interno'.
+ */
+function qs_aplicar_pais(PDO $pdo, string $iso): void
+{
+    $iso  = strtoupper(preg_replace('/[^A-Za-z]/', '', $iso)) ?: 'CO';
+    $pack = qs_pais_pack_path($iso);
+    if ($pack) {                       // País con plan de cuentas propio → aplicar pack (idempotente)
+        qs_run_sql_file($pdo, $pack);
+        return;
+    }
+
+    // Sin pack dedicado → solo localización desde el catálogo de países.
+    require_once dirname(__DIR__) . '/app/helpers/PaisesHelper.php';
+    $m = function_exists('pais_meta') ? pais_meta($iso) : null;
+    if (!$m) return;                   // ISO desconocido → dejar los defaults del schema (CO)
+
+    $upApp = $pdo->prepare(
+        "INSERT INTO configuracion_app (clave, valor) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE valor = VALUES(valor)"
+    );
+    foreach ([
+        'pais'             => $iso,
+        'moneda_codigo'    => $m['moneda_codigo'],
+        'moneda_simbolo'   => $m['moneda_simbolo'],
+        'moneda_decimales' => (string) $m['moneda_decimales'],
+        'impuesto_nombre'  => $m['impuesto_nombre'],
+        'factura_modo'     => 'interno',
+    ] as $k => $val) {
+        $upApp->execute([$k, $val]);
+    }
+    $pdo->prepare(
+        "INSERT INTO configuracion_negocio (clave, valor, descripcion, categoria)
+         VALUES ('iva_tarifa', ?, 'Tarifa del impuesto de ventas por defecto (%)', 'impuestos')
+         ON DUPLICATE KEY UPDATE valor = VALUES(valor)"
+    )->execute([(float) $m['impuesto_tarifa']]);
+}
+
 /** Genera el contenido de app/config/database.php con las credenciales dadas. */
 function qs_config_contenido(string $host, string $nombre, string $user, string $pass): string
 {
