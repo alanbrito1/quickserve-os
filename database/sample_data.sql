@@ -51,10 +51,11 @@ INSERT INTO `insumos`
 -- ── Presentaciones de compra catalogadas (mig. 039) ────────────────────────
 INSERT INTO `insumo_presentaciones`
     (`insumo_id`, `nombre`, `cantidad_base`, `unidad_compra`, `precio_referencia`, `es_predeterminada`, `activo`) VALUES
-(5,  'Caja x24 latas', 24.0000, 'caja', 72000.00, 1, 1),
-(9,  'Balde 4 kg',      4.0000, 'balde', 34000.00, 1, 1),
-(10, 'Paca x50',       50.0000, 'paca', 42000.00, 1, 1),
-(13, 'Six-pack',        6.0000, 'paca', 10200.00, 0, 1);
+-- precio_referencia = costo_actual × cantidad_base (coherente con el auditor de costos)
+(5,  'Caja x24 latas', 24.0000, 'caja', 76800.00, 1, 1),
+(9,  'Balde 4 kg',      4.0000, 'balde', 36000.00, 1, 1),
+(10, 'Paca x50',       50.0000, 'paca', 45000.00, 1, 1),
+(13, 'Six-pack',        6.0000, 'paca', 10800.00, 0, 1);
 
 -- ── Productos (ids 1..7) ───────────────────────────────────────────────────
 -- costo_calculado = Σ(insumo.costo_actual × cantidad_requerida) (recetas abajo).
@@ -71,11 +72,11 @@ INSERT INTO `productos`
 -- ── Recetas ────────────────────────────────────────────────────────────────
 INSERT INTO `recetas` (`producto_id`, `insumo_id`, `cantidad_requerida`, `es_insumo_critico`, `es_base`) VALUES
 -- P1 Clásico
-(1, 10, 2.000000, 1, 1), (1, 3, 2.000000, 0, 0), (1, 4, 2.000000, 0, 0), (1, 6, 0.100000, 0, 0), (1, 7, 0.050000, 0, 0),
+(1, 10, 2.000000, 0, 1), (1, 3, 2.000000, 1, 0), (1, 4, 2.000000, 0, 0), (1, 6, 0.100000, 0, 0), (1, 7, 0.050000, 0, 0),
 -- P2 Pollo
 (2, 10, 2.000000, 0, 1), (2, 1, 0.120000, 1, 0), (2, 6, 0.100000, 0, 0), (2, 7, 0.050000, 0, 0), (2, 9, 0.020000, 0, 0),
 -- P3 Vegetariano
-(3, 10, 2.000000, 1, 1), (3, 4, 2.000000, 0, 0), (3, 6, 0.150000, 0, 0), (3, 7, 0.080000, 0, 0), (3, 8, 0.030000, 0, 0),
+(3, 10, 2.000000, 0, 1), (3, 4, 2.000000, 1, 0), (3, 6, 0.150000, 0, 0), (3, 7, 0.080000, 0, 0), (3, 8, 0.030000, 0, 0),
 -- P4 Atún
 (4, 10, 2.000000, 0, 1), (4, 5, 0.500000, 1, 0), (4, 9, 0.020000, 0, 0), (4, 8, 0.020000, 0, 0),
 -- P5 Papas
