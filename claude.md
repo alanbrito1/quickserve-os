@@ -4321,3 +4321,55 @@ migración; México = código agrupador SAT a validar). Suite G38 (38 grupos: ro
 completitud de packs, resolución). Verificado en MariaDB: aplicar MX.sql → 6 flujos postean bajo MX,
 44 asientos + Balance cuadran, 100% líneas con códigos SAT (Colombia + México validan el diseño).
 `APP_VERSION` → 6.4. Sin cambios de comportamiento en Colombia.*
+
+---
+
+## Estado v6.5 (2026-07-08) — Arquitectura multi-país, Fase C (parte 1): nómina por estrategia de país
+
+Tercera fase del plan multi-país. **NO se cambió ni eliminó nada de la nómina de Colombia**: se
+hizo una **extracción sin cambios de fórmula** (refactor) para dejar la nómina *pluggable* por país,
+igual que Fase A hizo con la contabilidad. Decisión del usuario: "Extraer Colombia a estrategia
+(seguro)" — sin construir todavía nómina extranjera (eso es Fase C completa, con asesoría laboral
+local por país).
+
+### Qué se movió (verbatim) y qué NO cambió
+- **`app/models/payroll/PayrollStrategy.php`** (interface, nuevo): contrato del cálculo laboral por
+  país (`calcular` + helpers de jornada/recargos). Agregar un país = una clase que la implemente.
+- **`app/models/payroll/PayrollStrategyColombia.php`** (nuevo): el cálculo colombiano **copiado byte
+  por byte** desde `NominaModel` (4 tipos de contrato, prestaciones, parafiscales, aux transporte
+  Circ. 0058/2015, jornada Ley 2101/2021, recargos Art. 168-172 CST). **No se borró ninguna regla.**
+- **`NominaModel`**: los 4 métodos públicos (`calcular`, `horas_mes_estandar`,
+  `valor_hora_con_recargo`, `calcular_desglose_horas`) **siguen existiendo con la misma firma**, ahora
+  como **delegadores** de una línea a la estrategia colombiana → las vistas de Nómina, `registrar_horas`
+  y `liquidar_empleado` funcionan **igual que antes**.
+- Nuevo router **`NominaModel::estrategia(string $pais): PayrollStrategy`** (cacheado): enruta por
+  `empleados.pais_laboral`. Hoy `match` con **default = Colombia**; otros países (incl. 'México')
+  **caen al fallback colombiano** hasta tener su estrategia validada. `liquidar_empleado` ahora usa
+  `self::estrategia($pais)->calcular(...)` y `->horas_mes_estandar(...)` — para Colombia, idéntico.
+
+### Verificación (Colombia IDÉNTICO)
+- **Golden test 7/7:** se comparó el código *anterior* (copiado verbatim como funciones `old_*`)
+  contra `PayrollStrategyColombia::calcular` sobre 7 casos (tiempo_completo SMLMV, medio_tiempo,
+  por_horas con/sin recargos, por_servicio, salario >10 SMLMV con exención ICBF/SENA, sin aux) →
+  **cada campo idéntico** (costo empleador, neto, cargas, provisiones, descuentos).
+- **Cableado:** `NominaModel::calcular(...)` da resultado **`===`** al de la estrategia;
+  `estrategia('México')` cae a `PayrollStrategyColombia` (fallback). Require chain carga sin conectar
+  a BD (db() es lazy).
+- **Suite G38** amplía: estrategias de nómina presentes + `NominaModel::estrategia('Colombia')`
+  implementa `PayrollStrategy`.
+
+### Pendiente (Fase C completa y siguientes)
+- **Nómina de un país extranjero** (p. ej. México: ISR por tablas + IMSS + aguinaldo + prima
+  vacacional): nueva `PayrollStrategyMexico` registrada en el router + parámetros en
+  `parametros_laborales` (pais='México') + **validación de un contador/abogado laboral mexicano**
+  (no basta "corre sin error": debe dar el neto/aportes correctos por ley). `nomina_liquidaciones`
+  podría necesitar columnas genéricas/JSON para conceptos que no encajen en las columnas colombianas.
+- **Fase D — Facturación** conmutable interno/legal con driver/PAC por país. **Fase E — Empaquetado:**
+  instalador elige país → carga country pack + estrategia; i18n (Brasil).
+
+*Última actualización: 2026-07-08 | v6.5 — Fase C parte 1 (nómina por estrategia de país, SIN tocar
+Colombia): extracción verbatim del cálculo colombiano a `PayrollStrategyColombia` (interface
+`PayrollStrategy`); `NominaModel` conserva sus métodos públicos como delegadores; router
+`estrategia($pais)` enruta por `pais_laboral` (default/fallback Colombia). Colombia IDÉNTICO (golden
+test 7/7 + wiring `===`). Suite G38 verifica las estrategias. NO se construyó nómina extranjera (Fase C
+completa = con asesoría laboral local). `APP_VERSION` → 6.5.*

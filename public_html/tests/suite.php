@@ -2064,6 +2064,19 @@ t($G, "Country packs presentes (database/paises/: CO, MX, XX, README)",
     empty($faltan_packs), empty($faltan_packs) ? '' : 'Faltan: ' . implode(', ', $faltan_packs),
     !empty($faltan_packs)); // WARN: los .sql pueden no subirse al servidor (se usan al instalar)
 
+// Estrategias de nómina por país (Fase C — nómina desacoplada por PayrollStrategy)
+$faltan_pay = array_values(array_filter(
+    ['app/models/payroll/PayrollStrategy.php','app/models/payroll/PayrollStrategyColombia.php'],
+    fn($f) => !file_exists(BASE_PATH . '/' . $f)));
+t($G, "Estrategias de nómina presentes (PayrollStrategy + Colombia)",
+    empty($faltan_pay), empty($faltan_pay) ? '' : 'Faltan: ' . implode(', ', $faltan_pay));
+if (empty($faltan_pay)) {
+    require_once BASE_PATH . '/app/models/NominaModel.php';
+    $estrat = NominaModel::estrategia('Colombia');
+    t($G, "NominaModel::estrategia() enruta por país (Colombia → PayrollStrategy)",
+        $estrat instanceof PayrollStrategy, 'estrategia(Colombia) no implementa PayrollStrategy.');
+}
+
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────
 $tiempo        = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 $total_pruebas = $pass + $fail + $warn;

@@ -15,11 +15,34 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/AuditoriaHelper.php';
+require_once __DIR__ . '/payroll/PayrollStrategy.php';
+require_once __DIR__ . '/payroll/PayrollStrategyColombia.php';
 
 class NominaModel
 {
     // ── Cache de parámetros (una sola query por request) ─────────────────────
     private static array $paramsCache = [];
+
+    // ── Estrategias de nómina por país (Fase C multi-país) ───────────────────
+    private static array $estrategiasCache = [];
+
+    /**
+     * Estrategia de nómina para un país (enruta por `empleados.pais_laboral`).
+     * El cálculo laboral (prestaciones/aportes/recargos) es localizable: cada país tiene
+     * su propia clase PayrollStrategy. Hoy solo Colombia; otros países caen a Colombia
+     * hasta tener su estrategia validada (Fase C+). Agregar un país = una rama aquí.
+     */
+    public static function estrategia(string $pais = 'Colombia'): PayrollStrategy
+    {
+        $key = $pais !== '' ? $pais : 'Colombia';
+        if (!isset(self::$estrategiasCache[$key])) {
+            self::$estrategiasCache[$key] = match ($key) {
+                // 'México', 'MX' => new PayrollStrategyMexico(),  // Fase C — pendiente asesoría laboral MX
+                default => new PayrollStrategyColombia(),
+            };
+        }
+        return self::$estrategiasCache[$key];
+    }
 
     /** Invalida el caché de parámetros — llamar después de actualizar parametros_laborales. */
     public static function invalidar_cache(): void
@@ -80,19 +103,14 @@ class NominaModel
      *
      * Ejemplo Colombia 2026: 44h/semana × 52.14 / 12 = 191.18 h/mes
      */
+    // ── Delegadores al cálculo por país (Fase C) ──────────────────────────────
+    // Estos 4 métodos conservan su firma pública (los usan las vistas de nómina y
+    // liquidar_empleado) y delegan en la estrategia colombiana — comportamiento idéntico
+    // al anterior. liquidar_empleado usa la estrategia del país del empleado.
+
     public static function horas_mes_estandar(array $params): float
     {
-        $valor   = (float)($params['horas_jornada_valor']   ?? 44);
-        $periodo = (int)($params['horas_jornada_periodo']   ?? 1);
-
-        if ($periodo === 1) {
-            // Semanal → anualizar y dividir en 12 meses
-            // 52.14 = promedio de semanas exactas por año (365.25 / 7)
-            return round($valor * 52.14 / 12, 2);
-        } else {
-            // Mensual directo
-            return round($valor, 2);
-        }
+        return self::estrategia('Colombia')->horas_mes_estandar($params);
     }
 
     /**
@@ -117,16 +135,7 @@ class NominaModel
         float  $valor_hora,
         array  $params
     ): float {
-        $pct = match ($tipo_hora) {
-            'recargo_nocturno'       => $params['pct_recargo_nocturno']          ?? 35,
-            'extra_diurna'           => $params['pct_hora_extra_diurna']         ?? 25,
-            'extra_nocturna'         => $params['pct_hora_extra_nocturna']       ?? 75,
-            'festiva_ordinaria'      => $params['pct_hora_festiva_ordinaria']    ?? 75,
-            'extra_festiva_diurna'   => $params['pct_hora_extra_festiva_diurna'] ?? 100,
-            'extra_festiva_nocturna' => $params['pct_hora_extra_festiva_nocturna'] ?? 150,
-            default                  => 0,  // ordinaria: sin recargo
-        };
-        return round($valor_hora * (1 + $pct / 100), 4);
+        return self::estrategia('Colombia')->valor_hora_con_recargo($tipo_hora, $valor_hora, $params);
     }
 
     /**
@@ -142,39 +151,16 @@ class NominaModel
         float $valor_hora_base,
         array $params
     ): array {
-        $total_pago    = 0.0;
-        $horas_extras  = 0.0;
-        $detalle       = [];
-        $tipos_extra   = ['extra_diurna','extra_nocturna','extra_festiva_diurna','extra_festiva_nocturna'];
-
-        foreach ($horas_desglose as $tipo => $horas) {
-            if ((float)$horas <= 0) continue;
-            $horas        = (float)$horas;
-            $valor_hora_t = self::valor_hora_con_recargo($tipo, $valor_hora_base, $params);
-            $subtotal     = round($horas * $valor_hora_t, 2);
-            $total_pago  += $subtotal;
-
-            if (in_array($tipo, $tipos_extra, true)) {
-                $horas_extras += $horas;
-            }
-            $detalle[$tipo] = [
-                'horas'    => $horas,
-                'valor_h'  => round($valor_hora_t, 2),
-                'subtotal' => $subtotal,
-            ];
-        }
-
-        return [
-            'total_pago'   => round($total_pago, 2),
-            'horas_extras' => $horas_extras,
-            'detalle'      => $detalle,
-        ];
+        return self::estrategia('Colombia')->calcular_desglose_horas($horas_desglose, $valor_hora_base, $params);
     }
 
-    // ── CÁLCULO PURO ──────────────────────────────────────────────────────────
+    // ── CÁLCULO PURO (delegado a la estrategia del país) ──────────────────────
 
     /**
      * Calcula todos los componentes de nómina según el tipo de contrato.
+     * Delega en la estrategia colombiana (compatibilidad; los llamadores externos
+     * históricos siempre obtuvieron el cálculo de Colombia). liquidar_empleado usa
+     * la estrategia del país del empleado (`empleados.pais_laboral`).
      *
      * @param float  $salario_base        Salario base (tiempo completo o referencia)
      * @param string $tipo_contrato
@@ -193,155 +179,10 @@ class NominaModel
         array  $params           = [],
         array  $horas_desglose   = []
     ): array {
-        if (empty($params)) {
-            $params = self::params();
-        }
-
-        $smlmv     = $params['salario_minimo']           ?? 1750905;
-        $aux_valor = $params['aux_transporte']            ?? 249095;
-        $tope_aux  = $params['tope_aux_transporte_smlmv'] ?? 2;
-
-        // Horas estándar mensuales: calculado desde parámetros de jornada
-        $horas_mes = self::horas_mes_estandar($params);
-
-        // ── Contrato por servicio: sin ninguna prestación ────────────────────
-        if ($tipo_contrato === 'por_servicio') {
-            return [
-                'tipo_contrato'         => 'por_servicio',
-                'salario_base'          => $salario_base,
-                'salario_efectivo'      => $valor_proyecto,
-                'aux_transporte'        => 0,
-                'horas_trabajadas'      => 0,
-                // Cargas empleador: NINGUNA
-                'salud_empleador'       => 0,
-                'pension_empleador'     => 0,
-                'arl'                   => 0,
-                'caja_compensacion'     => 0,
-                'icbf'                  => 0,
-                'sena'                  => 0,
-                // Provisiones: NINGUNA
-                'prima'                 => 0,
-                'cesantias'             => 0,
-                'intereses_cesantias'   => 0,
-                'vacaciones'            => 0,
-                // Descuentos empleado: NINGUNO
-                'salud_empleado'        => 0,
-                'pension_empleado'      => 0,
-                // Totales
-                'total_cargas'          => 0,
-                'total_provisiones'     => 0,
-                'costo_total_empleador' => $valor_proyecto,
-                'neto_pagado'           => $valor_proyecto,
-                'descripcion'           => 'Pago por proyecto/servicio sin prestaciones sociales',
-            ];
-        }
-
-        // ── Calcular salario efectivo según tipo de contrato ─────────────────
-        $salario_efectivo = match ($tipo_contrato) {
-            'medio_tiempo' => round($salario_base * 0.5, 2),
-            'por_horas'    => $horas_trabajadas > 0
-                ? round(($salario_base / max(1, $horas_mes)) * $horas_trabajadas, 2)
-                : 0,
-            'por_dias'     => $salario_base, // se maneja externamente
-            default        => $salario_base,
-        };
-
-        // Auxilio de transporte — Colombia (proporcionalidad según Min. Trabajo Circ. 0058/2015)
-        // Aplica solo si salario_efectivo ≤ 2 SMLMV; el monto es proporcional al tiempo trabajado.
-        $aplica_aux_real = $aplica_aux && ($salario_efectivo <= $tope_aux * $smlmv);
-        if (!$aplica_aux_real) {
-            // Salario > tope o empleado sin derecho a aux → no aplica
-            $aux = 0;
-        } elseif ($tipo_contrato === 'por_horas' && $horas_mes > 0 && $horas_trabajadas > 0) {
-            // Por horas: proporcional a las horas trabajadas vs. jornada mensual legal
-            $aux = round($aux_valor * ($horas_trabajadas / $horas_mes), 2);
-        } elseif ($tipo_contrato === 'medio_tiempo') {
-            // Medio tiempo: 50% del auxilio mensual (trabaja media jornada)
-            $aux = round($aux_valor * 0.5, 2);
-        } else {
-            // Tiempo completo / por_dias: auxilio completo
-            $aux = $aux_valor;
-        }
-
-        // ── Para por_horas: calcular recargos si hay desglose ────────────────
-        $valor_hora_base    = $horas_mes > 0 ? round($salario_base / $horas_mes, 4) : 0;
-        $horas_extras_total = 0.0;
-        $valor_extras       = 0.0;
-        $detalle_extras_json = null;
-
-        if ($tipo_contrato === 'por_horas' && !empty($horas_desglose)) {
-            $extra_result    = self::calcular_desglose_horas($horas_desglose, $valor_hora_base, $params);
-            $valor_extras    = $extra_result['total_pago'];
-            $horas_extras_total = $extra_result['horas_extras'];
-            $detalle_extras_json = json_encode($extra_result['detalle']);
-            // REEMPLAZAR (no sumar): calcular_desglose_horas ya incluye el pago de TODAS
-            // las horas (ordinarias × 1.00 + recargos × multiplicador).
-            // Sumarlo generaría un doble pago de las horas ordinarias.
-            $salario_efectivo = round($valor_extras, 2);
-        }
-
-        // ── Función helper: calcular % sobre salario_efectivo ─────────────────
-        $pct = fn(string $clave) => round($salario_efectivo * ($params[$clave] ?? 0) / 100, 2);
-
-        // Verificar si aplica ICBF/SENA (exentos si salario > 10 SMLMV)
-        $icbf_aplica = $salario_efectivo <= 10 * $smlmv;
-
-        // ── Cargas del empleador ──────────────────────────────────────────────
-        $salud   = $pct('pct_salud_empleador');
-        $pension = $pct('pct_pension_empleador');
-        $arl     = $pct('pct_arl');
-        $caja    = $pct('pct_caja_compensacion');
-        $icbf    = $icbf_aplica ? $pct('pct_icbf') : 0;
-        $sena    = $icbf_aplica ? $pct('pct_sena')  : 0;
-
-        // ── Provisiones mensuales ─────────────────────────────────────────────
-        $prima   = $pct('pct_prima');
-        $ces     = $pct('pct_cesantias');
-        $int_ces = $pct('pct_intereses_cesantias');
-        $vacac   = $pct('pct_vacaciones');
-
-        // ── Descuentos al empleado ────────────────────────────────────────────
-        $salud_emp   = $pct('pct_salud_empleado');
-        $pension_emp = $pct('pct_pension_empleado');
-
-        $total_cargas = round($salud + $pension + $arl + $caja + $icbf + $sena, 2);
-        $total_prov   = round($prima + $ces + $int_ces + $vacac, 2);
-        $costo_total  = round($salario_efectivo + $aux + $total_cargas + $total_prov, 2);
-        $neto         = round($salario_efectivo + $aux - $salud_emp - $pension_emp, 2);
-
-        return [
-            'tipo_contrato'         => $tipo_contrato,
-            'salario_base'          => $salario_base,
-            'salario_efectivo'      => $salario_efectivo,
-            'valor_hora_base'       => $valor_hora_base,
-            'horas_mes_estandar'    => $horas_mes,
-            'aux_transporte'        => $aux,
-            'horas_trabajadas'      => $horas_trabajadas,
-            'horas_extras'          => $horas_extras_total,
-            'valor_horas_extras'    => $valor_extras,
-            'detalle_recargos'      => $detalle_extras_json,
-            // Cargas empleador
-            'salud_empleador'       => $salud,
-            'pension_empleador'     => $pension,
-            'arl'                   => $arl,
-            'caja_compensacion'     => $caja,
-            'icbf'                  => $icbf,
-            'sena'                  => $sena,
-            // Provisiones
-            'prima'                 => $prima,
-            'cesantias'             => $ces,
-            'intereses_cesantias'   => $int_ces,
-            'vacaciones'            => $vacac,
-            // Descuentos empleado
-            'salud_empleado'        => $salud_emp,
-            'pension_empleado'      => $pension_emp,
-            // Totales
-            'total_cargas'          => $total_cargas,
-            'total_provisiones'     => $total_prov,
-            'costo_total_empleador' => $costo_total,
-            'neto_pagado'           => $neto,
-            'descripcion'           => '',
-        ];
+        return self::estrategia('Colombia')->calcular(
+            $salario_base, $tipo_contrato, $aplica_aux,
+            $horas_trabajadas, $valor_proyecto, $params, $horas_desglose
+        );
     }
 
     // ── GENERACIÓN Y GUARDADO ─────────────────────────────────────────────────
@@ -409,8 +250,8 @@ class NominaModel
                 ? round($horas_emp * 52.14 / 12, 2)   // semanal → mensual
                 : $horas_emp;                           // ya es mensual
         } else {
-            // Sin configuración propia → usar parámetro global
-            $horas_mes_std = self::horas_mes_estandar($params);
+            // Sin configuración propia → usar parámetro global (jornada del país del empleado)
+            $horas_mes_std = self::estrategia($pais)->horas_mes_estandar($params);
         }
 
         if ($tipo === 'por_horas' && $valor_hora <= 0) {
@@ -435,7 +276,8 @@ class NominaModel
             }
         }
 
-        $c = self::calcular(
+        // Cálculo por la estrategia del país del empleado (Fase C). Colombia = idéntico al anterior.
+        $c = self::estrategia($pais)->calcular(
             $salario_base,
             $tipo,
             (bool)$e['aplica_aux_transporte'],
