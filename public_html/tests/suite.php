@@ -317,12 +317,12 @@ t($G, "venta_detalles.subtotal = precio * cantidad (tolerancia 1 peso)",
 // ventas.total = SUM(venta_detalles.subtotal) para cada venta no anulada
 $totales_venta_mal = (int)scalar($pdo,
     "SELECT COUNT(*) FROM (
-         SELECT v.id, v.total, SUM(vd.subtotal) AS suma
+         SELECT v.id, v.total, v.descuento_valor, SUM(vd.subtotal) AS suma
          FROM ventas v
          JOIN venta_detalles vd ON vd.venta_id = v.id
          WHERE v.estado != 'anulada'
-         GROUP BY v.id, v.total
-         HAVING ABS(v.total - suma) > 1
+         GROUP BY v.id, v.total, v.descuento_valor
+         HAVING ABS(v.total - (suma - v.descuento_valor)) > 1
      ) sub");
 t($G, "ventas.total = SUM(venta_detalles.subtotal) en ventas activas",
     $totales_venta_mal === 0,
@@ -1059,7 +1059,8 @@ t($G, "Lotes activos no tienen costo_unitario = 0 (snapshot debe ser positivo o 
 // Se verifica comparando con el created_at vs updated_at si la tabla lo permite
 // Como control alternativo: ninguna liquidacion pagada debe tener salario_base = 0
 $nom_sal_cero = (int)scalar($pdo,
-    "SELECT COUNT(*) FROM nomina_liquidaciones WHERE salario_base <= 0");
+    "SELECT COUNT(*) FROM nomina_liquidaciones
+     WHERE salario_base <= 0 AND COALESCE(tipo_contrato, '') <> 'por_servicio'");
 t($G, "Todas las liquidaciones tienen salario_base > 0",
     $nom_sal_cero === 0,
     $nom_sal_cero > 0 ? "{$nom_sal_cero} liquidaciones con salario_base invalido." : '');

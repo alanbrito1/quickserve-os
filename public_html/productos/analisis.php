@@ -82,8 +82,8 @@ try {
         "SELECT COALESCE(SUM(depreciacion_mensual), 0)
          FROM activos
          WHERE activo = 1
-           AND estado_vida != 'depreciado'
            AND fecha_inicio_uso IS NOT NULL
+           AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE()) < CAST(vida_util_meses AS SIGNED)
            AND fecha_inicio_uso <= ?"
     );
     $stmt_dep->execute([$mes_fin]);

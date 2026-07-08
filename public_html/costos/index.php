@@ -76,7 +76,7 @@ try {
          FROM activos
          WHERE activo = 1
            AND (fecha_inicio_uso IS NULL OR fecha_inicio_uso <= ?)
-           AND (estado_vida IS NULL OR estado_vida != 'depreciado')"
+           AND (fecha_inicio_uso IS NULL OR TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE()) < CAST(vida_util_meses AS SIGNED))"
     );
     $stmt->execute([$mes_fin]);
     $dep_activos_mensual = (float) $stmt->fetchColumn();

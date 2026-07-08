@@ -111,8 +111,9 @@ $depreciacion = 0.0;
 try {
     $s = db()->prepare(
         "SELECT COALESCE(SUM(depreciacion_mensual),0) FROM activos
-         WHERE activo=1 AND estado_vida <> 'depreciado'
-           AND fecha_inicio_uso IS NOT NULL AND fecha_inicio_uso <= ?"
+         WHERE activo=1
+           AND fecha_inicio_uso IS NOT NULL AND fecha_inicio_uso <= ?
+           AND TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE()) < CAST(vida_util_meses AS SIGNED)"
     );
     $s->execute([$mes_fin]);
     $depreciacion = (float)$s->fetchColumn();

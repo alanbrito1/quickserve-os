@@ -90,7 +90,7 @@ $stmt_dep = db()->prepare(
             COUNT(*) AS n_activos
      FROM activos
      WHERE activo = 1
-       AND estado_vida != 'depreciado'
+       AND (fecha_inicio_uso IS NULL OR TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE()) < CAST(vida_util_meses AS SIGNED))
        AND (fecha_inicio_uso IS NULL OR fecha_inicio_uso <= :fin)"
 );
 $stmt_dep->execute([':fin' => $mes_fin]);
