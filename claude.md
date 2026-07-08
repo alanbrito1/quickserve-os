@@ -1,5 +1,5 @@
-# QuickServe OS v6.1 — Memoria de Sesión
-# Última sesión: 2026-07-05 | Próxima sesión: continuar desde este punto
+# QuickServe OS v6.2 — Memoria de Sesión
+# Última sesión: 2026-07-07 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
 
@@ -4122,3 +4122,77 @@ ejemplo **opcionales** en la instalación.
 código/archivos (marca solo en data de producción) + instalador web `/install/` (asistente por
 navegador, runner SQL DELIMITER-aware, genera database.php, candado anti-reinstalación) + datos
 demo movidos a database/sample_data.sql. Repo → quickserve-os. `APP_VERSION` → 6.1.*
+
+---
+
+## Estado v6.2 (2026-07-07) — Test profundo end-to-end en MariaDB real + bug de depreciación corregido
+
+El usuario pidió una verificación final donde toda función/ecuación/obtención de datos esté no
+solo funcionando sino **completa matemática, contable y fiscalmente**, con un test profundo de
+usuario, **simulando el ambiente de pruebas si era necesario**. Como XAMPP trae MariaDB 10.4.25,
+se **levantó una instancia MySQL aislada** (datadir temporal, puerto 3307, `--skip-grant-tables`,
+sin tocar el XAMPP del usuario) y se probó de verdad contra datos reales.
+
+### Cómo se probó (ambiente simulado)
+- Instancia MariaDB aislada → `CREATE DATABASE qstest` → cargar `schema.sql` + `sample_data.sql`
+  (igual que el instalador). **Valida el instalador end-to-end**: 33 tablas, **9 triggers creados**
+  (el runner DELIMITER del schema carga bien), 19 cuentas contables, 16 parámetros laborales, sin
+  errores de columnas/FK.
+- Para la suite y el smoke test, se hizo un **swap temporal** de `app/config/database.php` a la BD
+  de prueba con `trap ... EXIT` que **restaura la config real pase lo que pase** (verificado:
+  quedó intacta, `DB_NAME='clandestinoERP'`). MySQL de prueba y datadir temporal borrados al final.
+
+### Verificaciones que PASARON (contra datos reales)
+- **Matemática (10 checks SQL):** `venta_detalles.subtotal = cant×precio`; `ventas.total = Σsubtot
+  − descuento`; ídem compras; `costo_calculado = Σ(insumo.costo×cant_req)/rinde`; **depreciación
+  por trigger** (`mensual = costo/vida`, `diaria = mensual/30.41666`); `saldo_fiado = fiado −
+  abonos`; `saldo_posterior = saldo_anterior − monto`; stock no negativo. **0 discrepancias.**
+- **Contable (motor real):** harness PHP que ejercita `ContabilidadModel` posteando los **6 flujos**
+  (venta+COGS, compra, abono, producción, ajuste, nómina) de los datos de ejemplo → **44 asientos /
+  136 líneas, cada asiento cuadra (Σdebe=Σhaber), Total DEBE = Total HABER exacto**, y **Balance
+  General cuadra** (Activo = Pasivo + Patrimonio + Resultado). **IVA discriminado** (tarifa 19% sobre
+  total con IVA incluido): venta de $24.000 → 4135 Ingresos 20.168,07 + 2408 IVA 3.831,93, exacto.
+  **Reversa de anulación**: neta a cero (Activo=0, Resultado=0).
+- **Fiscal (nómina Colombia):** coherencia estructural (`total_cargas`, `total_provisiones`,
+  `costo_total_empleador`, `neto_pagado`) + **porcentajes de ley exactos** (salud 8.5, pensión 12,
+  ARL 0.522, caja 4, ICBF 3, SENA 2, prima 8.33, vacaciones 4.17; descuentos empleado 4+4). SMLMV
+  1.750.905 y aux 249.095 en `parametros_laborales`. `por_servicio` correcto (sin prestaciones,
+  costo=neto=valor_proyecto).
+- **Suite `tests/suite.php` (37 grupos) + smoke test de 44 páginas**: cada módulo/reporte/página
+  renderiza sin error fatal contra la BD real (44/44 OK tras el fix).
+
+### 🔴 BUG REAL encontrado y corregido — depreciación con columna inexistente `estado_vida`
+`estado_vida` es una **columna DERIVADA** (un `CASE ... END AS estado_vida` en `ActivoModel`), **no
+existe físicamente** en la tabla `activos` (el `schema.sql` lo dice: "se gestiona por PHP"). Pero
+**4 queries de depreciación la usaban en `WHERE`** sobre la tabla cruda:
+- `reportes/costos.php` → **crasheaba** (`Unknown column 'estado_vida'`) al abrir el reporte de Costos.
+- `costos/index.php`, `productos/analisis.php`, `reportes/pyg.php` → estaban en `try/catch` →
+  devolvían **depreciación 0 en silencio** → subestimaban costos/gastos en **P&G, Costos y análisis
+  de rentabilidad** (impacto contable/financiero real).
+
+Corregido en los 4: `estado_vida <> 'depreciado'` → equivalente con columnas físicas
+`(fecha_inicio_uso IS NULL OR TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE()) < CAST(vida_util_meses
+AS SIGNED))`. Verificado: la depreciación mensual ahora suma **50.416,67** (los 4 activos de muestra)
+y las 4 páginas renderizan. **Este bug afectaba también instalaciones nuevas** (el schema no crea
+`estado_vida`), así que era crítico para el producto vendible. Commit `ac8067c`.
+
+### 🟡 Afinamientos (no eran bugs de app, pero mejoran calidad)
+- **Suite**: G03 (`ventas.total = Σsubtot`) ahora **resta `descuento_valor`** (marcaba las ventas con
+  descuento); G11 (`salario_base>0`) ahora **excluye `por_servicio`** (que legítimamente tiene
+  salario_base=0). Commit `ac8067c`.
+- **`sample_data.sql`**: G24 — 2 recetas tenían un ingrediente crítico Y base a la vez (Pan en P1/P3)
+  → Pan queda base, el crítico pasa a la proteína. G36 — 3 presentaciones predeterminadas con
+  `precio_referencia` desalineado de `costo_actual` → alineadas. Commit `79db2df`.
+
+### Resultado final
+Suite: **280 PASS / 0 FAIL / 4 WARN**, y los 4 WARN son **estado esperado de instalación nueva**, no
+bugs: (a) `configuracion_negocio.SMLMV` sin clave (el SMLMV real está en `parametros_laborales.
+salario_minimo`), (b-c) `logs_historial` sin auditoría (no hubo uso real todavía), (d) nombre de
+negocio = default (se fija al instalar). 44/44 páginas renderizan.
+
+*Última actualización: 2026-07-07 | v6.2 — test profundo end-to-end en MariaDB aislada (instalador +
+math + contabilidad partida doble/COGS/IVA/reversa + fiscal nómina Colombia + suite 37 grupos +
+smoke 44 páginas, todo verificado con datos reales). Bug corregido: `estado_vida` (derivada) usada en
+WHERE en 4 queries de depreciación (reportes/costos.php crasheaba; costos/analisis/pyg daban 0 en
+silencio) → TIMESTAMPDIFF con columnas físicas. Afinados suite G03/G11 y sample_data (recetas/costos).
+0 FAIL, solo WARN benignos de instalación nueva. `APP_VERSION` → 6.2.*

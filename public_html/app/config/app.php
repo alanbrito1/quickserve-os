@@ -6,7 +6,7 @@
  */
 
 define('APP_NAME',    'QuickServe OS');
-define('APP_VERSION', '6.1'); // 2026-07-05: v6.1 producto genérico "QuickServe OS" (de-branding total: la marca anterior se removió de todo el código y los archivos; solo permanece en la data de produccion) + instalador web en /install/ (asistente por navegador: requisitos, BD, negocio/admin, datos de ejemplo opcionales; runner SQL con DELIMITER para los triggers; genera app/config/database.php y bloquea reinstalación). schema.sql sin datos demo (movidos a database/sample_data.sql). Roadmap contable v6.0 intacto.
+define('APP_VERSION', '6.2'); // 2026-07-07: v6.2 test profundo end-to-end en MariaDB real (instalador + math + contabilidad partida doble + fiscal + suite 37 grupos + smoke 44 páginas). BUG corregido: 'estado_vida' (columna DERIVADA por CASE en ActivoModel, no física) se usaba en WHERE en 4 queries de depreciación → reportes/costos.php crasheaba y costos/index+analisis+pyg devolvían depreciación 0 en silencio; reemplazado por TIMESTAMPDIFF(MONTH, fecha_inicio_uso, CURDATE()) < vida_util_meses. Afinados suite G03 (resta descuento)/G11 (excluye por_servicio) y sample_data (recetas crítico/base + costos de presentación). — v6.1 (2026-07-05): producto genérico "QuickServe OS" (de-branding total) + instalador web /install/ (runner SQL DELIMITER-aware; genera database.php; candado anti-reinstalación); datos demo en database/sample_data.sql.
 define('APP_ENV',     'production'); // cambiar a 'development' para depurar
 
 // Ruta absoluta a public_html/ (raíz web del proyecto)
