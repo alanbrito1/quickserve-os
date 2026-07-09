@@ -1,4 +1,4 @@
-# QuickServe OS v6.7 — Memoria de Sesión
+# QuickServe OS v6.8 — Memoria de Sesión
 # Última sesión: 2026-07-08 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -4495,3 +4495,51 @@ MX); PaisesHelper PE/ES → contabilidad='pack'; copias en install/sql/paises/; 
 Verificado en MariaDB: los 6 flujos postean bajo Perú (PCGE) y España (PGC), 44 asientos + Balance
 cuadran, 100% líneas con los códigos del país (6/6 c/u). 4 países validados end-to-end. `APP_VERSION`
 → 6.7.*
+
+---
+
+## Estado v6.8 (2026-07-08) — Multi-país, Fase D (arquitectura de facturación, modo Interno)
+
+Parte **segura** de la Fase D (la que NO requiere terceros): la **arquitectura de facturación**
+conmutable + el modo **Interno** (comprobante propio no fiscal). El modo **Legal** (factura
+electrónica vía PAC del país) queda **enchufable** como driver aparte cuando haya contrato con un
+PAC — no se improvisa. Sin cambios de BD ni llamadas externas.
+
+### Subsistema `app/models/facturacion/` (nuevo)
+- **`FacturacionDriver.php`** (interface): `nombre()`, `es_legal()`, `pais()`, `emitir(venta_id)`.
+- **`FacturacionInterno.php`** (driver, default y universal): comprobante propio **no fiscal**;
+  número derivado **estable** `INT-<id>` (sin consecutivo fiscal ni tabla); cero dependencias.
+- **`FacturacionModel.php`** (router): `modo()` (lee `configuracion_app.factura_modo`), `pais()`,
+  `driver()` (hoy solo Interno; cuando exista un driver legal por país se enruta aquí),
+  `legal_disponible()` (hoy `false`), `sistema_legal()` (de `PaisesHelper::factura_legal`),
+  **`datos_comprobante(venta_id)`** (ensambla negocio+país+cliente+ítems+totales; si el impuesto de
+  ventas está activo separa **base + impuesto**).
+
+### `ventas/comprobante.php` (nuevo) — recibo imprimible por venta
+Comprobante limpio e imprimible (`@media print`), **consciente del país** (moneda vía
+`moneda_simbolo()`/`fmt_moneda()`, nombre del negocio, país). Muestra número, fecha, cliente, ítems
+(nombre snapshot, cantidad, precio, subtotal), descuento, **base+impuesto si el IVA está activo**,
+total y forma de pago. Enlace por fila en `ventas/historial.php` (icono `IC_CASH`, abre en pestaña
+nueva). Permiso `ventas:solo_ver`. Si `factura_modo='legal'` sin PAC integrado, un aviso indica qué
+sistema del país habría que integrar y emite el interno mientras tanto.
+
+### Verificación (MariaDB aislada)
+- **12/12 PASS:** `modo()` = interno por defecto; `driver()` es `FacturacionDriver` no legal, país CO;
+  `datos_comprobante(#1)` coherente (número `INT-000001`, ítems, **Σítems − descuento = total**);
+  venta inexistente → null; `sistema_legal()` = "DIAN — Factura Electrónica…".
+- **IVA activo** (tarifa 19): el comprobante discrimina **base 20.168,07 + IVA 3.831,93 = 24.000**.
+- Suite **G38** amplía: subsistema de facturación presente + `driver()` ⇒ `FacturacionDriver`.
+
+### Estado del plan multi-país
+✅ Fase A (motor por roles) · ✅ Fase B (country packs CO/MX/PE/ES/XX) · ✅ Fase C p.1 (nómina por
+estrategia, Colombia intacto) · ✅ Fase D **arquitectura** (facturación conmutable + Interno) ·
+✅ Fase E inicio (instalador elige país). **Lo que queda REQUIERE TERCEROS y no se improvisa:**
+nómina extranjera (contador/abogado laboral local por país) y facturación **legal** (integrar el
+**PAC certificado** de cada país — Brasil el más costoso). La UI ya avisa ambas cosas.
+
+*Última actualización: 2026-07-08 | v6.8 — Fase D arquitectura de facturación (modo Interno):
+subsistema `app/models/facturacion/` (`FacturacionDriver` interface + `FacturacionInterno` +
+`FacturacionModel` router/`datos_comprobante`) + `ventas/comprobante.php` (recibo imprimible por
+venta, consciente del país, desglosa IVA si está activo; enlace en historial). Modo Legal enchufable
+(driver+PAC por país, pendiente). Suite G38 amplía. Verificado en MariaDB 12/12 + IVA discriminado.
+`APP_VERSION` → 6.8. Sin cambios de BD.*

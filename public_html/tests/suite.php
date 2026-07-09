@@ -2056,11 +2056,11 @@ if ($rolPaisOk) {
         empty($sinResolver) ? '' : 'No resuelven: ' . implode(', ', $sinResolver));
 }
 
-// Country packs presentes en el repo (Fase B)
+// Country packs presentes en el repo (Fase B/v6.7)
 $faltan_packs = array_values(array_filter(
-    ['database/paises/CO.sql','database/paises/MX.sql','database/paises/XX.sql','database/paises/README.md'],
+    ['database/paises/CO.sql','database/paises/MX.sql','database/paises/PE.sql','database/paises/ES.sql','database/paises/XX.sql','database/paises/README.md'],
     fn($f) => !file_exists(BASE_PATH . '/../' . $f)));
-t($G, "Country packs presentes (database/paises/: CO, MX, XX, README)",
+t($G, "Country packs presentes (database/paises/: CO, MX, PE, ES, XX, README)",
     empty($faltan_packs), empty($faltan_packs) ? '' : 'Faltan: ' . implode(', ', $faltan_packs),
     !empty($faltan_packs)); // WARN: los .sql pueden no subirse al servidor (se usan al instalar)
 
@@ -2075,6 +2075,20 @@ if (empty($faltan_pay)) {
     $estrat = NominaModel::estrategia('Colombia');
     t($G, "NominaModel::estrategia() enruta por país (Colombia → PayrollStrategy)",
         $estrat instanceof PayrollStrategy, 'estrategia(Colombia) no implementa PayrollStrategy.');
+}
+
+// Subsistema de facturación por país (Fase D — driver conmutable interno/legal)
+$faltan_fac = array_values(array_filter(
+    ['app/models/facturacion/FacturacionDriver.php','app/models/facturacion/FacturacionInterno.php',
+     'app/models/facturacion/FacturacionModel.php','ventas/comprobante.php'],
+    fn($f) => !file_exists(BASE_PATH . '/' . $f)));
+t($G, "Subsistema de facturación presente (driver + Interno + modelo + comprobante)",
+    empty($faltan_fac), empty($faltan_fac) ? '' : 'Faltan: ' . implode(', ', $faltan_fac));
+if (empty($faltan_fac)) {
+    require_once BASE_PATH . '/app/models/facturacion/FacturacionModel.php';
+    $drv = FacturacionModel::driver();
+    t($G, "FacturacionModel::driver() devuelve un FacturacionDriver (modo '" . FacturacionModel::modo() . "')",
+        $drv instanceof FacturacionDriver, 'driver() no implementa FacturacionDriver.');
 }
 
 // ── Tiempo total de ejecución ─────────────────────────────────────────────────

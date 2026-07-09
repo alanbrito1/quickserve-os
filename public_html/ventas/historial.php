@@ -467,6 +467,7 @@ foreach ($ventas as $v) {
                 </td>
                 <td class="acc-cell">
                     <button class="btn-a ic ic-view" title="Detalle" onclick="toggleDet(<?= $v['id'] ?>)"><?= IC_EYE ?></button>
+                    <a class="btn-a ic ic-info" title="Comprobante / recibo" href="<?= APP_BASE ?>/ventas/comprobante.php?id=<?= $v['id'] ?>" target="_blank" rel="noopener"><?= IC_CASH ?></a>
                     <?php if (!$anulada && permiso_tiene('ventas','editar_existentes')): ?>
                     <button class="btn-a ic ic-edit" title="Editar" onclick="abrirEditar(<?= $v['id'] ?>)"><?= IC_EDIT ?></button>
                     <?php endif; ?>
