@@ -13,6 +13,8 @@ código: el motor (`ContabilidadModel`) postea por **rol** (`caja`, `ingresos`,
 |------|------|-----------------|--------|----------|--------|
 | `CO.sql` | Colombia | PUC simplificado | COP ($, 0 dec) | IVA 19% | ✅ verificado (motor + balance) |
 | `MX.sql` | México | Código agrupador SAT | MXN ($, 2 dec) | IVA 16% | ⚠️ arranque — validar plan con contador MX |
+| `PE.sql` | Perú | PCGE (Plan Contable General Empresarial) | PEN (S/, 2 dec) | IGV 18% | ⚠️ arranque — validar plan con contador PE |
+| `ES.sql` | España | PGC (Plan General de Contabilidad) | EUR (€, 2 dec) | IVA 21% | ⚠️ arranque — validar plan con asesor ES |
 | `XX.sql` | Genérico / configurable | numeración neutra | USD ($, 2 dec) | genérico | base para cualquier país nuevo |
 
 ## Cómo aplicar un pack

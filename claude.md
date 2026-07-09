@@ -1,4 +1,4 @@
-# QuickServe OS v6.6 — Memoria de Sesión
+# QuickServe OS v6.7 — Memoria de Sesión
 # Última sesión: 2026-07-08 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -4443,3 +4443,55 @@ autocompleta moneda/impuesto y muestra alerta de consideraciones al elegir país
 país (selector + `qs_aplicar_pais()` aplica pack o localización + misma alerta; packs en
 install/sql/paises/). README de paises documenta la facturación por país. Verificado en MariaDB
 (instalar MX = pack SAT; PE = localización + plan CO por fallback, 11/11). `APP_VERSION` → 6.6.*
+
+---
+
+## Estado v6.7 (2026-07-08) — Country packs Perú (PCGE) + España (PGC)
+
+Continuación segura del plan multi-país (la parte que NO requiere terceros): agregar country packs
+de contabilidad para los dos países de la lista con **plan contable oficial público y
+estandarizado**. Perú y España pasan de "genérico" a **plan propio**. Como México, son **arranque a
+validar por un contador local** (los planes de cuentas son catálogos públicos; el mapeo definitivo y
+su uso fiscal los revisa un profesional). La nómina y la facturación de esos países siguen
+pendientes (requieren asesor/PAC local — la alerta ya lo advierte).
+
+### `database/paises/PE.sql` (nuevo) — Perú
+Plan basado en el **PCGE (Plan Contable General Empresarial)** mapeado a los 19 roles: 101 Caja,
+104 Bancos, 121 CxC, 201 Mercaderías, 241 Materias primas, 40111 IGV crédito, 333 Maquinaria, 391
+Deprec. acum., 421 Proveedores, 40112 IGV por pagar, 411 Remuneraciones por pagar, 501 Capital, 591
+Resultados, 701 Ventas, 691 Costo de ventas, 621/681/639/659 gastos. Localización: PEN (S/, 2 dec),
+IGV 18%.
+
+### `database/paises/ES.sql` (nuevo) — España
+Plan basado en el **PGC (Plan General de Contabilidad)**: 570 Caja, 572 Bancos, 430 Clientes, 350
+Productos terminados, 310 Materias primas, 472 IVA soportado, 216 Mobiliario, 281 Amortización acum.,
+400 Proveedores, 477 IVA repercutido, 465 Remuneraciones pendientes, 100 Capital social, 129
+Resultado del ejercicio, 700 Ventas, 600 Compras/coste de ventas (aproximación de arranque — en PGC
+el costo de ventas se obtiene por compras ± variación de existencias), 640/681/629/659 gastos.
+Localización: EUR (€, 2 dec), IVA 21%.
+
+### Cambios de apoyo
+- `PaisesHelper.php`: PE y ES → `contabilidad='pack'`. Copias en `install/sql/paises/PE.sql`+`ES.sql`
+  (el instalador y Admin los detectan solos). README (tabla de packs) y Ayuda (tabla estado por país)
+  actualizados.
+
+### Verificación (MariaDB aislada, puerto 3311)
+- schema + sample_data + **aplicar `PE.sql`** → país=PE, PEN, IGV 18, 19 cuentas PE. Harness E2E: los
+  **6 flujos** postean bajo Perú → **44 asientos cuadran**, **Balance cuadra**, **100% de líneas usan
+  códigos PCGE** (venta: `101 Caja` / `701 Ventas`). **6/6 PASS.**
+- Ídem **`ES.sql`** → país=ES, EUR, IVA 21; asientos con códigos PGC (`570 Caja euros` / `700 Ventas
+  de mercaderías`); Balance cuadra. **6/6 PASS.**
+- Con CO, MX, PE, ES → **4 países validados end-to-end** con planes de cuentas distintos.
+
+### Pendiente (sin cambios respecto a v6.6)
+- Nómina extranjera (`PayrollStrategy<País>` validada por contador) y facturación legal (PAC por
+  país) siguen siendo las piezas que requieren terceros. Más packs de contabilidad: copiar `XX.sql`
+  → `<ISO>.sql` con el plan oficial (para CL/AR no hay un plan único obligatorio → quedan genéricos).
+- Usuario (runtime): para operar en PE/ES, correr su pack o elegir el país en el instalador / Admin.
+
+*Última actualización: 2026-07-08 | v6.7 — country packs Perú (`PE.sql`, PCGE, PEN/IGV 18%) y España
+(`ES.sql`, PGC, EUR/IVA 21%), mapeados a los 19 roles (arranque a validar por contador local, como
+MX); PaisesHelper PE/ES → contabilidad='pack'; copias en install/sql/paises/; README + Ayuda al día.
+Verificado en MariaDB: los 6 flujos postean bajo Perú (PCGE) y España (PGC), 44 asientos + Balance
+cuadran, 100% líneas con los códigos del país (6/6 c/u). 4 países validados end-to-end. `APP_VERSION`
+→ 6.7.*

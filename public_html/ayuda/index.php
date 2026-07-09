@@ -1812,9 +1812,9 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
                 <tr><th>País</th><th>Moneda</th><th>Impuesto</th><th>Contabilidad</th><th>Facturación legal (integración futura)</th></tr>
                 <tr><td>Colombia (CO)</td><td>COP $</td><td>IVA 19%</td><td>Plan propio ✓ · Nómina ✓</td><td>DIAN</td></tr>
                 <tr><td>México (MX)</td><td>MXN $</td><td>IVA 16%</td><td>Plan SAT ✓ <span class="badge">validar con contador</span></td><td>CFDI 4.0 / SAT (PAC)</td></tr>
-                <tr><td>Perú (PE)</td><td>PEN S/</td><td>IGV 18%</td><td>Genérico</td><td>SUNAT (OSE/PSE)</td></tr>
+                <tr><td>Perú (PE)</td><td>PEN S/</td><td>IGV 18%</td><td>Plan PCGE ✓ <span class="badge">validar con contador</span></td><td>SUNAT (OSE/PSE)</td></tr>
                 <tr><td>Chile (CL)</td><td>CLP $</td><td>IVA 19%</td><td>Genérico</td><td>SII (DTE)</td></tr>
-                <tr><td>España (ES)</td><td>EUR €</td><td>IVA 21%</td><td>Genérico</td><td>AEAT (Veri*Factu / TicketBAI)</td></tr>
+                <tr><td>España (ES)</td><td>EUR €</td><td>IVA 21%</td><td>Plan PGC ✓ <span class="badge">validar con asesor</span></td><td>AEAT (Veri*Factu / TicketBAI)</td></tr>
                 <tr><td>Panamá (PA)</td><td>USD $</td><td>ITBMS 7%</td><td>Genérico</td><td>DGI</td></tr>
                 <tr><td>Ecuador (EC)</td><td>USD $</td><td>IVA 15%</td><td>Genérico</td><td>SRI</td></tr>
                 <tr><td>Argentina (AR)</td><td>ARS $</td><td>IVA 21%</td><td>Genérico</td><td>AFIP/ARCA (CAE)</td></tr>
