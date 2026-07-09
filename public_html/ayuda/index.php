@@ -1813,14 +1813,14 @@ BIGINT UNSIGNED en MySQL modo estricto cuando vida_util_meses es TINYINT.</span>
                 <tr><td>Colombia (CO)</td><td>COP $</td><td>IVA 19%</td><td>Plan propio ✓ · Nómina ✓</td><td>DIAN</td></tr>
                 <tr><td>México (MX)</td><td>MXN $</td><td>IVA 16%</td><td>Plan SAT ✓ <span class="badge">validar con contador</span></td><td>CFDI 4.0 / SAT (PAC)</td></tr>
                 <tr><td>Perú (PE)</td><td>PEN S/</td><td>IGV 18%</td><td>Plan PCGE ✓ <span class="badge">validar con contador</span></td><td>SUNAT (OSE/PSE)</td></tr>
-                <tr><td>Chile (CL)</td><td>CLP $</td><td>IVA 19%</td><td>Genérico</td><td>SII (DTE)</td></tr>
+                <tr><td>Chile (CL)</td><td>CLP $</td><td>IVA 19%</td><td>Plan propio ✓ <span class="badge">validar con contador</span></td><td>SII (DTE)</td></tr>
                 <tr><td>España (ES)</td><td>EUR €</td><td>IVA 21%</td><td>Plan PGC ✓ <span class="badge">validar con asesor</span></td><td>AEAT (Veri*Factu / TicketBAI)</td></tr>
-                <tr><td>Panamá (PA)</td><td>USD $</td><td>ITBMS 7%</td><td>Genérico</td><td>DGI</td></tr>
-                <tr><td>Ecuador (EC)</td><td>USD $</td><td>IVA 15%</td><td>Genérico</td><td>SRI</td></tr>
-                <tr><td>Argentina (AR)</td><td>ARS $</td><td>IVA 21%</td><td>Genérico</td><td>AFIP/ARCA (CAE)</td></tr>
-                <tr><td>Brasil (BR)</td><td>BRL R$</td><td>ICMS/ISS</td><td>Genérico</td><td>SEFAZ NF-e/SPED <span class="badge">el más complejo</span></td></tr>
-                <tr><td>Paraguay (PY)</td><td>PYG &#8370;</td><td>IVA 10%</td><td>Genérico</td><td>DNIT (SIFEN)</td></tr>
-                <tr><td>Uruguay (UY)</td><td>UYU $</td><td>IVA 22%</td><td>Genérico</td><td>DGI (CFE)</td></tr>
+                <tr><td>Panamá (PA)</td><td>USD $</td><td>ITBMS 7%</td><td>Plan propio ✓ <span class="badge">validar con contador</span></td><td>DGI</td></tr>
+                <tr><td>Ecuador (EC)</td><td>USD $</td><td>IVA 15%</td><td>Plan propio ✓ (Superint. Cías.) <span class="badge">validar</span></td><td>SRI</td></tr>
+                <tr><td>Argentina (AR)</td><td>ARS $</td><td>IVA 21%</td><td>Plan propio ✓ <span class="badge">validar con contador</span></td><td>AFIP/ARCA (CAE)</td></tr>
+                <tr><td>Brasil (BR)</td><td>BRL R$</td><td>ICMS/ISS</td><td>Plan propio ✓ (SPED, en portugués) <span class="badge">validar</span></td><td>SEFAZ NF-e/SPED <span class="badge">el más complejo</span></td></tr>
+                <tr><td>Paraguay (PY)</td><td>PYG &#8370;</td><td>IVA 10%</td><td>Plan propio ✓ <span class="badge">validar con contador</span></td><td>DNIT (SIFEN)</td></tr>
+                <tr><td>Uruguay (UY)</td><td>UYU $</td><td>IVA 22%</td><td>Plan propio ✓ <span class="badge">validar con contador</span></td><td>DGI (CFE)</td></tr>
                 <tr><td>Genérico (XX)</td><td>configurable</td><td>configurable</td><td>Genérico</td><td>— (solo comprobante interno)</td></tr>
             </table>
             <p class="muted"><em>"Genérico"</em> = usa un plan de cuentas base (funciona y cuadra); ajústalo al plan oficial del país cuando lo necesites. Las tarifas son valores por defecto editables.</p>

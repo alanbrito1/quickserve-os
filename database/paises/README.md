@@ -12,10 +12,25 @@ código: el motor (`ContabilidadModel`) postea por **rol** (`caja`, `ingresos`,
 | Pack | País | Plan de cuentas | Moneda | Impuesto | Estado |
 |------|------|-----------------|--------|----------|--------|
 | `CO.sql` | Colombia | PUC simplificado | COP ($, 0 dec) | IVA 19% | ✅ verificado (motor + balance) |
-| `MX.sql` | México | Código agrupador SAT | MXN ($, 2 dec) | IVA 16% | ⚠️ arranque — validar plan con contador MX |
-| `PE.sql` | Perú | PCGE (Plan Contable General Empresarial) | PEN (S/, 2 dec) | IGV 18% | ⚠️ arranque — validar plan con contador PE |
-| `ES.sql` | España | PGC (Plan General de Contabilidad) | EUR (€, 2 dec) | IVA 21% | ⚠️ arranque — validar plan con asesor ES |
+| `MX.sql` | México | Código agrupador SAT | MXN ($, 2 dec) | IVA 16% | ⚠️ arranque — validar con contador MX |
+| `PE.sql` | Perú | PCGE (Plan Contable General Empresarial) | PEN (S/, 2 dec) | IGV 18% | ⚠️ arranque — validar con contador PE |
+| `ES.sql` | España | PGC (Plan General de Contabilidad) | EUR (€, 2 dec) | IVA 21% | ⚠️ arranque — validar con asesor ES |
+| `EC.sql` | Ecuador | Superintendencia de Compañías (NIIF) | USD ($, 2 dec) | IVA 15% | ⚠️ arranque — validar con contador EC |
+| `BR.sql` | Brasil | Plano referencial SPED ECD (en portugués) | BRL (R$, 2 dec) | ICMS/ISS 17% | ⚠️ arranque — validar con contador BR |
+| `CL.sql` | Chile | Numeración conforme a NIIF (sin plan único) | CLP ($, 0 dec) | IVA 19% | ⚠️ arranque — plan lo define un contador CL |
+| `AR.sql` | Argentina | Numeración conforme a FACPCE (sin plan único) | ARS ($, 2 dec) | IVA 21% | ⚠️ arranque — plan lo define un contador AR |
+| `PA.sql` | Panamá | Numeración conforme a NIIF (sin plan único) | USD ($, 2 dec) | ITBMS 7% | ⚠️ arranque — plan lo define un contador PA |
+| `PY.sql` | Paraguay | Numeración conforme a NIIF (sin plan único) | PYG (₲, 0 dec) | IVA 10% | ⚠️ arranque — plan lo define un contador PY |
+| `UY.sql` | Uruguay | Numeración conforme a NIIF (sin plan único) | UYU ($, 2 dec) | IVA 22% | ⚠️ arranque — plan lo define un contador UY |
 | `XX.sql` | Genérico / configurable | numeración neutra | USD ($, 2 dec) | genérico | base para cualquier país nuevo |
+
+> **Honestidad sobre el plan de cuentas:** Colombia (PUC), México (SAT), Perú (PCGE) y España (PGC)
+> tienen un plan de cuentas oficial/estandarizado público — el pack lo refleja. Ecuador (Superint.
+> de Compañías) y Brasil (SPED ECD) tienen planes referenciales. Chile, Argentina, Panamá, Paraguay
+> y Uruguay **no tienen un plan de cuentas único obligatorio** (cada empresa define el suyo bajo
+> NIIF/FACPCE), así que su pack usa una **numeración típica del país como punto de partida**. En
+> todos, **el plan definitivo lo define/valida un contador local** — y como el motor usa el ROL, se
+> ajusta sin tocar código.
 
 ## Cómo aplicar un pack
 

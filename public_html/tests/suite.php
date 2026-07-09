@@ -2056,11 +2056,13 @@ if ($rolPaisOk) {
         empty($sinResolver) ? '' : 'No resuelven: ' . implode(', ', $sinResolver));
 }
 
-// Country packs presentes en el repo (Fase B/v6.7)
+// Country packs presentes en el repo (Fase B/v6.9 — 11 países + genérico)
+$__packs = ['CO','MX','PE','ES','EC','BR','CL','AR','PA','PY','UY','XX'];
 $faltan_packs = array_values(array_filter(
-    ['database/paises/CO.sql','database/paises/MX.sql','database/paises/PE.sql','database/paises/ES.sql','database/paises/XX.sql','database/paises/README.md'],
+    array_map(fn($iso) => "database/paises/$iso.sql", $__packs),
     fn($f) => !file_exists(BASE_PATH . '/../' . $f)));
-t($G, "Country packs presentes (database/paises/: CO, MX, PE, ES, XX, README)",
+if (!file_exists(BASE_PATH . '/../database/paises/README.md')) $faltan_packs[] = 'database/paises/README.md';
+t($G, "Country packs presentes (database/paises/: 11 países + XX + README)",
     empty($faltan_packs), empty($faltan_packs) ? '' : 'Faltan: ' . implode(', ', $faltan_packs),
     !empty($faltan_packs)); // WARN: los .sql pueden no subirse al servidor (se usan al instalar)
 

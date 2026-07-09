@@ -1,4 +1,4 @@
-# QuickServe OS v6.8 — Memoria de Sesión
+# QuickServe OS v6.9 — Memoria de Sesión
 # Última sesión: 2026-07-08 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -4543,3 +4543,47 @@ subsistema `app/models/facturacion/` (`FacturacionDriver` interface + `Facturaci
 venta, consciente del país, desglosa IVA si está activo; enlace en historial). Modo Legal enchufable
 (driver+PAC por país, pendiente). Suite G38 amplía. Verificado en MariaDB 12/12 + IVA discriminado.
 `APP_VERSION` → 6.8. Sin cambios de BD.*
+
+---
+
+## Estado v6.9 (2026-07-08) — Country packs de los 7 países restantes (los 11 completos)
+
+El usuario preguntó por qué faltaban los demás países de la lista. Aclaración: los 12 países SIEMPRE
+estuvieron **seleccionables** (en `PaisesHelper` con su moneda/impuesto/sistema de facturación); lo
+que faltaba era un **archivo de plan de cuentas** propio para 7 de ellos (usaban el genérico/CO por
+fallback). Se agregaron esos 7 packs → ahora **los 11 países + genérico (XX) tienen plan propio**.
+
+### `database/paises/` — 7 packs nuevos (CL, PA, EC, AR, BR, PY, UY)
+Generados de forma consistente (19 roles c/u, mismo `SPEC` tipo/naturaleza/orden que CO/MX):
+- **EC** (Superintendencia de Compañías, NIIF) y **BR** (plano referencial SPED ECD, **nombres en
+  portugués**: Caixa, Fornecedores, Receita de vendas…) = planes referenciales oficiales.
+- **CL, AR, PA, PY, UY** = numeración típica del país. **No tienen un plan de cuentas único
+  obligatorio** (cada empresa define el suyo bajo NIIF/FACPCE) → el pack es un **punto de partida**.
+- **TODOS = arranque a validar por un contador local.** El motor usa el **ROL** (no el código), así
+  que el plan definitivo se ajusta sin tocar código. Cada pack fija su localización (moneda/impuesto/
+  tarifa: CL CLP/IVA19, PA USD/ITBMS7, EC USD/IVA15, AR ARS/IVA21, BR BRL/ICMS-ISS17, PY PYG-₲/IVA10,
+  UY UYU/IVA22).
+
+### Cambios de apoyo
+- `PaisesHelper.php`: los 7 → `contabilidad='pack'` (quedan **10 pack + XX genérico**; PY símbolo ₲).
+- Copias en `install/sql/paises/` (**12 packs** incl. XX). README (tabla de packs + nota de honestidad
+  sobre cuáles tienen plan oficial vs. numeración típica) y Ayuda (tabla estado por país: los 7 →
+  "Plan propio ✓ validar") actualizados. Suite **G38** verifica los 11 packs presentes.
+
+### Verificación (MariaDB aislada, muestra)
+- **BR: 5/5** — asientos con códigos SPED en portugués (`1.01.01 Caixa`, `3.01.01 Receita de vendas`);
+  **AR: 5/5** — numeración argentina (`11101 Caja`, `41101 Ventas`). 44 asientos + Balance cuadran,
+  100% de líneas con los códigos del país. Los otros 5 packs son el mismo patrón país-agnóstico ya
+  probado en CO/MX/PE/ES/BR/AR (el cuadre lo garantiza el motor de partida doble, no los códigos).
+
+### Estado del plan multi-país
+✅ A (motor por roles) · ✅ B (**country packs de los 11 países + XX**) · ✅ C p.1 (nómina por
+estrategia, Colombia intacto) · ✅ D arquitectura (facturación + comprobante Interno) · ✅ E inicio
+(instalador elige país). **Lo que queda REQUIERE TERCEROS:** nómina extranjera (contador/abogado
+laboral local por país) y facturación **legal** (PAC certificado por país). La UI lo advierte.
+
+*Última actualización: 2026-07-08 | v6.9 — country packs de los 7 países restantes (CL/PA/EC/AR/BR/PY/UY),
+19 roles c/u; EC/BR = planes referenciales oficiales, resto numeración típica (sin plan único
+obligatorio); todos arranque a validar por contador local. Los 11 países + XX tienen plan propio.
+PaisesHelper 10 pack + XX; copias install/sql/paises (12); README + Ayuda + suite G38 al día.
+Verificado en MariaDB BR/AR 5/5 (Balance cuadra, códigos del país). `APP_VERSION` → 6.9.*
