@@ -1,4 +1,4 @@
-# QuickServe OS v6.9 — Memoria de Sesión
+# QuickServe OS v6.10 — Memoria de Sesión
 # Última sesión: 2026-07-08 | Próxima sesión: continuar desde este punto
 
 > **INSTRUCCIÓN CLAUDE:** Leer este archivo COMPLETO al inicio de CADA sesión antes de generar código.
@@ -4587,3 +4587,55 @@ laboral local por país) y facturación **legal** (PAC certificado por país). L
 obligatorio); todos arranque a validar por contador local. Los 11 países + XX tienen plan propio.
 PaisesHelper 10 pack + XX; copias install/sql/paises (12); README + Ayuda + suite G38 al día.
 Verificado en MariaDB BR/AR 5/5 (Balance cuadra, códigos del país). `APP_VERSION` → 6.9.*
+
+---
+
+## Estado v6.10 (2026-07-08) — Cierre: fix instalador auto-redirect + verificación E2E del instalador
+
+Cierre de sesión. Fix crítico pedido por el usuario (falla en el proyecto hermano coworking-erp):
+**en un servidor recién subido, sin instalar, ir automáticamente a `/install/` — y que funcione.**
+
+### 🔴 Fix — auto-redirect al instalador (app.php)
+En un servidor recién subido no existe `app/config/database.php` (gitignored, lo genera el
+instalador). Como casi todo el sistema hace `require .../database.php` (AuthHelper, modelos…),
+**sin guarda cualquier página daba error fatal / página en blanco** en vez de mostrar el instalador
+(el mismo síntoma que reportó el usuario en coworking-erp). Se añadió una guarda en
+**`app/config/app.php`** (se carga ANTES que `database.php` — es solo constantes):
+```php
+if (PHP_SAPI !== 'cli' && !file_exists(__DIR__.'/database.php')
+    && is_dir(BASE_PATH.'/install') && strpos($_SERVER['REQUEST_URI']??'', '/install') === false) {
+    header('Location: ' . APP_BASE . '/install/'); exit;
+}
+```
+No hay bucle (`/install/` no incluye app.php; además se excluye por URL) ni afecta CLI (tests/harness).
+Solo redirige si el instalador está presente (`is_dir install`).
+
+### Verificaciones del cierre
+- **Redirect E2E (`php -S`, ocultando database.php temporalmente y restaurándolo):** `/login.php`,
+  `/index.php`, `/dashboard.php` → **302 → `/install/`**; `/install/` → **200** (renderiza
+  "Requisitos del servidor"). database.php restaurado intacto.
+- **Instalador E2E en MariaDB (12/12):** usando las funciones reales de `install/lib.php` —
+  `qs_run_sql_file(schema.sql)` crea **33 tablas + 9 triggers** (runner DELIMITER-aware),
+  `qs_aplicar_pais('MX')` aplica el pack SAT (19 cuentas MX), `qs_run_sql_file(sample_data.sql)`
+  carga los datos de ejemplo, `qs_crear_admin()` deja el superadmin con **contraseña bcrypt
+  verificable** (login funcionaría), `qs_set_negocio()` fija el nombre.
+- **Sync confirmado:** `database/schema.sql`↔`install/sql/schema.sql`,
+  `database/sample_data.sql`↔copia, y los **12 packs** de `database/paises/`↔`install/sql/paises/`
+  IDÉNTICOS. `schema.sql` incluye mig 047 (rol/pais).
+- **Auditoría estática:** `php -l` en los **124** PHP → 0 errores; 0 interpolación de
+  `$_POST/$_GET` en SQL; 0 funciones peligrosas; `comprobante.php` con `auth_check` +
+  `permiso_requerir('ventas','solo_ver')` + `htmlspecialchars`.
+- Ayuda, README de paises y suite (**38 grupos**, G38 amplía facturación) al día.
+
+### Estado final de la sesión (multi-país completo hasta donde no requiere terceros)
+✅ A (motor por roles) · B (**11 países + XX con plan de cuentas**) · C p.1 (nómina por estrategia,
+Colombia intacto) · D **arquitectura** de facturación + comprobante Interno imprimible · E inicio
+(instalador elige país **y auto-redirect si no está instalado**). **Pendiente = requiere terceros:**
+nómina extranjera (contador/abogado laboral local) y facturación **legal** (PAC certificado por país).
+La UI lo advierte. Todo commiteado y sincronizado en `origin/master`.
+
+*Última actualización: 2026-07-08 | v6.10 (cierre) — FIX instalador auto-redirect: si falta
+`app/config/database.php` (servidor sin instalar), `app.php` redirige a `/install/` en vez de error
+fatal (bug reportado en coworking-erp). Verificado E2E: redirect con `php -S` (302→/install/) e
+instalador en MariaDB 12/12 (runner DELIMITER 33 tablas+9 triggers, país, sample_data, admin bcrypt).
+Sync schema/sample_data/12 packs OK; auditoría 124 PHP sin errores. `APP_VERSION` → 6.10.*
