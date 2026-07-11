@@ -30,3 +30,9 @@ desktop.ini
 # claude.md
 historicos_*.sql
 public_html/public_html.zip
+
+# ── Scripts sensibles de un solo uso (backdoors de setup) — NUNCA comitear ──
+# setup_password.php resetea la contraseña del admin SIN autenticación (uso único,
+# borrar del servidor tras usarlo). Ignorado para que no llegue a GitHub por error.
+/setup_password.php
+setup_password.php
